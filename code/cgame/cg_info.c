@@ -200,8 +200,13 @@ void CG_DrawInformation( void ) {
 		// pure server
 		s = Info_ValueForKey( sysInfo, "sv_pure" );
 		if ( s[0] == '1' ) {
-			UI_DrawProportionalString( 320, y, "Pure Server",
+			UI_DrawProportionalString(320, y, "Pure Server",
 				UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+			y += PROP_HEIGHT;
+		}
+		else {
+			UI_DrawProportionalString(320, y, "Impure Server",
+				UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
 			y += PROP_HEIGHT;
 		}
 
