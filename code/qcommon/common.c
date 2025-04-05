@@ -344,7 +344,6 @@ void QDECL Com_Error(int code, const char* fmt, ...) {
 			CL_Disconnect(qtrue);
 			CL_FlushMemory();
 			VM_Forced_Unload_Done();
-			CL_CDDialog();
 		}
 		else {
 			Com_Printf("Server didn't have CD\n");
