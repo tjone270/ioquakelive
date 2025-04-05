@@ -227,10 +227,10 @@ void AssetCache(void) {
 	uiInfo.uiDC.Assets.sliderThumb = trap_R_RegisterShaderNoMip(ASSET_SLIDER_THUMB);
 
 	for (n = 0; n < NUM_CROSSHAIRS; n++) {
-		uiInfo.uiDC.Assets.crosshairShader[n] = trap_R_RegisterShaderNoMip(va("gfx/2d/crosshair%c", 'a' + n));
+		uiInfo.uiDC.Assets.crosshairShader[n] = trap_R_RegisterShaderNoMip(va("gfx/2d/crosshair%i", n));
 	}
 
-	uiInfo.newHighScoreSound = trap_S_RegisterSound("sound/feedback/voc_newhighscore.wav", qfalse);
+	uiInfo.newHighScoreSound = trap_S_RegisterSound("sound/vo/new_high_score.ogg", qfalse);
 }
 
 void _UI_DrawSides(float x, float y, float w, float h, float size) {
@@ -3187,40 +3187,6 @@ static void UI_RunMenuScript(char** args) {
 #endif
 			trap_Cmd_ExecuteText(EXEC_APPEND, "vid_restart\n");
 		}
-		else if (Q_stricmp(name, "getCDKey") == 0) {
-			char out[17];
-			trap_GetCDKey(buff, 17);
-			trap_Cvar_Set("cdkey1", "");
-			trap_Cvar_Set("cdkey2", "");
-			trap_Cvar_Set("cdkey3", "");
-			trap_Cvar_Set("cdkey4", "");
-			if (strlen(buff) == CDKEY_LEN) {
-				Q_strncpyz(out, buff, 5);
-				trap_Cvar_Set("cdkey1", out);
-				Q_strncpyz(out, buff + 4, 5);
-				trap_Cvar_Set("cdkey2", out);
-				Q_strncpyz(out, buff + 8, 5);
-				trap_Cvar_Set("cdkey3", out);
-				Q_strncpyz(out, buff + 12, 5);
-				trap_Cvar_Set("cdkey4", out);
-			}
-
-		}
-		else if (Q_stricmp(name, "verifyCDKey") == 0) {
-			buff[0] = '\0';
-			Q_strcat(buff, 1024, UI_Cvar_VariableString("cdkey1"));
-			Q_strcat(buff, 1024, UI_Cvar_VariableString("cdkey2"));
-			Q_strcat(buff, 1024, UI_Cvar_VariableString("cdkey3"));
-			Q_strcat(buff, 1024, UI_Cvar_VariableString("cdkey4"));
-			trap_Cvar_Set("cdkey", buff);
-			if (trap_VerifyCDKey(buff, UI_Cvar_VariableString("cdkeychecksum"))) {
-				trap_Cvar_Set("ui_cdkeyvalid", "CD Key Appears to be valid.");
-				trap_SetCDKey(buff);
-			}
-			else {
-				trap_Cvar_Set("ui_cdkeyvalid", "CD Key does not appear to be valid.");
-			}
-		}
 		else if (Q_stricmp(name, "loadArenas") == 0) {
 			UI_LoadArenasIntoMapList();
 			UI_MapCountByGameType(qfalse);
@@ -5146,11 +5112,11 @@ void _UI_Init(qboolean inGameLoad) {
 	trap_Cvar_Set("ui_videomode", va("%dx%d", uiInfo.uiDC.glconfig.vidWidth, uiInfo.uiDC.glconfig.vidHeight));
 
 	// for 640x480 virtualized screen
-	uiInfo.uiDC.yscale = uiInfo.uiDC.glconfig.vidHeight * (1.0 / 480.0);
-	uiInfo.uiDC.xscale = uiInfo.uiDC.glconfig.vidWidth * (1.0 / 640.0);
-	if (uiInfo.uiDC.glconfig.vidWidth * 480 > uiInfo.uiDC.glconfig.vidHeight * 640) {
+	uiInfo.uiDC.yscale = uiInfo.uiDC.glconfig.vidHeight * (1.0 / (float)SCREEN_HEIGHT);
+	uiInfo.uiDC.xscale = uiInfo.uiDC.glconfig.vidWidth * (1.0 / (float)SCREEN_WIDTH);
+	if (uiInfo.uiDC.glconfig.vidWidth * SCREEN_HEIGHT > uiInfo.uiDC.glconfig.vidHeight * SCREEN_WIDTH) {
 		// wide screen
-		uiInfo.uiDC.bias = 0.5 * (uiInfo.uiDC.glconfig.vidWidth - (uiInfo.uiDC.glconfig.vidHeight * (640.0 / 480.0)));
+		uiInfo.uiDC.bias = 0.5 * (uiInfo.uiDC.glconfig.vidWidth - (uiInfo.uiDC.glconfig.vidHeight * ((float)SCREEN_WIDTH / (float)SCREEN_HEIGHT)));
 		uiInfo.uiDC.xscale = uiInfo.uiDC.yscale;
 	}
 	else {
@@ -5223,15 +5189,10 @@ void _UI_Init(qboolean inGameLoad) {
 	uiInfo.characterCount = 0;
 	uiInfo.aliasCount = 0;
 
-#ifdef PRE_RELEASE_TADEMO
-	UI_ParseTeamInfo("demoteaminfo.txt");
-	UI_ParseGameInfo("demogameinfo.txt");
-#else
 	UI_ParseTeamInfo("teaminfo.txt");
 	UI_LoadTeams();
 	UI_ParseGameInfo("gameinfo.txt");
 	UI_LoadArenas();
-#endif
 
 	menuSet = UI_Cvar_VariableString("ui_menuFiles");
 	if (menuSet == NULL || menuSet[0] == '\0') {

@@ -599,10 +599,7 @@ const void *RB_TakeScreenshotCmd( const void *data ) {
 	if(tess.numIndexes)
 		RB_EndSurface();
 
-	if (cmd->jpeg)
-		RB_TakeScreenshotJPEG( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
-	else
-		RB_TakeScreenshot( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
+	RB_TakeScreenshot(cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
 	
 	return (const void *)(cmd + 1);	
 }
@@ -637,31 +634,6 @@ R_ScreenshotFilename
 ================== 
 */  
 void R_ScreenshotFilename( int lastNumber, char *fileName ) {
-	int		a,b,c,d;
-
-	if ( lastNumber < 0 || lastNumber > 9999 ) {
-		Com_sprintf( fileName, MAX_OSPATH, "screenshots/shot9999.tga" );
-		return;
-	}
-
-	a = lastNumber / 1000;
-	lastNumber -= a*1000;
-	b = lastNumber / 100;
-	lastNumber -= b*100;
-	c = lastNumber / 10;
-	lastNumber -= c*10;
-	d = lastNumber;
-
-	Com_sprintf( fileName, MAX_OSPATH, "screenshots/shot%i%i%i%i.tga"
-		, a, b, c, d );
-}
-
-/* 
-================== 
-R_ScreenshotFilename
-================== 
-*/  
-void R_ScreenshotFilenameJPEG( int lastNumber, char *fileName ) {
 	int		a,b,c,d;
 
 	if ( lastNumber < 0 || lastNumber > 9999 ) {
@@ -701,7 +673,7 @@ void R_LevelShot( void ) {
 	float		xScale, yScale;
 	int			xx, yy;
 
-	Com_sprintf(checkname, sizeof(checkname), "levelshots/%s.tga", tr.world->baseName);
+	Com_sprintf(checkname, sizeof(checkname), "levelshots/preview/%s.jpg", tr.world->baseName);
 
 	allsource = RB_ReadPixels(0, 0, glConfig.vidWidth, glConfig.vidHeight, &offset, &padlen);
 	source = allsource + offset;
@@ -760,60 +732,11 @@ screenshot [filename]
 Doesn't print the pacifier message if there is a second arg
 ================== 
 */  
-void R_ScreenShot_f (void) {
-	char	checkname[MAX_OSPATH];
-	static	int	lastNumber = -1;
-	qboolean	silent;
-
-	if ( !strcmp( ri.Cmd_Argv(1), "levelshot" ) ) {
-		R_LevelShot();
-		return;
-	}
-
-	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) ) {
-		silent = qtrue;
-	} else {
-		silent = qfalse;
-	}
-
-	if ( ri.Cmd_Argc() == 2 && !silent ) {
-		// explicit filename
-		Com_sprintf( checkname, MAX_OSPATH, "screenshots/%s.tga", ri.Cmd_Argv( 1 ) );
-	} else {
-		// scan for a free filename
-
-		// if we have saved a previous screenshot, don't scan
-		// again, because recording demo avis can involve
-		// thousands of shots
-		if ( lastNumber == -1 ) {
-			lastNumber = 0;
-		}
-		// scan for a free number
-		for ( ; lastNumber <= 9999 ; lastNumber++ ) {
-			R_ScreenshotFilename( lastNumber, checkname );
-
-      if (!ri.FS_FileExists( checkname ))
-      {
-        break; // file doesn't exist
-      }
-		}
-
-		if ( lastNumber >= 9999 ) {
-			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n"); 
-			return;
- 		}
-
-		lastNumber++;
-	}
-
-	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname, qfalse );
-
-	if ( !silent ) {
-		ri.Printf (PRINT_ALL, "Wrote %s\n", checkname);
-	}
+void R_ScreenShotJPEG_f (void) {
+	R_ScreenShot_f(); // no more TGAs.
 } 
 
-void R_ScreenShotJPEG_f (void) {
+void R_ScreenShot_f (void) {
 	char		checkname[MAX_OSPATH];
 	static	int	lastNumber = -1;
 	qboolean	silent;
@@ -843,7 +766,7 @@ void R_ScreenShotJPEG_f (void) {
 		}
 		// scan for a free number
 		for ( ; lastNumber <= 9999 ; lastNumber++ ) {
-			R_ScreenshotFilenameJPEG( lastNumber, checkname );
+			R_ScreenshotFilename( lastNumber, checkname );
 
       if (!ri.FS_FileExists( checkname ))
       {
@@ -852,7 +775,7 @@ void R_ScreenShotJPEG_f (void) {
 		}
 
 		if ( lastNumber == 10000 ) {
-			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n"); 
+			ri.Printf (PRINT_ALL, "Screenshot: Couldn't create a file\n"); 
 			return;
  		}
 
@@ -1699,6 +1622,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.DrawStretchPic = RE_StretchPic;
 	re.DrawStretchRaw = RE_StretchRaw;
 	re.UploadCinematic = RE_UploadCinematic;
+	re.Get_Advertisements = RE_Get_Advertisements;
 
 	re.RegisterFont = RE_RegisterFont;
 	re.RemapShader = R_RemapShader;

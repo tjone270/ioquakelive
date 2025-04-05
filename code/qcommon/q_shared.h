@@ -513,25 +513,12 @@ signed short ClampShort(int i);
 int DirToByte(vec3_t dir);
 void ByteToDir(int b, vec3_t dir);
 
-#if	1
-
 #define DotProduct(x,y)			((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
 #define VectorSubtract(a,b,c)	((c)[0]=(a)[0]-(b)[0],(c)[1]=(a)[1]-(b)[1],(c)[2]=(a)[2]-(b)[2])
 #define VectorAdd(a,b,c)		((c)[0]=(a)[0]+(b)[0],(c)[1]=(a)[1]+(b)[1],(c)[2]=(a)[2]+(b)[2])
 #define VectorCopy(a,b)			((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2])
 #define	VectorScale(v, s, o)	((o)[0]=(v)[0]*(s),(o)[1]=(v)[1]*(s),(o)[2]=(v)[2]*(s))
 #define	VectorMA(v, s, b, o)	((o)[0]=(v)[0]+(b)[0]*(s),(o)[1]=(v)[1]+(b)[1]*(s),(o)[2]=(v)[2]+(b)[2]*(s))
-
-#else
-
-#define DotProduct(x,y)			_DotProduct(x,y)
-#define VectorSubtract(a,b,c)	_VectorSubtract(a,b,c)
-#define VectorAdd(a,b,c)		_VectorAdd(a,b,c)
-#define VectorCopy(a,b)			_VectorCopy(a,b)
-#define	VectorScale(v, s, o)	_VectorScale(v,s,o)
-#define	VectorMA(v, s, b, o)	_VectorMA(v,s,b,o)
-
-#endif
 
 #ifdef Q3_VM
 #ifdef VectorCopy
@@ -935,22 +922,6 @@ typedef struct {
 	char		string[MAX_CVAR_VALUE_STRING];
 } vmCvar_t;
 
-
-/*
-==============================================================
-
-VoIP
-
-==============================================================
-*/
-
-// if you change the count of flags be sure to also change VOIP_FLAGNUM
-#define VOIP_SPATIAL		0x01		// spatialized voip message
-#define VOIP_DIRECT		0x02		// non-spatialized voip message
-
-// number of flags voip knows. You will have to bump protocol version number if you
-// change this.
-#define VOIP_FLAGCNT		2
 
 /*
 ==============================================================
@@ -1421,9 +1392,7 @@ typedef enum _flag_status {
 #define SAY_TEAM	1
 #define SAY_TELL	2
 
-#define CDKEY_LEN 16
-#define CDCHKSUM_LEN 2
-
+#define MAX_MAP_ADVERTISEMENTS  30
 
 #define LERP( a, b, w ) ( ( a ) * ( 1.0f - ( w ) ) + ( b ) * ( w ) )
 #define LUMA( red, green, blue ) ( 0.2126f * ( red ) + 0.7152f * ( green ) + 0.0722f * ( blue ) )

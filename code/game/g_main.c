@@ -316,17 +316,16 @@ void G_FindTeams( void ) {
 }
 
 void G_RemapTeamShaders( void ) {
-#ifdef MISSIONPACK
+	return;  // FIXME errors about Pagans/Stroggs files not present in new PAK00
 	char string[1024];
 	float f = level.time * 0.001;
 	Com_sprintf( string, sizeof(string), "team_icon/%s_red", g_redteam.string );
 	AddRemap("textures/ctf2/redteam01", string, f); 
-	AddRemap("textures/ctf2/redteam02", string, f); 
+	AddRemap("textures/ctf2/redteam03", string, f); 
 	Com_sprintf( string, sizeof(string), "team_icon/%s_blue", g_blueteam.string );
 	AddRemap("textures/ctf2/blueteam01", string, f); 
-	AddRemap("textures/ctf2/blueteam02", string, f); 
+	AddRemap("textures/ctf2/blueteam03", string, f); 
 	trap_SetConfigstring(CS_SHADERSTATE, BuildShaderStateConfig());
-#endif
 }
 
 

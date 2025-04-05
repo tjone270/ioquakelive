@@ -2488,6 +2488,8 @@ size_t RE_SaveJPGToBuffer(byte* buffer, size_t bufSize, int quality,
 void RE_TakeVideoFrame(int width, int height,
 					   byte* captureBuffer, byte* encodeBuffer, qboolean motionJpeg);
 
+void RE_Get_Advertisements(int* num, float* verts, char shaders[][MAX_QPATH]);
+
 void R_ConvertTextureFormat(const byte* in, int width, int height, GLenum format, GLenum type, byte* out);
 
 

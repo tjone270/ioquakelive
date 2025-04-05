@@ -468,10 +468,10 @@ static int GLimp_SetMode(int mode, qboolean fullscreen, qboolean noborder, qbool
 		}
 		else
 		{
-			glConfig.vidWidth = 640;
-			glConfig.vidHeight = 480;
+			glConfig.vidWidth = SCREEN_WIDTH;
+			glConfig.vidHeight = SCREEN_HEIGHT;
 			ri.Printf( PRINT_ALL,
-					"Cannot determine display resolution, assuming 640x480\n" );
+					"Cannot determine display resolution, assuming %ix%i\n", SCREEN_WIDTH, SCREEN_HEIGHT );
 		}
 
 		glConfig.windowAspect = (float)glConfig.vidWidth / (float)glConfig.vidHeight;
@@ -1053,7 +1053,7 @@ static void GLimp_InitExtensions( qboolean fixedFunction )
 	}
 }
 
-#define R_MODE_FALLBACK 3 // 640 * 480
+#define R_MODE_FALLBACK 1 // 640 * 480
 
 /*
 ===============
