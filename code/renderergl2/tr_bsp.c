@@ -2848,7 +2848,7 @@ void RE_LoadWorldMap(const char* name) {
 	fileBase = (byte*)header;
 
 	bsp_version = LittleLong(header->version);
-	if ((bsp_version != BSP_VERSION) && (bsp_version != (BSP_VERSION - 1))) { // 47 or 46
+	if (bsp_version != BSP_VERSION) {
 		ri.Error(ERR_DROP, "RE_LoadWorldMap: %s has wrong version number (%i should be %i)",
 			name, bsp_version, BSP_VERSION);
 	}
@@ -2856,7 +2856,6 @@ void RE_LoadWorldMap(const char* name) {
 	// swap all the lumps
 	for (i = 0; i < sizeof(dheader_t) / 4; i++) {
 		((int*)header)[i] = LittleLong(((int*)header)[i]);
-	}
 	}
 
 	// load into heap
@@ -2871,6 +2870,7 @@ void RE_LoadWorldMap(const char* name) {
 	R_LoadSubmodels(&header->lumps[LUMP_MODELS]);
 	R_LoadVisibility(&header->lumps[LUMP_VISIBILITY]);
 	R_LoadLightGrid(&header->lumps[LUMP_LIGHTGRID]);
+	R_LoadAdvertisements(&header->lumps[LUMP_ADVERTISEMENTS]);
 
 	// determine vertex light directions
 	R_CalcVertexLightDirs();
