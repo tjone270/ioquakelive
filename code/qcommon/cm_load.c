@@ -587,7 +587,8 @@ void CM_LoadMap( const char *name, qboolean clientload, int *checksum ) {
 	cm_noCurves = Cvar_Get ("cm_noCurves", "0", CVAR_CHEAT);
 	cm_playerCurveClip = Cvar_Get ("cm_playerCurveClip", "1", CVAR_ARCHIVE|CVAR_CHEAT );
 #endif
-	Com_DPrintf( "CM_LoadMap( %s, %i )\n", name, clientload );
+
+	Com_DPrintf( "CM_LoadMap(name='%s', clientload='%i', checksum='%i')\n", name, clientload, checksum);
 
 	if ( !strcmp( cm.name, name ) && clientload ) {
 		*checksum = last_checksum;
