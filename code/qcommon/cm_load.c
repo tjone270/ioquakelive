@@ -87,28 +87,30 @@ void	CM_FloodAreaConnections (void);
 CMod_LoadShaders
 =================
 */
-void CMod_LoadShaders( lump_t *l ) {
-	dshader_t	*in, *out;
+void CMod_LoadShaders(const lump_t* l) {
+	dshader_t* in, * out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void*)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in)) {
-		Com_Error (ERR_DROP, "CMod_LoadShaders: funny lump size");
+		Com_Error(ERR_DROP, "CMod_LoadShaders: funny lump size");
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1) {
-		Com_Error (ERR_DROP, "Map with no shaders");
+		Com_Error(ERR_DROP, "Map with no shaders");
 	}
-	cm.shaders = Hunk_Alloc( count * sizeof( *cm.shaders ), h_high );
+	cm.shaders = Hunk_Alloc(count * sizeof(*cm.shaders), h_high);
 	cm.numShaders = count;
 
-	Com_Memcpy( cm.shaders, in, count * sizeof( *cm.shaders ) );
+	Com_Memcpy(cm.shaders, in, count * sizeof(*cm.shaders));
 
 	out = cm.shaders;
-	for ( i=0 ; i<count ; i++, in++, out++ ) {
-		out->contentFlags = LittleLong( out->contentFlags );
-		out->surfaceFlags = LittleLong( out->surfaceFlags );
+	for (i = 0; i < count; i++, in++, out++) {
+		out->contentFlags = LittleLong(out->contentFlags);
+		out->surfaceFlags = LittleLong(out->surfaceFlags);
+
+		//Com_Printf("cm: %03d '%s' content:0x%x  surface:0x%x\n", i, out->shader, out->contentFlags, out->surfaceFlags);
 	}
 }
 
