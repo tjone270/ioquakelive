@@ -34,10 +34,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cl_curl.h"
 #endif /* USE_CURL */
 
-#ifdef USE_VOIP
-#include <opus.h>
-#endif
-
 // file full of random crap that gets used to create cl_guid
 #define QKEY_FILE "qkey"
 #define QKEY_SIZE 2048
@@ -235,33 +231,6 @@ typedef struct {
 	float		aviVideoFrameRemainder;
 	float		aviSoundFrameRemainder;
 
-#ifdef USE_VOIP
-	qboolean voipEnabled;
-	qboolean voipCodecInitialized;
-
-	// incoming data...
-	// !!! FIXME: convert from parallel arrays to array of a struct.
-	OpusDecoder *opusDecoder[MAX_CLIENTS];
-	byte voipIncomingGeneration[MAX_CLIENTS];
-	int voipIncomingSequence[MAX_CLIENTS];
-	float voipGain[MAX_CLIENTS];
-	qboolean voipIgnore[MAX_CLIENTS];
-	qboolean voipMuteAll;
-
-	// outgoing data...
-	// if voipTargets[i / 8] & (1 << (i % 8)),
-	// then we are sending to clientnum i.
-	uint8_t voipTargets[(MAX_CLIENTS + 7) / 8];
-	uint8_t voipFlags;
-	OpusEncoder *opusEncoder;
-	int voipOutgoingDataSize;
-	int voipOutgoingDataFrames;
-	int voipOutgoingSequence;
-	byte voipOutgoingGeneration;
-	byte voipOutgoingData[1024];
-	float voipPower;
-#endif
-
 #ifdef LEGACY_PROTOCOL
 	qboolean compat;
 #endif
@@ -426,32 +395,6 @@ extern	cvar_t	*cl_autoRecordDemo;
 
 extern	cvar_t	*cl_consoleKeys;
 
-#ifdef USE_MUMBLE
-extern	cvar_t	*cl_useMumble;
-extern	cvar_t	*cl_mumbleScale;
-#endif
-
-#ifdef USE_VOIP
-// cl_voipSendTarget is a string: "all" to broadcast to everyone, "none" to
-//  send to no one, or a comma-separated list of client numbers:
-//  "0,7,2,23" ... an empty string is treated like "all".
-extern	cvar_t	*cl_voipUseVAD;
-extern	cvar_t	*cl_voipVADThreshold;
-extern	cvar_t	*cl_voipSend;
-extern	cvar_t	*cl_voipSendTarget;
-extern	cvar_t	*cl_voipGainDuringCapture;
-extern	cvar_t	*cl_voipCaptureMult;
-extern	cvar_t	*cl_voipShowMeter;
-extern	cvar_t	*cl_voip;
-
-// 20ms at 48k
-#define VOIP_MAX_FRAME_SAMPLES		( 20 * 48 )
-
-// 3 frame is 60ms of audio, the max opus will encode at once
-#define VOIP_MAX_PACKET_FRAMES		3
-#define VOIP_MAX_PACKET_SAMPLES		( VOIP_MAX_FRAME_SAMPLES * VOIP_MAX_PACKET_FRAMES )
-#endif
-
 //=================================================
 
 //
@@ -482,7 +425,6 @@ int CL_GetPingQueueCount( void );
 
 void CL_ShutdownRef( void );
 void CL_InitRef( void );
-qboolean CL_CDKeyValidate( const char *key, const char *checksum );
 int CL_ServerStatus( char *serverAddress, char *serverStatusString, int maxLen );
 
 qboolean CL_CheckPaused(void);
@@ -518,10 +460,6 @@ char *Key_KeynumToString (int keynum);
 //
 extern int cl_connectedToPureServer;
 extern int cl_connectedToCheatServer;
-
-#ifdef USE_VOIP
-void CL_Voip_f( void );
-#endif
 
 void CL_SystemInfoChanged( void );
 void CL_ParseServerMessage( msg_t *msg );

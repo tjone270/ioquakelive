@@ -146,13 +146,6 @@ typedef struct
 	void (*ClearSoundBuffer)( void );
 	void (*SoundInfo)( void );
 	void (*SoundList)( void );
-#ifdef USE_VOIP
-	void (*StartCapture)( void );
-	int (*AvailableCaptureSamples)( void );
-	void (*Capture)( int samples, byte *data );
-	void (*StopCapture)( void );
-	void (*MasterGain)( float gain );
-#endif
 } soundInterface_t;
 
 
@@ -176,14 +169,6 @@ void	SNDDMA_Shutdown(void);
 void	SNDDMA_BeginPainting (void);
 
 void	SNDDMA_Submit(void);
-
-#ifdef USE_VOIP
-void SNDDMA_StartCapture(void);
-int SNDDMA_AvailableCaptureSamples(void);
-void SNDDMA_Capture(int samples, byte *data);
-void SNDDMA_StopCapture(void);
-void SNDDMA_MasterGain(float val);
-#endif
 
 
 //====================================================================
@@ -265,7 +250,3 @@ typedef enum
 typedef int srcHandle_t;
 
 qboolean S_AL_Init( soundInterface_t *si );
-
-#ifdef idppc_altivec
-void S_PaintChannelFrom16_altivec( portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE], int snd_vol, channel_t *ch, const sfx_t *sc, int count, int sampleOffset, int bufferOffset );
-#endif

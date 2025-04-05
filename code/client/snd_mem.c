@@ -225,7 +225,7 @@ qboolean S_LoadSound( sfx_t *sfx )
 		return qfalse;
 
 	if ( info.width == 1 ) {
-		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is a 8 bit audio file\n", sfx->soundName);
+		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is an 8-bit audio file\n", sfx->soundName);
 	}
 
 	if ( info.rate != 22050 ) {
@@ -247,18 +247,6 @@ qboolean S_LoadSound( sfx_t *sfx )
 		sfx->soundData = NULL;
 		sfx->soundLength = ResampleSfxRaw( samples, info.channels, info.rate, info.width, info.samples, data + info.dataofs );
 		S_AdpcmEncodeSound(sfx, samples);
-#if 0
-	} else if (info.channels == 1 && info.samples>(SND_CHUNK_SIZE*16) && info.width >1) {
-		sfx->soundCompressionMethod = 3;
-		sfx->soundData = NULL;
-		sfx->soundLength = ResampleSfxRaw( samples, info.channels, info.rate, info.width, info.samples, (data + info.dataofs) );
-		encodeMuLaw( sfx, samples);
-	} else if (info.channels == 1 && info.samples>(SND_CHUNK_SIZE*6400) && info.width >1) {
-		sfx->soundCompressionMethod = 2;
-		sfx->soundData = NULL;
-		sfx->soundLength = ResampleSfxRaw( samples, info.channels, info.rate, info.width, info.samples, (data + info.dataofs) );
-		encodeWavelet( sfx, samples);
-#endif
 	} else {
 		sfx->soundCompressionMethod = 0;
 		sfx->soundData = NULL;

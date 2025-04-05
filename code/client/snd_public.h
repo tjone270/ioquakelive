@@ -58,7 +58,9 @@ void S_DisableSounds( void );
 
 void S_BeginRegistration( void );
 
-// RegisterSound will allways return a valid sample, even if it
+// 
+// 
+// will allways return a valid sample, even if it
 // has to create a placeholder.  This prevents continuous filesystem
 // checks for missing files
 sfxHandle_t	S_RegisterSound( const char *sample, qboolean compressed );
@@ -70,13 +72,3 @@ void S_ClearSoundBuffer( void );
 void SNDDMA_Activate( void );
 
 void S_UpdateBackgroundTrack( void );
-
-
-#ifdef USE_VOIP
-void S_StartCapture( void );
-int S_AvailableCaptureSamples( void );
-void S_Capture( int samples, byte *data );
-void S_StopCapture( void );
-void S_MasterGain( float gain );
-#endif
-

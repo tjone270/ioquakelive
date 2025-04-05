@@ -42,6 +42,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // the maximum size of game relative pathnames
 #define	MAX_QPATH		64
 
+#define MAX_CAMERAPOINTS 512
+#define MAX_SPLINEPOINTS (MAX_CAMERAPOINTS*40)
+
+#define MAX_MAP_ADVERTISEMENTS  30
+
 /*
 ========================================================================
 
@@ -313,7 +318,7 @@ typedef struct {
 #define BSP_IDENT	(('P'<<24)+('S'<<16)+('B'<<8)+'I')
 		// little-endian "IBSP"
 
-#define BSP_VERSION			46
+#define BSP_VERSION			47 // Quake Live BSP version
 
 
 // there shouldn't be any problem with increasing these values at the
@@ -381,7 +386,8 @@ typedef struct {
 #define	LUMP_LIGHTMAPS		14
 #define	LUMP_LIGHTGRID		15
 #define	LUMP_VISIBILITY		16
-#define	HEADER_LUMPS		17
+#define LUMP_ADVERTISEMENTS 17
+#define	HEADER_LUMPS		18
 
 typedef struct {
 	int			ident;
@@ -487,5 +493,11 @@ typedef struct {
 	int			patchHeight;
 } dsurface_t;
 
+typedef struct {
+	int			cellId;
+	vec3_t		normal;
+	vec3_t		rect[4];
+	char		model[MAX_QPATH];
+} dadvertisement_t;
 
 #endif
