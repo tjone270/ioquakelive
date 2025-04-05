@@ -57,38 +57,83 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 // CS_SERVERINFO and CS_SYSTEMINFO are defined in q_shared.h
-#define	CS_MUSIC				2
-#define	CS_MESSAGE				3		// from the map worldspawn's message field
-#define	CS_MOTD					4		// g_motd string for server message of the day
-#define	CS_WARMUP				5		// server time when the match will be restarted
-#define	CS_SCORES1				6
-#define	CS_SCORES2				7
-#define CS_VOTE_TIME			8
-#define CS_VOTE_STRING			9
-#define	CS_VOTE_YES				10
-#define	CS_VOTE_NO				11
-
-#define CS_TEAMVOTE_TIME		12
-#define CS_TEAMVOTE_STRING		14
-#define	CS_TEAMVOTE_YES			16
-#define	CS_TEAMVOTE_NO			18
-
-#define	CS_GAME_VERSION			20
-#define	CS_LEVEL_START_TIME		21		// so the timer only shows the current level
-#define	CS_INTERMISSION			22		// when 1, fraglimit/timelimit has been hit and intermission will start in a second or two
-#define CS_FLAGSTATUS			23		// string indicating flag status in CTF
-#define CS_SHADERSTATE			24
-#define CS_BOTINFO				25
-
-#define	CS_ITEMS				27		// string of 0's and 1's that tell which items are present
-
-#define	CS_MODELS				32
-#define	CS_SOUNDS				(CS_MODELS+MAX_MODELS)
-#define	CS_PLAYERS				(CS_SOUNDS+MAX_SOUNDS)
-#define CS_LOCATIONS			(CS_PLAYERS+MAX_CLIENTS)
-#define CS_PARTICLES			(CS_LOCATIONS+MAX_LOCATIONS) 
-
-#define CS_MAX					(CS_PARTICLES+MAX_LOCATIONS)
+#define CS_MUSIC 2
+#define CS_MESSAGE 3 // from the map worldspawn's message field
+#define CS_MOTD 4    // g_motd string for server message of the day (not used in QL)
+#define CS_WARMUP 5  // server time when the match will be restarted
+#define CS_SCORES1 6 // 1st place score
+#define CS_SCORES2 7 // 2nd place score
+#define CS_VOTE_TIME 8
+#define CS_VOTE_STRING 9
+#define CS_VOTE_YES 10
+#define CS_VOTE_NO 11
+#define CS_GAME_VERSION 12
+#define CS_LEVEL_START_TIME 13 // so the timer only shows the current level
+#define CS_INTERMISSION 14     // when 1, fraglimit/timelimit has been hit and intermission will start in a second or two
+#define CS_ITEMS 15            // string of 0's and 1's that tell the client which items are present/to load.
+#define CS_BOTINFO 16          // internal debugging stuff (infostring to render bot_hud values on client screen)
+#define CS_MODELS 17
+#define CS_SOUNDS (CS_MODELS + MAX_MODELS)             // 273
+#define CS_PLAYERS (CS_SOUNDS + MAX_SOUNDS)            // 529
+#define CS_LOCATIONS (CS_PLAYERS + MAX_CLIENTS)        // 593
+#define CS_LAST_GENERIC (CS_LOCATIONS + MAX_LOCATIONS) // 657
+#define CS_FLAGSTATUS 658
+#define CS_SCORES1PLAYER 659 // 1st place player's name
+#define CS_SCORES2PLAYER 660 // 2nd place player's name
+#define CS_ROUND_WARMUP 661
+#define CS_ROUND_START_TIME 662
+#define CS_TEAMCOUNT_RED 663
+#define CS_TEAMCOUNT_BLUE 664
+#define CS_SHADERSTATE 665
+#define CS_NEXTMAP 666
+#define CS_PRACTICE 667
+#define CS_FREECAM 668
+#define CS_PAUSE_START_TIME 669 // if this is non-zero, the game is paused
+#define CS_PAUSE_END_TIME 670   // 0 = pause, !0 = timeout
+#define CS_TIMEOUTS_RED 671     // TOs REMAINING
+#define CS_TIMEOUTS_BLUE 672
+#define CS_MODEL_OVERRIDE 673
+#define CS_PLAYER_CYLINDERS 674
+#define CS_DEBUGFLAGS 675
+#define CS_ENABLEBREATH 676
+#define CS_DMGTHROUGHDEPTH 677
+#define CS_AUTHOR 678 // from the map worldspawn's author field
+#define CS_AUTHOR2 679
+#define CS_ADVERT_DELAY 680
+#define CS_PMOVEINFO 681
+#define CS_ARMORINFO 682
+#define CS_WEAPONINFO 683
+#define CS_PLAYERINFO 684
+#define CS_SCORE1STPLAYER 685     // Score of the duel player on the left
+#define CS_SCORE2NDPLAYER 686     // Score of the duel player on the right
+#define CS_CLIENTNUM1STPLAYER 687 // ClientNum of the duel player on the left
+#define CS_CLIENTNUM2NDPLAYER 688 // ClientNum of the duel player on the right
+#define CS_ATMOSEFFECT 689        // unused, was per-map rain/snow effects
+#define CS_MOST_DAMAGEDEALT_PLYR 690
+#define CS_MOST_ACCURATE_PLYR 691
+#define CS_REDTEAMBASE 692
+#define CS_BLUETEAMBASE 693
+#define CS_BEST_ITEMCONTROL_PLYR 694
+#define CS_MOST_VALUABLE_OFFENSIVE_PLYR 695
+#define CS_MOST_VALUABLE_DEFENSIVE_PLYR 696
+#define CS_MOST_VALUABLE_PLYR 697
+#define CS_GENERIC_COUNT_RED 698
+#define CS_GENERIC_COUNT_BLUE 699
+#define CS_AD_SCORES 700
+#define CS_ROUND_WINNER 701
+#define CS_CUSTOM_SETTINGS 702
+#define CS_ROTATIONMAPS 703
+#define CS_ROTATIONVOTES 704
+#define CS_DISABLE_VOTE_UI 705
+#define CS_ALLREADY_TIME 706
+#define CS_INFECTED_SURVIVOR_MINSPEED 707
+#define CS_RACE_POINTS 708
+#define CS_DISABLE_LOADOUT 709
+#define CS_MATCH_GUID 710
+#define CS_STARTING_WEAPONS 711
+#define CS_STEAM_ID 712
+#define CS_STEAM_WORKSHOP_IDS 713
+#define CS_MAX 714
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
@@ -133,7 +178,7 @@ typedef enum {
 } pmtype_t;
 
 typedef enum {
-	WEAPON_READY, 
+	WEAPON_READY,
 	WEAPON_RAISING,
 	WEAPON_DROPPING,
 	WEAPON_FIRING
@@ -159,7 +204,7 @@ typedef enum {
 #define	MAXTOUCH	32
 typedef struct {
 	// state (in / out)
-	playerState_t	*ps;
+	playerState_t* ps;
 
 	// command (in)
 	usercmd_t	cmd;
@@ -187,13 +232,13 @@ typedef struct {
 
 	// callbacks to test the world
 	// these will be different functions during game and cgame
-	void		(*trace)( trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask );
-	int			(*pointcontents)( const vec3_t point, int passEntityNum );
+	void		(*trace)(trace_t* results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask);
+	int			(*pointcontents)(const vec3_t point, int passEntityNum);
 } pmove_t;
 
 // if a full pmove isn't done on the client, you can just update the angles
-void PM_UpdateViewAngles( playerState_t *ps, const usercmd_t *cmd );
-void Pmove (pmove_t *pmove);
+void PM_UpdateViewAngles(playerState_t* ps, const usercmd_t* cmd);
+void Pmove(pmove_t* pmove);
 
 //===================================================================================
 
@@ -207,7 +252,7 @@ typedef enum {
 	STAT_PERSISTANT_POWERUP,
 #endif
 	STAT_WEAPONS,					// 16 bit fields
-	STAT_ARMOR,				
+	STAT_ARMOR,
 	STAT_DEAD_YAW,					// look this direction when dead (FIXME: get rid of?)
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
 	STAT_MAX_HEALTH					// health / armor limit, changeable by handicap
@@ -428,7 +473,6 @@ typedef enum {
 	EV_GIB_PLAYER,			// gib a previously living player
 	EV_SCOREPLUM,			// score plum
 
-//#ifdef MISSIONPACK
 	EV_PROXIMITY_MINE_STICK,
 	EV_PROXIMITY_MINE_TRIGGER,
 	EV_KAMIKAZE,			// kamikaze explodes
@@ -437,7 +481,6 @@ typedef enum {
 	EV_INVUL_IMPACT,		// invulnerability sphere impact
 	EV_JUICED,				// invulnerability juiced effect
 	EV_LIGHTNINGBOLT,		// lightning bolt bounced of invulnerability sphere
-//#endif
 
 	EV_DEBUG_LINE,
 	EV_STOPLOOPINGSOUND,
@@ -559,7 +602,7 @@ typedef enum {
 //team task
 typedef enum {
 	TEAMTASK_NONE,
-	TEAMTASK_OFFENSE, 
+	TEAMTASK_OFFENSE,
 	TEAMTASK_DEFENSE,
 	TEAMTASK_PATROL,
 	TEAMTASK_FOLLOW,
@@ -593,13 +636,11 @@ typedef enum {
 	MOD_SUICIDE,
 	MOD_TARGET_LASER,
 	MOD_TRIGGER_HURT,
-#ifdef MISSIONPACK
 	MOD_NAIL,
 	MOD_CHAINGUN,
 	MOD_PROXIMITY_MINE,
 	MOD_KAMIKAZE,
 	MOD_JUICED,
-#endif
 	MOD_GRAPPLE
 } meansOfDeath_t;
 
@@ -614,9 +655,9 @@ typedef enum {
 	IT_ARMOR,				// EFX: rotate + minlight
 	IT_HEALTH,				// EFX: static external sphere + rotating internal
 	IT_POWERUP,				// instant on, timer based
-							// EFX: rotate + external ring that rotates
+	// EFX: rotate + external ring that rotates
 	IT_HOLDABLE,			// single use, holdable item
-							// EFX: rotate + bob
+	// EFX: rotate + bob
 	IT_PERSISTANT_POWERUP,
 	IT_TEAM
 } itemType_t;
@@ -624,33 +665,33 @@ typedef enum {
 #define MAX_ITEM_MODELS 4
 
 typedef struct gitem_s {
-	char		*classname;	// spawning name
-	char		*pickup_sound;
-	char		*world_model[MAX_ITEM_MODELS];
+	char* classname;	// spawning name
+	char* pickup_sound;
+	char* world_model[MAX_ITEM_MODELS];
 
-	char		*icon;
-	char		*pickup_name;	// for printing on pickup
+	char* icon;
+	char* pickup_name;	// for printing on pickup
 
 	int			quantity;		// for ammo how much, or duration of powerup
 	itemType_t  giType;			// IT_* flags
 
 	int			giTag;
 
-	char		*precaches;		// string of all models and images this item will use
-	char		*sounds;		// string of all sounds this item will use
+	char* precaches;		// string of all models and images this item will use
+	char* sounds;		// string of all sounds this item will use
 } gitem_t;
 
 // included in both the game dll and the client
 extern	gitem_t	bg_itemlist[];
 extern	int		bg_numItems;
 
-gitem_t	*BG_FindItem( const char *pickupName );
-gitem_t	*BG_FindItemForWeapon( weapon_t weapon );
-gitem_t	*BG_FindItemForPowerup( powerup_t pw );
-gitem_t	*BG_FindItemForHoldable( holdable_t pw );
+gitem_t* BG_FindItem(const char* pickupName);
+gitem_t* BG_FindItemForWeapon(weapon_t weapon);
+gitem_t* BG_FindItemForPowerup(powerup_t pw);
+gitem_t* BG_FindItemForHoldable(holdable_t pw);
 #define	ITEM_INDEX(x) ((x)-bg_itemlist)
 
-qboolean	BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const playerState_t *ps );
+qboolean	BG_CanItemBeGrabbed(int gametype, const entityState_t* ent, const playerState_t* ps);
 
 
 // g_dmflags->integer flags
@@ -693,22 +734,22 @@ typedef enum {
 
 
 
-void	BG_EvaluateTrajectory( const trajectory_t *tr, int atTime, vec3_t result );
-void	BG_EvaluateTrajectoryDelta( const trajectory_t *tr, int atTime, vec3_t result );
+void	BG_EvaluateTrajectory(const trajectory_t* tr, int atTime, vec3_t result);
+void	BG_EvaluateTrajectoryDelta(const trajectory_t* tr, int atTime, vec3_t result);
 
-void	BG_AddPredictableEventToPlayerstate( int newEvent, int eventParm, playerState_t *ps );
+void	BG_AddPredictableEventToPlayerstate(int newEvent, int eventParm, playerState_t* ps);
 
-void	BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad );
+void	BG_TouchJumpPad(playerState_t* ps, entityState_t* jumppad);
 
-void	BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean snap );
-void	BG_PlayerStateToEntityStateExtraPolate( playerState_t *ps, entityState_t *s, int time, qboolean snap );
+void	BG_PlayerStateToEntityState(playerState_t* ps, entityState_t* s, qboolean snap);
+void	BG_PlayerStateToEntityStateExtraPolate(playerState_t* ps, entityState_t* s, int time, qboolean snap);
 
-qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTime );
+qboolean	BG_PlayerTouchesItem(playerState_t* ps, entityState_t* item, int atTime);
 
 
 #define ARENAS_PER_TIER		4
 #define MAX_ARENAS			1024
-#define	MAX_ARENAS_TEXT		8192
+#define	MAX_ARENAS_TEXT		16384
 
 #define MAX_BOTS			1024
 #define MAX_BOTS_TEXT		8192

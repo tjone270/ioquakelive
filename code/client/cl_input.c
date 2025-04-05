@@ -52,10 +52,6 @@ kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t	in_strafe, in_speed;
 kbutton_t	in_up, in_down;
 
-#ifdef USE_VOIP
-kbutton_t	in_voiprecord;
-#endif
-
 kbutton_t	in_buttons[16];
 
 
@@ -219,20 +215,6 @@ void IN_SpeedDown(void) {IN_KeyDown(&in_speed);}
 void IN_SpeedUp(void) {IN_KeyUp(&in_speed);}
 void IN_StrafeDown(void) {IN_KeyDown(&in_strafe);}
 void IN_StrafeUp(void) {IN_KeyUp(&in_strafe);}
-
-#ifdef USE_VOIP
-void IN_VoipRecordDown(void)
-{
-	IN_KeyDown(&in_voiprecord);
-	Cvar_Set("cl_voipSend", "1");
-}
-
-void IN_VoipRecordUp(void)
-{
-	IN_KeyUp(&in_voiprecord);
-	Cvar_Set("cl_voipSend", "0");
-}
-#endif
 
 void IN_Button0Down(void) {IN_KeyDown(&in_buttons[0]);}
 void IN_Button0Up(void) {IN_KeyUp(&in_buttons[0]);}
@@ -795,57 +777,6 @@ void CL_WritePacket( void ) {
 		Com_Printf("MAX_PACKET_USERCMDS\n");
 	}
 
-#ifdef USE_VOIP
-	if (clc.voipOutgoingDataSize > 0)
-	{
-		if((clc.voipFlags & VOIP_SPATIAL) || Com_IsVoipTarget(clc.voipTargets, sizeof(clc.voipTargets), -1))
-		{
-			MSG_WriteByte (&buf, clc_voipOpus);
-			MSG_WriteByte (&buf, clc.voipOutgoingGeneration);
-			MSG_WriteLong (&buf, clc.voipOutgoingSequence);
-			MSG_WriteByte (&buf, clc.voipOutgoingDataFrames);
-			MSG_WriteData (&buf, clc.voipTargets, sizeof(clc.voipTargets));
-			MSG_WriteByte(&buf, clc.voipFlags);
-			MSG_WriteShort (&buf, clc.voipOutgoingDataSize);
-			MSG_WriteData (&buf, clc.voipOutgoingData, clc.voipOutgoingDataSize);
-
-			// If we're recording a demo, we have to fake a server packet with
-			//  this VoIP data so it gets to disk; the server doesn't send it
-			//  back to us, and we might as well eliminate concerns about dropped
-			//  and misordered packets here.
-			if(clc.demorecording && !clc.demowaiting)
-			{
-				const int voipSize = clc.voipOutgoingDataSize;
-				msg_t fakemsg;
-				byte fakedata[MAX_MSGLEN];
-				MSG_Init (&fakemsg, fakedata, sizeof (fakedata));
-				MSG_Bitstream (&fakemsg);
-				MSG_WriteLong (&fakemsg, clc.reliableAcknowledge);
-				MSG_WriteByte (&fakemsg, svc_voipOpus);
-				MSG_WriteShort (&fakemsg, clc.clientNum);
-				MSG_WriteByte (&fakemsg, clc.voipOutgoingGeneration);
-				MSG_WriteLong (&fakemsg, clc.voipOutgoingSequence);
-				MSG_WriteByte (&fakemsg, clc.voipOutgoingDataFrames);
-				MSG_WriteShort (&fakemsg, clc.voipOutgoingDataSize );
-				MSG_WriteBits (&fakemsg, clc.voipFlags, VOIP_FLAGCNT);
-				MSG_WriteData (&fakemsg, clc.voipOutgoingData, voipSize);
-				MSG_WriteByte (&fakemsg, svc_EOF);
-				CL_WriteDemoMessage (&fakemsg, 0);
-			}
-
-			clc.voipOutgoingSequence += clc.voipOutgoingDataFrames;
-			clc.voipOutgoingDataSize = 0;
-			clc.voipOutgoingDataFrames = 0;
-		}
-		else
-		{
-			// We have data, but no targets. Silently discard all data
-			clc.voipOutgoingDataSize = 0;
-			clc.voipOutgoingDataFrames = 0;
-		}
-	}
-#endif
-
 	if ( count >= 1 ) {
 		if ( cl_showSend->integer ) {
 			Com_Printf( "(%i)", count );
@@ -993,11 +924,6 @@ void CL_InitInput( void ) {
 	Cmd_AddCommand ("+mlook", IN_MLookDown);
 	Cmd_AddCommand ("-mlook", IN_MLookUp);
 
-#ifdef USE_VOIP
-	Cmd_AddCommand ("+voiprecord", IN_VoipRecordDown);
-	Cmd_AddCommand ("-voiprecord", IN_VoipRecordUp);
-#endif
-
 	cl_nodelta = Cvar_Get ("cl_nodelta", "0", 0);
 	cl_debugMove = Cvar_Get ("cl_debugMove", "0", 0);
 }
@@ -1069,9 +995,4 @@ void CL_ShutdownInput(void)
 	Cmd_RemoveCommand("-button14");
 	Cmd_RemoveCommand("+mlook");
 	Cmd_RemoveCommand("-mlook");
-
-#ifdef USE_VOIP
-	Cmd_RemoveCommand("+voiprecord");
-	Cmd_RemoveCommand("-voiprecord");
-#endif
 }

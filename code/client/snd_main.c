@@ -63,15 +63,6 @@ static qboolean S_ValidSoundInterface( soundInterface_t *si )
 	if( !si->ClearSoundBuffer ) return qfalse;
 	if( !si->SoundInfo ) return qfalse;
 	if( !si->SoundList ) return qfalse;
-
-#ifdef USE_VOIP
-	if( !si->StartCapture ) return qfalse;
-	if( !si->AvailableCaptureSamples ) return qfalse;
-	if( !si->Capture ) return qfalse;
-	if( !si->StopCapture ) return qfalse;
-	if( !si->MasterGain ) return qfalse;
-#endif
-
 	return qtrue;
 }
 
@@ -326,72 +317,6 @@ void S_SoundList( void )
 		si.SoundList( );
 	}
 }
-
-
-#ifdef USE_VOIP
-/*
-=================
-S_StartCapture
-=================
-*/
-void S_StartCapture( void )
-{
-	if( si.StartCapture ) {
-		si.StartCapture( );
-	}
-}
-
-/*
-=================
-S_AvailableCaptureSamples
-=================
-*/
-int S_AvailableCaptureSamples( void )
-{
-	if( si.AvailableCaptureSamples ) {
-		return si.AvailableCaptureSamples( );
-	}
-	return 0;
-}
-
-/*
-=================
-S_Capture
-=================
-*/
-void S_Capture( int samples, byte *data )
-{
-	if( si.Capture ) {
-		si.Capture( samples, data );
-	}
-}
-
-/*
-=================
-S_StopCapture
-=================
-*/
-void S_StopCapture( void )
-{
-	if( si.StopCapture ) {
-		si.StopCapture( );
-	}
-}
-
-/*
-=================
-S_MasterGain
-=================
-*/
-void S_MasterGain( float gain )
-{
-	if( si.MasterGain ) {
-		si.MasterGain( gain );
-	}
-}
-#endif
-
-//=============================================================================
 
 /*
 =================

@@ -251,30 +251,14 @@ PROTOCOL
 ==============================================================
 */
 
-#define	PROTOCOL_VERSION	71
-#define PROTOCOL_LEGACY_VERSION	68
-// 1.31 - 67
+#define	PROTOCOL_VERSION	91
+#define PROTOCOL_LEGACY_VERSION	91
+// Quake III  v1.31 - 67
+// Quake Live v1069 - 91
 
 // maintain a list of compatible protocols for demo playing
 // NOTE: that stuff only works with two digits protocols
 extern int demo_protocols[];
-
-#if !defined UPDATE_SERVER_NAME && !defined STANDALONE
-#define	UPDATE_SERVER_NAME	"update.quake3arena.com"
-#endif
-// override on command line, config files etc.
-#ifndef MASTER_SERVER_NAME
-#define MASTER_SERVER_NAME	"master.quake3arena.com"
-#endif
-
-#ifndef STANDALONE
-  #ifndef AUTHORIZE_SERVER_NAME
-    #define	AUTHORIZE_SERVER_NAME	"authorize.quake3arena.com"
-  #endif
-  #ifndef PORT_AUTHORIZE
-  #define	PORT_AUTHORIZE		27952
-  #endif
-#endif
 
 #define	PORT_MASTER			27950
 #define	PORT_UPDATE			27951
@@ -298,10 +282,6 @@ enum svc_ops_e {
 	svc_download,				// [short] size [size bytes]
 	svc_snapshot,
 	svc_EOF,
-
-// new commands, supported only by ioquake3 protocol but not legacy
-	svc_voipSpeex,     // not wrapped in USE_VOIP, so this value is reserved.
-	svc_voipOpus,      //
 };
 
 
@@ -315,10 +295,6 @@ enum clc_ops_e {
 	clc_moveNoDelta,		// [[usercmd_t]
 	clc_clientCommand,		// [string] message
 	clc_EOF,
-
-// new commands, supported only by ioquake3 protocol but not legacy
-	clc_voipSpeex,   // not wrapped in USE_VOIP, so this value is reserved.
-	clc_voipOpus,    //
 };
 
 /*
@@ -596,15 +572,14 @@ issues.
 #define FS_UI_REF		0x02
 #define FS_CGAME_REF	0x04
 // number of id paks that will never be autodownloaded from baseq3/missionpack
-#define NUM_ID_PAKS		9
-#define NUM_TA_PAKS		4
+#define NUM_ID_PAKS		1
 
 #define	MAX_FILE_HANDLES	64
 
 #ifdef DEDICATED
-#	define Q3CONFIG_CFG "q3config_server.cfg"
+#	define QZCONFIG_CFG "server.cfg"
 #else
-#	define Q3CONFIG_CFG "q3config.cfg"
+#	define QZCONFIG_CFG "qzconfig.cfg"
 #endif
 
 qboolean FS_Initialized( void );
@@ -626,6 +601,7 @@ char	**FS_ListFiles( const char *directory, const char *extension, int *numfiles
 void	FS_FreeFileList( char **list );
 
 qboolean FS_FileExists( const char *file );
+const char* FS_FindSystemFile(const char* file);
 
 qboolean FS_CreatePath (char *OSPath);
 
@@ -775,10 +751,6 @@ MISC
 
 ==============================================================
 */
-
-// centralizing the declarations for cl_cdkey
-// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=470
-extern char cl_cdkey[34];
 
 // returned by Sys_GetProcessorFeatures
 typedef enum
@@ -1101,9 +1073,6 @@ void	Sys_Print( const char *msg );
 int		Sys_Milliseconds (void);
 
 qboolean Sys_RandomBytes( byte *string, int len );
-
-// the system console is shown when a dedicated server is running
-void	Sys_DisplaySystemConsole( qboolean show );
 
 cpuFeatures_t Sys_GetProcessorFeatures( void );
 

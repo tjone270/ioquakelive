@@ -373,20 +373,20 @@ qboolean CG_DrawOldScoreboard( void ) {
 
 		if ( cg.teamScores[0] >= cg.teamScores[1] ) {
 			n1 = CG_TeamScoreboard( y, TEAM_RED, fade, maxClients, lineHeight );
-			CG_DrawTeamBackground( 0, y - topBorderSize, 640, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
+			CG_DrawTeamBackground( 0, y - topBorderSize, SCREEN_WIDTH, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
 			y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 			maxClients -= n1;
 			n2 = CG_TeamScoreboard( y, TEAM_BLUE, fade, maxClients, lineHeight );
-			CG_DrawTeamBackground( 0, y - topBorderSize, 640, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
+			CG_DrawTeamBackground( 0, y - topBorderSize, SCREEN_WIDTH, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
 			y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 			maxClients -= n2;
 		} else {
 			n1 = CG_TeamScoreboard( y, TEAM_BLUE, fade, maxClients, lineHeight );
-			CG_DrawTeamBackground( 0, y - topBorderSize, 640, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
+			CG_DrawTeamBackground( 0, y - topBorderSize, SCREEN_WIDTH, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
 			y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 			maxClients -= n1;
 			n2 = CG_TeamScoreboard( y, TEAM_RED, fade, maxClients, lineHeight );
-			CG_DrawTeamBackground( 0, y - topBorderSize, 640, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
+			CG_DrawTeamBackground( 0, y - topBorderSize, SCREEN_WIDTH, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
 			y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 			maxClients -= n2;
 		}
@@ -437,7 +437,7 @@ static void CG_CenterGiantLine( float y, const char *string ) {
 	color[2] = 1;
 	color[3] = 1;
 
-	x = 0.5 * ( 640 - GIANT_WIDTH * CG_DrawStrlen( string ) );
+	x = 0.5 * ( SCREEN_WIDTH - GIANT_WIDTH * CG_DrawStrlen( string ) );
 
 	CG_DrawStringExt( x, y, string, color, qtrue, qtrue, GIANT_WIDTH, GIANT_HEIGHT, 0 );
 }

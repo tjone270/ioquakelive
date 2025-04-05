@@ -47,9 +47,6 @@ cvar_t *s_alAvailableInputDevices;
 
 static qboolean enumeration_ext = qfalse;
 static qboolean enumeration_all_ext = qfalse;
-#ifdef USE_VOIP
-static qboolean capture_ext = qfalse;
-#endif
 
 /*
 =================
@@ -2202,11 +2199,6 @@ void S_AL_MusicUpdate( void )
 static ALCdevice *alDevice;
 static ALCcontext *alContext;
 
-#ifdef USE_VOIP
-static ALCdevice *alCaptureDevice;
-static cvar_t *s_alCapture;
-#endif
-
 #if defined(_WIN64)
 #define ALDRIVER_DEFAULT "OpenAL64.dll"
 #elif defined(_WIN32)
@@ -2367,47 +2359,6 @@ void S_AL_SoundList( void )
 {
 }
 
-#ifdef USE_VOIP
-static
-void S_AL_StartCapture( void )
-{
-	if (alCaptureDevice != NULL)
-		qalcCaptureStart(alCaptureDevice);
-}
-
-static
-int S_AL_AvailableCaptureSamples( void )
-{
-	int retval = 0;
-	if (alCaptureDevice != NULL)
-	{
-		ALint samples = 0;
-		qalcGetIntegerv(alCaptureDevice, ALC_CAPTURE_SAMPLES, sizeof (samples), &samples);
-		retval = (int) samples;
-	}
-	return retval;
-}
-
-static
-void S_AL_Capture( int samples, byte *data )
-{
-	if (alCaptureDevice != NULL)
-		qalcCaptureSamples(alCaptureDevice, data, samples);
-}
-
-void S_AL_StopCapture( void )
-{
-	if (alCaptureDevice != NULL)
-		qalcCaptureStop(alCaptureDevice);
-}
-
-void S_AL_MasterGain( float gain )
-{
-	qalListenerf(AL_GAIN, gain);
-}
-#endif
-
-
 /*
 =================
 S_AL_SoundInfo
@@ -2429,14 +2380,6 @@ static void S_AL_SoundInfo(void)
 
 	if(enumeration_all_ext || enumeration_ext)
 		Com_Printf("  Available Devices:\n%s", s_alAvailableDevices->string);
-
-#ifdef USE_VOIP
-	if(capture_ext)
-	{
-		Com_Printf("  Input Device:   %s\n", qalcGetString(alCaptureDevice, ALC_CAPTURE_DEVICE_SPECIFIER));
-		Com_Printf("  Available Input Devices:\n%s", s_alAvailableInputDevices->string);
-	}
-#endif
 }
 
 
@@ -2459,15 +2402,6 @@ void S_AL_Shutdown( void )
 
 	qalcDestroyContext(alContext);
 	qalcCloseDevice(alDevice);
-
-#ifdef USE_VOIP
-	if (alCaptureDevice != NULL) {
-		qalcCaptureStop(alCaptureDevice);
-		qalcCaptureCloseDevice(alCaptureDevice);
-		alCaptureDevice = NULL;
-		Com_Printf( "OpenAL capture device closed.\n" );
-	}
-#endif
 
 	for (i = 0; i < MAX_RAW_STREAMS; i++) {
 		streamSourceHandles[i] = -1;
@@ -2628,75 +2562,6 @@ qboolean S_AL_Init( soundInterface_t *si )
 	qalDopplerFactor( s_alDopplerFactor->value );
 	qalSpeedOfSound( s_alDopplerSpeed->value );
 
-#ifdef USE_VOIP
-	// !!! FIXME: some of these alcCaptureOpenDevice() values should be cvars.
-	// !!! FIXME: add support for capture device enumeration.
-	// !!! FIXME: add some better error reporting.
-	s_alCapture = Cvar_Get( "s_alCapture", "1", CVAR_ARCHIVE | CVAR_LATCH );
-	if (!s_alCapture->integer)
-	{
-		Com_Printf("OpenAL capture support disabled by user ('+set s_alCapture 1' to enable)\n");
-	}
-#if USE_MUMBLE
-	else if (cl_useMumble->integer)
-	{
-		Com_Printf("OpenAL capture support disabled for Mumble support\n");
-	}
-#endif
-	else
-	{
-#ifdef __APPLE__
-		// !!! FIXME: Apple has a 1.1-compliant OpenAL, which includes
-		// !!! FIXME:  capture support, but they don't list it in the
-		// !!! FIXME:  extension string. We need to check the version string,
-		// !!! FIXME:  then the extension string, but that's too much trouble,
-		// !!! FIXME:  so we'll just check the function pointer for now.
-		if (qalcCaptureOpenDevice == NULL)
-#else
-		if (!qalcIsExtensionPresent(NULL, "ALC_EXT_capture"))
-#endif
-		{
-			Com_Printf("No ALC_EXT_capture support, can't record audio.\n");
-		}
-		else
-		{
-			char inputdevicenames[16384] = "";
-			const char *inputdevicelist;
-			const char *defaultinputdevice;
-			int curlen;
-
-			capture_ext = qtrue;
-
-			// get all available input devices + the default input device name.
-			inputdevicelist = qalcGetString(NULL, ALC_CAPTURE_DEVICE_SPECIFIER);
-			defaultinputdevice = qalcGetString(NULL, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
-
-			// dump a list of available devices to a cvar for the user to see.
-			if (inputdevicelist)
-			{
-				while((curlen = strlen(inputdevicelist)))
-				{
-					Q_strcat(inputdevicenames, sizeof(inputdevicenames), inputdevicelist);
-					Q_strcat(inputdevicenames, sizeof(inputdevicenames), "\n");
-					inputdevicelist += curlen + 1;
-				}
-			}
-
-			s_alAvailableInputDevices = Cvar_Get("s_alAvailableInputDevices", inputdevicenames, CVAR_ROM | CVAR_NORESTART);
-
-			Com_Printf("OpenAL default capture device is '%s'\n", defaultinputdevice ? defaultinputdevice : "none");
-			alCaptureDevice = qalcCaptureOpenDevice(inputdevice, 48000, AL_FORMAT_MONO16, VOIP_MAX_PACKET_SAMPLES*4);
-			if( !alCaptureDevice && inputdevice )
-			{
-				Com_Printf( "Failed to open OpenAL Input device '%s', trying default.\n", inputdevice );
-				alCaptureDevice = qalcCaptureOpenDevice(NULL, 48000, AL_FORMAT_MONO16, VOIP_MAX_PACKET_SAMPLES*4);
-			}
-			Com_Printf( "OpenAL capture device %s.\n",
-				    (alCaptureDevice == NULL) ? "failed to open" : "opened");
-		}
-	}
-#endif
-
 	si->Shutdown = S_AL_Shutdown;
 	si->StartSound = S_AL_StartSound;
 	si->StartLocalSound = S_AL_StartLocalSound;
@@ -2717,14 +2582,6 @@ qboolean S_AL_Init( soundInterface_t *si )
 	si->ClearSoundBuffer = S_AL_ClearSoundBuffer;
 	si->SoundInfo = S_AL_SoundInfo;
 	si->SoundList = S_AL_SoundList;
-
-#ifdef USE_VOIP
-	si->StartCapture = S_AL_StartCapture;
-	si->AvailableCaptureSamples = S_AL_AvailableCaptureSamples;
-	si->Capture = S_AL_Capture;
-	si->StopCapture = S_AL_StopCapture;
-	si->MasterGain = S_AL_MasterGain;
-#endif
 
 	return qtrue;
 #else

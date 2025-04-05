@@ -42,3 +42,17 @@ profile
 *.sdf
 *.opensdf
 *.suo
+/.vs
+
+/code/curl/
+/code/freetype/
+/code/libogg/
+/code/libvorbis/
+/code/SDL2/
+/code/freetype-demos
+/code/jpeg-8c
+/code/zlib
+/code/tools
+*.lib
+*.pdb
+*.lib
