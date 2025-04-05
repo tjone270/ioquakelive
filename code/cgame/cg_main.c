@@ -810,10 +810,10 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.smokePuffShader = trap_R_RegisterShader("smokePuff");
 	cgs.media.smokePuffRageProShader = trap_R_RegisterShader("smokePuffRagePro");
 	cgs.media.shotgunSmokePuffShader = trap_R_RegisterShader("shotgunSmokePuff");
-#ifdef MISSIONPACK
+
 	cgs.media.nailPuffShader = trap_R_RegisterShader("nailtrail");
 	cgs.media.blueProxMine = trap_R_RegisterModel("models/weaphits/proxmineb.md3");
-#endif
+
 	cgs.media.plasmaBallShader = trap_R_RegisterShader("sprites/plasma1");
 	cgs.media.bloodTrailShader = trap_R_RegisterShader("bloodTrail");
 	cgs.media.lagometerShader = trap_R_RegisterShader("lagometer");
@@ -840,7 +840,6 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.regenShader = trap_R_RegisterShader("powerups/regen");
 	cgs.media.hastePuffShader = trap_R_RegisterShader("hasteSmokePuff");
 
-#ifdef MISSIONPACK
 	if (cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
 		cgs.media.redCubeModel = trap_R_RegisterModel("models/powerups/orb/r_orb.md3");
 		cgs.media.blueCubeModel = trap_R_RegisterModel("models/powerups/orb/b_orb.md3");
@@ -849,9 +848,6 @@ static void CG_RegisterGraphics(void) {
 	}
 
 	if (cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
-#else
-	if (cgs.gametype == GT_CTF || cg_buildScript.integer) {
-#endif
 		cgs.media.redFlagModel = trap_R_RegisterModel("models/flags/r_flag.md3");
 		cgs.media.blueFlagModel = trap_R_RegisterModel("models/flags/b_flag.md3");
 		cgs.media.redFlagShader[0] = trap_R_RegisterShaderNoMip("icons/iconf_red1");
@@ -860,7 +856,7 @@ static void CG_RegisterGraphics(void) {
 		cgs.media.blueFlagShader[0] = trap_R_RegisterShaderNoMip("icons/iconf_blu1");
 		cgs.media.blueFlagShader[1] = trap_R_RegisterShaderNoMip("icons/iconf_blu2");
 		cgs.media.blueFlagShader[2] = trap_R_RegisterShaderNoMip("icons/iconf_blu3");
-#ifdef MISSIONPACK
+
 		cgs.media.flagPoleModel = trap_R_RegisterModel("models/flag2/flagpole.md3");
 		cgs.media.flagFlapModel = trap_R_RegisterModel("models/flag2/flagflap3.md3");
 
@@ -871,10 +867,8 @@ static void CG_RegisterGraphics(void) {
 		cgs.media.redFlagBaseModel = trap_R_RegisterModel("models/mapobjects/flagbase/red_base.md3");
 		cgs.media.blueFlagBaseModel = trap_R_RegisterModel("models/mapobjects/flagbase/blue_base.md3");
 		cgs.media.neutralFlagBaseModel = trap_R_RegisterModel("models/mapobjects/flagbase/ntrl_base.md3");
-#endif
 	}
 
-#ifdef MISSIONPACK
 	if (cgs.gametype == GT_1FCTF || cg_buildScript.integer) {
 		cgs.media.neutralFlagModel = trap_R_RegisterModel("models/flags/n_flag.md3");
 		cgs.media.flagShader[0] = trap_R_RegisterShaderNoMip("icons/iconf_neutral1");
@@ -900,15 +894,12 @@ static void CG_RegisterGraphics(void) {
 
 	cgs.media.redKamikazeShader = trap_R_RegisterShader("models/weaphits/kamikred");
 	cgs.media.dustPuffShader = trap_R_RegisterShader("hasteSmokePuff");
-#endif
 
 	if (cgs.gametype >= GT_TEAM || cg_buildScript.integer) {
 		cgs.media.friendShader = trap_R_RegisterShader("sprites/foe");
 		cgs.media.redQuadShader = trap_R_RegisterShader("powerups/blueflag");
 		cgs.media.teamStatusBar = trap_R_RegisterShader("gfx/2d/colorbar.tga");
-#ifdef MISSIONPACK
 		cgs.media.blueKamikazeShader = trap_R_RegisterShader("models/weaphits/kamikblu");
-#endif
 	}
 
 	cgs.media.armorModel = trap_R_RegisterModel("models/powerups/armor/armor_yel.md3");
@@ -937,13 +928,8 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
 	cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
 	cgs.media.dishFlashModel = trap_R_RegisterModel("models/weaphits/boom01.md3");
-#ifdef MISSIONPACK
 	cgs.media.teleportEffectModel = trap_R_RegisterModel("models/powerups/pop.md3");
-#else
-	cgs.media.teleportEffectModel = trap_R_RegisterModel("models/misc/telep.md3");
-	cgs.media.teleportEffectShader = trap_R_RegisterShader("teleportEffect");
-#endif
-#ifdef MISSIONPACK
+
 	cgs.media.kamikazeEffectModel = trap_R_RegisterModel("models/weaphits/kamboom2.md3");
 	cgs.media.kamikazeShockWave = trap_R_RegisterModel("models/weaphits/kamwave.md3");
 	cgs.media.kamikazeHeadModel = trap_R_RegisterModel("models/powerups/kamikazi.md3");
@@ -957,7 +943,6 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.medkitUsageModel = trap_R_RegisterModel("models/powerups/regen.md3");
 	cgs.media.heartShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/selectedhealth.tga");
 	cgs.media.invulnerabilityPowerupModel = trap_R_RegisterModel("models/powerups/shield/shield.md3");
-#endif
 
 	cgs.media.medalImpressive = trap_R_RegisterShaderNoMip("medal_impressive");
 	cgs.media.medalExcellent = trap_R_RegisterShaderNoMip("medal_excellent");
@@ -1022,7 +1007,6 @@ static void CG_RegisterGraphics(void) {
 		cgs.gameModels[i] = trap_R_RegisterModel(modelName);
 	}
 
-#ifdef MISSIONPACK
 	// new stuff
 	cgs.media.patrolShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/patrol.png");
 	cgs.media.assaultShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/assault.png");
@@ -1047,7 +1031,6 @@ static void CG_RegisterGraphics(void) {
 	trap_R_RegisterModel("models/players/janet/upper.md3");
 	trap_R_RegisterModel("models/players/heads/janet/janet.md3");
 
-#endif
 	CG_ClearParticles();
 	/*
 		for (i=1; i<MAX_PARTICLES_AREAS; i++)
@@ -1148,7 +1131,7 @@ void CG_StartMusic(void) {
 
 	trap_S_StartBackgroundTrack(parm1, parm2);
 }
-#ifdef MISSIONPACK
+
 char* CG_GetMenuBuffer(const char* filename) {
 	int	len;
 	fileHandle_t	f;
@@ -1787,7 +1770,7 @@ void CG_AssetCache(void) {
 	cgDC.Assets.sliderBar = trap_R_RegisterShaderNoMip(ASSET_SLIDER_BAR);
 	cgDC.Assets.sliderThumb = trap_R_RegisterShaderNoMip(ASSET_SLIDER_THUMB);
 }
-#endif
+
 /*
 =================
 CG_Init
