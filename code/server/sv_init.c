@@ -573,8 +573,8 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 		// we need to touch the cgame and ui qvm because they could be in
 		// separate pk3 files and the client will need to download the pk3
 		// files with the latest cgame and ui qvm to pass the pure check
-		SV_TouchFile( "vm/cgame.qvm" );
-		SV_TouchFile( "vm/ui.qvm" );
+		SV_TouchFile( "cgamex86.dll" );
+		SV_TouchFile( "uix86.dll" );
 	}
 	else {
 		Cvar_Set( "sv_paks", "" );
@@ -660,7 +660,7 @@ void SV_Init (void)
 	// server vars
 	sv_rconPassword = Cvar_Get ("rconPassword", "", CVAR_TEMP );
 	sv_privatePassword = Cvar_Get ("sv_privatePassword", "", CVAR_TEMP );
-	sv_fps = Cvar_Get ("sv_fps", "20", CVAR_TEMP );
+	sv_fps = Cvar_Get ("sv_fps", "40", CVAR_TEMP );
 	sv_timeout = Cvar_Get ("sv_timeout", "200", CVAR_TEMP );
 	sv_zombietime = Cvar_Get ("sv_zombietime", "2", CVAR_TEMP );
 	Cvar_Get ("nextmap", "", CVAR_TEMP );
