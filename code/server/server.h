@@ -33,21 +33,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	MAX_ENT_CLUSTERS	16
 
-#ifdef USE_VOIP
-#define VOIP_QUEUE_LENGTH 64
-
-typedef struct voipServerPacket_s
-{
-	int generation;
-	int sequence;
-	int frames;
-	int len;
-	int sender;
-	int flags;
-	byte data[4000];
-} voipServerPacket_t;
-#endif
-
 typedef struct svEntity_s {
 	struct worldSector_s *worldSector;
 	struct svEntity_s *nextEntityInWorldSector;
@@ -184,15 +169,6 @@ typedef struct client_s {
 	netchan_buffer_t *netchan_start_queue;
 	netchan_buffer_t **netchan_end_queue;
 
-#ifdef USE_VOIP
-	qboolean hasVoip;
-	qboolean muteAllVoip;
-	qboolean ignoreVoipFromClient[MAX_CLIENTS];
-	voipServerPacket_t *voipPacket[VOIP_QUEUE_LENGTH];
-	int queuedVoipPackets;
-	int queuedVoipIndex;
-#endif
-
 	int				oldServerTime;
 	qboolean		csUpdated[MAX_CONFIGSTRINGS];
 	
@@ -241,10 +217,7 @@ typedef struct {
 	int			nextHeartbeatTime;
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 	netadr_t	redirectAddress;			// for rcon return messages
-#ifndef STANDALONE
 	netadr_t	authorizeAddress;			// authorize server address
-#endif
-	int			masterResolveTime[MAX_MASTER_SERVERS]; // next svs.time that server should do dns lookup for master server
 } serverStatic_t;
 
 #define SERVER_MAXBANS	1024
@@ -274,7 +247,6 @@ extern	cvar_t	*sv_maxclients;
 
 extern	cvar_t	*sv_privateClients;
 extern	cvar_t	*sv_hostname;
-extern	cvar_t	*sv_master[MAX_MASTER_SERVERS];
 extern	cvar_t	*sv_reconnectlimit;
 extern	cvar_t	*sv_showloss;
 extern	cvar_t	*sv_padPackets;
@@ -298,11 +270,6 @@ extern	cvar_t	*sv_banFile;
 
 extern	serverBan_t serverBans[SERVER_MAXBANS];
 extern	int serverBansCount;
-
-#ifdef USE_VOIP
-extern	cvar_t	*sv_voip;
-extern	cvar_t	*sv_voipProtocol;
-#endif
 
 
 //===========================================================
@@ -339,8 +306,6 @@ void QDECL SV_SendServerCommand( client_t *cl, const char *fmt, ...) __attribute
 void SV_AddOperatorCommands (void);
 void SV_RemoveOperatorCommands (void);
 
-
-void SV_MasterShutdown (void);
 int SV_RateMsec(client_t *client);
 
 
