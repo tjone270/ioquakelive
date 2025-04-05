@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "client.h"
 
 
-int g_console_field_width = 78;
+int g_console_field_width = 119;
 
 
 #define	NUM_CON_TIMES 4
@@ -61,7 +61,7 @@ cvar_t* con_notifytime;
 cvar_t* con_background;
 cvar_t* con_opacity;
 cvar_t* con_height;
-#define	DEFAULT_CONSOLE_WIDTH	78
+#define	DEFAULT_CONSOLE_WIDTH	118
 
 
 /*
@@ -277,7 +277,7 @@ void Con_CheckResize(void) {
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
 	short	tbuf[CON_TEXTSIZE];
 
-	width = (SCREEN_WIDTH / SMALLCHAR_WIDTH) - 2;
+	width = DEFAULT_CONSOLE_WIDTH; //(SCREEN_WIDTH / SMALLCHAR_WIDTH) - 2;
 
 	if (width == con.linewidth)
 		return;
