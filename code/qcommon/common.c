@@ -32,14 +32,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 int demo_protocols[] =
-{ 67, 66, 0 };
+{ 91, 0 };
 
 #define MAX_NUM_ARGVS	50
 
 #define MIN_DEDICATED_COMHUNKMEGS 1
-#define MIN_COMHUNKMEGS		56
+#define MIN_COMHUNKMEGS		64
 #define DEF_COMHUNKMEGS 	128
-#define DEF_COMZONEMEGS		24
+#define DEF_COMZONEMEGS		64
 #define DEF_COMHUNKMEGS_S	XSTRING(DEF_COMHUNKMEGS)
 #define DEF_COMZONEMEGS_S	XSTRING(DEF_COMZONEMEGS)
 
@@ -1415,7 +1415,7 @@ void Com_TouchMemory(void) {
 
 	end = Sys_Milliseconds();
 
-	Com_Printf("Com_TouchMemory: %i msec\n", end - start);
+	Com_DPrintf("Com_TouchMemory: %i msec\n", end - start);
 }
 
 
@@ -2700,9 +2700,6 @@ void Com_Init(char* commandLine) {
 	// add + commands from command line
 	Com_AddStartupCommands();
 
-	// start in full screen ui mode
-	Cvar_Set("r_uiFullScreen", "1");
-
 	CL_StartHunkUsers(qfalse);
 
 	// make sure single player is off by default
@@ -3632,47 +3629,4 @@ int QDECL Com_strCompare(const void* a, const void* b)
 	const char** pa = (const char**)a;
 	const char** pb = (const char**)b;
 	return strcmp(*pa, *pb);
-}
-
-/*
-==================
-COM_HashFileName
-
-Hashes a filename into a numeric index, suitable for use in
-hash tables such as pack_t->hashTable[]. The extension (starting
-from '.') is ignored.
-
-A per-process lookup table is used to mix characters, ensuring
-distribution across the hash table of size `hashSize`.
-
-Returns an index in the range [0, hashSize - 1].
-==================
-*/
-#define FILE_HASH_SIZE 1024
-
-unsigned int COM_HashFileName(const char* fname, int hashSize) {
-	unsigned int hash = 0;
-	int i = 0;
-	char letter;
-
-	if (!fname || *fname == '\0') {
-		return 0;
-	}
-
-	while (fname[i] != '\0') {
-		letter = tolower((unsigned char)fname[i]);
-
-		if (letter == '.') {
-			break; // Don't hash file extensions
-		}
-		if (letter == '\\') {
-			letter = '/';
-		}
-
-		hash += (unsigned int)(letter) * (i + 119);
-		i++;
-	}
-
-	// Apply a hash mask — either using the passed-in value or the fixed size
-	return hash & (hashSize - 1);
 }
