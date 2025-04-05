@@ -1183,10 +1183,9 @@ static void SV_VerifyPaks_f(client_t* cl) {
 
 		nChkSum1 = nChkSum2 = 0;
 		// we run the game, so determine which cgame and ui the client "should" be running
-		bGood = (FS_FileIsInPAK("cgamex86.dll", &nChkSum1) == 1);
+		bGood = (FS_FileIsInPAK("cgame" ARCH_STRING DLL_EXT, &nChkSum1) == 1);
 		if (bGood)
-			bGood = (FS_FileIsInPAK("uix86.dll", &nChkSum2) == 1);
-
+			bGood = (FS_FileIsInPAK("ui" ARCH_STRING DLL_EXT, &nChkSum2) == 1);
 		nClientPaks = Cmd_Argc();
 
 		// start at arg 2 ( skip serverId cl_paks )
