@@ -606,7 +606,7 @@ typedef struct {
 
 // new ui stuff
 #define UI_NUMFX 7
-#define MAX_HEADS 64
+#define MAX_HEADS 256
 #define MAX_ALIASES 64
 #define MAX_HEADNAME  32
 #define MAX_TEAMS 64

@@ -5189,9 +5189,8 @@ void _UI_Init(qboolean inGameLoad) {
 	uiInfo.characterCount = 0;
 	uiInfo.aliasCount = 0;
 
-	UI_ParseTeamInfo("teaminfo.txt");
+	UI_ParseTeamInfo("ui/teaminfo.txt");
 	UI_LoadTeams();
-	UI_ParseGameInfo("gameinfo.txt");
 	UI_LoadArenas();
 
 	menuSet = UI_Cvar_VariableString("ui_menuFiles");
