@@ -603,15 +603,6 @@ static void CG_DrawBlueScore(rectDef_t* rect, float scale, vec4_t color, qhandle
 	CG_Text_Paint(rect->x + rect->w - value, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
 }
 
-// FIXME: team name support
-static void CG_DrawRedName(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
-	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, cg_redTeamName.string, 0, 0, textStyle);
-}
-
-static void CG_DrawBlueName(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
-	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, cg_blueTeamName.string, 0, 0, textStyle);
-}
-
 static void CG_DrawBlueFlagName(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
 	int i;
 	for (i = 0; i < cgs.maxclients; i++) {
@@ -1512,12 +1503,6 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
 		break;
 	case CG_BLUE_SCORE:
 		CG_DrawBlueScore(&rect, scale, color, shader, textStyle);
-		break;
-	case CG_RED_NAME:
-		CG_DrawRedName(&rect, scale, color, textStyle);
-		break;
-	case CG_BLUE_NAME:
-		CG_DrawBlueName(&rect, scale, color, textStyle);
 		break;
 	case CG_BLUE_FLAGSTATUS:
 		CG_DrawBlueFlagStatus(&rect, shader);
