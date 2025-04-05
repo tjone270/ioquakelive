@@ -1751,19 +1751,6 @@ const void* RB_ExportCubemaps(const void* data)
 	return (const void*)(cmd + 1);
 }
 
-static const void* RB_DebugGraphics(const void* data)
-{
-	const debugGraphicsCommand_t* cmd;
-
-	cmd = (const debugGraphicsCommand_t*)data;
-
-	GL_BindToTMU(tr.whiteImage, TB_COLORMAP);
-	GL_Cull(CT_FRONT_SIDED);
-	ri.CM_DrawDebugSurface(R_DebugPolygon);
-
-	return (const void*)(cmd + 1);
-}
-
 /*
 ====================
 RB_ExecuteRenderCommands
