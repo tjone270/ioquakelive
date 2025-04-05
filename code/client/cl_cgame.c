@@ -459,11 +459,6 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 		CL_AddReliableCommand(VMA(1), qfalse);
 		return 0;
 	case CG_UPDATESCREEN:
-		// this is used during lengthy level loading, so pump message loop
-//		Com_EventLoop();	// FIXME: if a server restarts here, BAD THINGS HAPPEN!
-// We can't call Com_EventLoop here, a restart will crash and this _does_ happen
-// if there is a map change while we are downloading at pk3.
-// ZOID
 		SCR_UpdateScreen();
 		return 0;
 	case CG_CM_LOADMAP:
@@ -560,6 +555,9 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 		return 0;
 	case CG_R_RENDERSCENE:
 		re.RenderScene( VMA(1) );
+		return 0;
+	case CG_GET_ADVERTISEMENTS:
+		re.Get_Advertisements(VMA(1), VMA(2), VMA(3));
 		return 0;
 	case CG_R_SETCOLOR:
 		re.SetColor( VMA(1) );

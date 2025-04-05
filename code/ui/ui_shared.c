@@ -5166,6 +5166,15 @@ qboolean ItemParse_hideCvar( itemDef_t *item, int handle ) {
 	return qfalse;
 }
 
+qboolean ItemParse_font(itemDef_t* item, int handle) {
+	int fontVal;
+	PC_Int_Parse(handle, &fontVal);
+
+	Com_Printf("Font keyword item support not yet implemented.\n");
+
+	return qtrue;
+}
+
 
 keywordHash_t itemParseKeywords[] = {
 	{"name", ItemParse_name, NULL},
@@ -5230,6 +5239,7 @@ keywordHash_t itemParseKeywords[] = {
 	{"hideCvar", ItemParse_hideCvar, NULL},
 	{"cinematic", ItemParse_cinematic, NULL},
 	{"doubleclick", ItemParse_doubleClick, NULL},
+	{"font", ItemParse_font, NULL},
 	{NULL, 0, NULL}
 };
 
@@ -5251,9 +5261,6 @@ void Item_SetupKeywordHash(void) {
 
 static const char *builtinResolutions[ ] =
 {
-	"320x240",
-	"400x300",
-	"512x384",
 	"640x480",
 	"800x600",
 	"960x720",
@@ -5261,8 +5268,10 @@ static const char *builtinResolutions[ ] =
 	"1152x864",
 	"1280x1024",
 	"1600x1200",
+	"1920x1080",
 	"2048x1536",
-	"856x480",
+	"2560x1440",
+	"2560x1600",
 	NULL
 };
 
@@ -5769,6 +5778,16 @@ qboolean MenuParse_fadeCycle( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+qboolean MenuParse_widescreen(itemDef_t* item, int handle) {
+	menuDef_t* menu = (menuDef_t*)item;
+
+	int widescreenVal;
+	PC_Int_Parse(handle, &widescreenVal);
+	Com_Printf("Widescreen support not yet implemented.\n");
+
+	return qtrue;
+}
+
 
 qboolean MenuParse_itemDef( itemDef_t *item, int handle ) {
 	menuDef_t *menu = (menuDef_t*)item;
@@ -5816,6 +5835,7 @@ keywordHash_t menuParseKeywords[] = {
 	{"fadeClamp", MenuParse_fadeClamp, NULL},
 	{"fadeCycle", MenuParse_fadeCycle, NULL},
 	{"fadeAmount", MenuParse_fadeAmount, NULL},
+	{"widescreen", MenuParse_widescreen, NULL},
 	{NULL, 0, NULL}
 };
 
