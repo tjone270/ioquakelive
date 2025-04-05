@@ -785,8 +785,8 @@ void Menu_PostParse(menuDef_t *menu) {
 	if (menu->fullScreen) {
 		menu->window.rect.x = 0;
 		menu->window.rect.y = 0;
-		menu->window.rect.w = 640;
-		menu->window.rect.h = 480;
+		menu->window.rect.w = SCREEN_WIDTH;
+		menu->window.rect.h = SCREEN_HEIGHT;
 	}
 	Menu_UpdatePosition(menu);
 }
