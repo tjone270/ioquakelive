@@ -2462,7 +2462,9 @@ static __attribute__((format(printf, 2, 3))) void QDECL CL_RefPrintf(int print_l
 	} else if (print_level == PRINT_ERROR) {
 		Com_Printf(S_COLOR_RED "%s", msg);			// red
 	} else if (print_level == PRINT_DEVELOPER) {
+#if DEBUG_RENDERER
 		Com_DPrintf(S_COLOR_RED "%s", msg);		// red - developer only
+#endif
 	}
 }
 
