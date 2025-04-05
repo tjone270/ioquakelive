@@ -270,9 +270,11 @@ void Sys_InitPIDFile(const char* gamedir) {
 			"it didn't exit properly. This may be due to inappropriate video "
 			"settings. Would you like to start with \"safe\" video settings?", modName);
 
+#ifndef _DEBUG
 		if (Sys_Dialog(DT_YES_NO, message, "Abnormal Exit") == DR_YES) {
 			Cvar_Set("com_abnormalExit", "1");
 		}
+#endif
 #endif
 	}
 }
@@ -507,7 +509,6 @@ First try to load library name from system library path,
 from executable path, then fs_basepath.
 =================
 */
-
 void* Sys_LoadDll(const char* name, qboolean useSystemLib)
 {
 	void* dllhandle = NULL;
