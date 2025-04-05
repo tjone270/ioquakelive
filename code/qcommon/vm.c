@@ -366,8 +366,7 @@ We need to make sure that servers can access unpure QVMs (not contained in any p
 even if the client is pure, so take "unpure" as argument.
 =================
 */
-vm_t* VM_Restart(vm_t* vm, qboolean unpure)
-{
+vm_t* VM_Restart(vm_t* vm, qboolean unpure) {
 	// DLL's can't be restarted in place
 	if (vm->dllHandle) {
 		char	name[MAX_QPATH];
@@ -388,102 +387,82 @@ vm_t* VM_Restart(vm_t* vm, qboolean unpure)
 }
 
 /*
-================
+===============
 VM_Create
 
-If image ends in .qvm it will be interpreted, otherwise
-it will attempt to load as a system dll
-================
-*/
-vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*),
-	vmInterpret_t interpret) {
-	vm_t* vm;
-	vmHeader_t* header;
-	int			i, remaining, retval;
-	char filename[MAX_OSPATH];
-	void* startSearch = NULL;
+Creates or retrieves a virtual machine (vm_t) instance for the given module name.
+Common modules include "cgame", "ui", and "qagame".
 
-	interpret = VMI_NATIVE; // never use QVMs
+If the VM already exists, it is returned as-is. Otherwise, a free slot is
+allocated, the corresponding game module DLL is extracted from server-authorized
+pak files via FS_ExtractGamecode, and the resulting binary is loaded with
+Sys_LoadGameDll.
+
+The vmMain function and system call handler are initialized and stored in the
+vm_t structure for later execution.
+
+This function enforces pure server validation and will fail fatally if:
+- No free VM slots are available
+- The module DLL cannot be found or extracted
+- The DLL fails to load or resolve required entry points
+- The provided syscall handler is invalid
+===============
+*/
+vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*), vmInterpret_t interpret) {
+	int i;
+	int vmSlot = -1;
+	vm_t* vm;
+	vmMainProc vmEntry;
 
 	if (!module || !module[0] || !systemCalls) {
 		Com_Error(ERR_FATAL, "VM_Create: bad parms");
 	}
 
-	remaining = Hunk_MemoryRemaining();
-
-	// see if we already have the VM
+	// Check if the VM is already loaded
 	for (i = 0; i < MAX_VM; i++) {
 		if (!Q_stricmp(vmTable[i].name, module)) {
-			vm = &vmTable[i];
-			return vm;
+			return &vmTable[i];
 		}
 	}
 
-	// find a free vm
+	// Find a free slot
 	for (i = 0; i < MAX_VM; i++) {
-		if (!vmTable[i].name[0]) {
+		if (vmTable[i].name[0] == '\0') {
+			vmSlot = i;
 			break;
 		}
 	}
 
-	if (i == MAX_VM) {
-		Com_Error(ERR_FATAL, "VM_Create: no free vm_t");
+	if (vmSlot == -1) {
+		Com_Error(ERR_FATAL, "VM_Create: no free vm_t slots");
 	}
 
-	vm = &vmTable[i];
-
+	vm = &vmTable[vmSlot];
 	Q_strncpyz(vm->name, module, sizeof(vm->name));
 
-	do {
-		retval = FS_FindVM(&startSearch, filename, sizeof(filename), module, (interpret == VMI_NATIVE));
+	Com_Printf("VM_Create: loading module '%s'\n", module);
 
-		if (retval == VMI_NATIVE) {
-			Com_Printf("Try loading dll file %s\n", filename);
+	// Static buffer for storing extracted DLL path
+	static char vm_osPaths[MAX_VM][MAX_OSPATH];
+	char* dllPath = vm_osPaths[vmSlot];
 
-			vm->dllHandle = Sys_LoadGameDll(filename, &vm->entryPoint, VM_DllSyscall);
-
-			if (vm->dllHandle) {
-				vm->systemCall = systemCalls;
-				return vm;
-			}
-
-			Com_Printf("Failed loading dll, trying next\n");
-		}
-	} while (retval >= 0);
-
-	if (retval < 0) {
-		return NULL;
+	// Extract the DLL (e.g., cgamex86.dll or uix86.dll) from validated pak files
+	if (!FS_ExtractGamecode(module, dllPath) || dllPath[0] == '\0') {
+		Com_Error(ERR_FATAL, "VM_Create: failed to extract game module '%s'", module);
 	}
 
+	// Load the DLL and initialize the entry point
+	vm->dllHandle = Sys_LoadGameDll(dllPath, &vm->entryPoint, VM_DllSyscall);
+	if (!vm->dllHandle || !vm->entryPoint) {
+		Com_Error(ERR_FATAL, "VM_Create: failed to load DLL '%s'", dllPath);
+	}
+	
 	vm->systemCall = systemCalls;
-
-	// allocate space for the jump targets, which will be filled in by the compile/prep functions
-	vm->instructionCount = header->instructionCount;
-	vm->instructionPointers = Hunk_Alloc(vm->instructionCount * sizeof(*vm->instructionPointers), h_high);
-
-	// copy or compile the instructions
-	vm->codeLength = header->codeLength;
-
-	vm->compiled = qtrue;
-	VM_Compile(vm, header);
-
-	// VM_Compile may have reset vm->compiled if compilation failed
-	if (!vm->compiled) {
-		VM_PrepareInterpreter(vm, header);
+	if (!vm->systemCall) {
+		Com_Error(ERR_FATAL, "VM_Create: failed to set system call for '%s'", module);
 	}
 
-	// free the original file
-	FS_FreeFile(header);
-
-	// load the map file
-	VM_LoadSymbols(vm);
-
-	// the stack is implicitly at the end of the image
-	vm->programStack = vm->dataMask + 1;
-	vm->stackBottom = vm->programStack - PROGRAM_STACK_SIZE;
-
-	Com_Printf("%s loaded in %d bytes on the hunk\n", module, remaining - Hunk_MemoryRemaining());
-
+	Com_Printf("VM_Create: successfully loaded '%s'\n", module);
 	return vm;
 }
 
@@ -502,8 +481,7 @@ void VM_Free(vm_t* vm) {
 		if (!forced_unload) {
 			Com_Error(ERR_FATAL, "VM_Free(%s) on running vm", vm->name);
 			return;
-		}
-		else {
+		} else {
 			Com_Printf("forcefully unloading %s vm\n", vm->name);
 		}
 	}
@@ -557,8 +535,7 @@ void* VM_ArgPtr(intptr_t intValue) {
 
 	if (currentVM->entryPoint) {
 		return (void*)(currentVM->dataBase + intValue);
-	}
-	else {
+	} else {
 		return (void*)(currentVM->dataBase + (intValue & currentVM->dataMask));
 	}
 }
@@ -575,8 +552,7 @@ void* VM_ExplicitArgPtr(vm_t* vm, intptr_t intValue) {
 	//
 	if (vm->entryPoint) {
 		return (void*)(vm->dataBase + intValue);
-	}
-	else {
+	} else {
 		return (void*)(vm->dataBase + (intValue & vm->dataMask));
 	}
 }
@@ -606,8 +582,7 @@ locals from sp
 ==============
 */
 
-intptr_t QDECL VM_Call(vm_t* vm, int callnum, ...)
-{
+intptr_t QDECL VM_Call(vm_t* vm, int callnum, ...) {
 	vm_t* oldVM;
 	intptr_t r;
 	int i;
@@ -636,10 +611,9 @@ intptr_t QDECL VM_Call(vm_t* vm, int callnum, ...)
 		va_end(ap);
 
 		r = vm->entryPoint(callnum, args[0], args[1], args[2], args[3],
-			args[4], args[5], args[6], args[7],
-			args[8], args[9], args[10], args[11]);
-	}
-	else {
+						   args[4], args[5], args[6], args[7],
+						   args[8], args[9], args[10], args[11]);
+	} else {
 #if ( id386 || idsparc ) && !defined __clang__ // calling convention doesn't need conversion in some cases
 #ifndef NO_VM_COMPILED
 		if (vm->compiled)
@@ -762,8 +736,7 @@ void VM_VmInfo_f(void) {
 		}
 		if (vm->compiled) {
 			Com_Printf("compiled on load\n");
-		}
-		else {
+		} else {
 			Com_Printf("interpreted\n");
 		}
 		Com_Printf("    code length : %7i\n", vm->codeLength);
@@ -788,7 +761,7 @@ void VM_LogSyscalls(int* args) {
 	}
 	callnum++;
 	fprintf(f, "%i: %p (%i) = %i %i %i %i\n", callnum, (void*)(args - (int*)currentVM->dataBase),
-		args[0], args[1], args[2], args[3], args[4]);
+			args[0], args[1], args[2], args[3], args[4]);
 }
 
 /*
@@ -798,15 +771,13 @@ Executes a block copy operation within currentVM data space
 =================
 */
 
-void VM_BlockCopy(unsigned int dest, unsigned int src, size_t n)
-{
+void VM_BlockCopy(unsigned int dest, unsigned int src, size_t n) {
 	unsigned int dataMask = currentVM->dataMask;
 
 	if ((dest & dataMask) != dest
 		|| (src & dataMask) != src
 		|| ((dest + n) & dataMask) != dest + n
-		|| ((src + n) & dataMask) != src + n)
-	{
+		|| ((src + n) & dataMask) != src + n) {
 		Com_Error(ERR_DROP, "OP_BLOCK_COPY out of range!");
 	}
 

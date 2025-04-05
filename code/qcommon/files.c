@@ -174,19 +174,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
  // every time a new demo pk3 file is built, this checksum must be updated.
  // the easiest way to get it is to just run the game and see what it spits out
-#ifndef STANDALONE
 static const unsigned int pak_checksums[] = {
 	3290873369u
 };
-#endif
-
-// if this is defined, the executable positively won't work with any paks other
-// than the demo pak, even if productid is present.  This is only used for our
-// last demo release to prevent the mac and linux users from using the demo
-// executable with the production windows pak before the mac/linux products
-// hit the shelves a little later
-// NOW defined in build files
-//#define PRE_RELEASE_TADEMO
 
 #define MAX_ZPATH			256
 #define	MAX_SEARCH_PATHS	4096
@@ -216,7 +206,7 @@ typedef struct {
 
 typedef struct {
 	char		path[MAX_OSPATH];		// c:\quake3
-	char		fullpath[MAX_OSPATH];		// c:\quake3\baseq3
+	char		fullpath[MAX_OSPATH];	// c:\quake3\baseq3
 	char		gamedir[MAX_OSPATH];	// baseq3
 } directory_t;
 
@@ -298,6 +288,7 @@ char lastValidGame[MAX_OSPATH];
 // Checksums for the pak files
 static int fs_uiBinChecksum;
 static int fs_cgameBinChecksum;
+static int fs_qagameBinChecksum;
 
 
 #ifdef FS_MISSING
@@ -912,15 +903,10 @@ fileHandle_t FS_FOpenFileWrite(const char* filename) {
 		Com_Printf("FS_FOpenFileWrite: %s\n", ospath);
 	}
 
-	FS_CheckFilenameIsMutable(ospath, __func__);
-
 	if (FS_CreatePath(ospath)) {
 		return 0;
 	}
 
-	// enabling the following line causes a recursive function call loop
-	// when running with +set logfile 1 +set developer 1
-	//Com_DPrintf( "writing to: %s\n", ospath );
 	fsh[f].handleFiles.file.o = Sys_FOpen(ospath, "wb");
 
 	Q_strncpyz(fsh[f].name, filename, sizeof(fsh[f].name));
@@ -929,6 +915,7 @@ fileHandle_t FS_FOpenFileWrite(const char* filename) {
 	if (!fsh[f].handleFiles.file.o) {
 		f = 0;
 	}
+
 	return f;
 }
 
@@ -1153,17 +1140,6 @@ long FS_FOpenFileReadDir(const char* filename, searchpath_t* search, fileHandle_
 		return -1;
 	}
 
-	// make sure the q3key file is only readable by the quake3.exe at initialization
-	// any other time the key should only be accessed in memory using the provided functions
-	if (com_fullyInitialized && strstr(filename, "q3key"))
-	{
-		if (file == NULL)
-			return qfalse;
-
-		*file = 0;
-		return -1;
-	}
-
 	if (file == NULL)
 	{
 		// just wants to see if file is there
@@ -1265,17 +1241,18 @@ long FS_FOpenFileReadDir(const char* filename, searchpath_t* search, fileHandle_
 							!FS_IsExt(filename, ".bot", len) &&
 							!FS_IsExt(filename, ".arena", len) &&
 							!FS_IsExt(filename, ".menu", len) &&
-							Q_stricmp(filename, "vm/qagame.qvm") != 0 &&
 							!strstr(filename, "levelshots"))
 						{
 							pak->referenced |= FS_GENERAL_REF;
 						}
 					}
 
-					if (strstr(filename, "cgame.qvm"))
+					if (strstr(filename, "cgame" ARCH_STRING DLL_EXT))
 						pak->referenced |= FS_CGAME_REF;
-					if (strstr(filename, "ui.qvm"))
+					if (strstr(filename, "ui" ARCH_STRING DLL_EXT))
 						pak->referenced |= FS_UI_REF;
+					if (strstr(filename, "qagame" ARCH_STRING DLL_EXT))
+						pak->referenced |= FS_QAGAME_REF;
 
 					if (uniqueFILE)
 					{
@@ -3036,7 +3013,7 @@ qboolean FS_idPak(char* pak, char* base, int numPaks)
 	int i;
 
 	for (i = 0; i < NUM_ID_PAKS; i++) {
-		if (!FS_FilenameCompare(pak, va("%s/pak%d", base, i))) {
+		if (!FS_FilenameCompare(pak, va("%s/pak0%d", base, i))) {
 			break;
 		}
 	}
@@ -3449,7 +3426,7 @@ static void FS_CheckPak00(void)
 					Com_Printf("\n\n"
 						"**************************************************\n"
 						"WARNING: " BASEGAME "/pak00.pk3 is present but its checksum (%u)\n"
-						"is not correct. Please re-copy pak0.pk3 from your\n"
+						"is not correct. Please re-copy pak00.pk3 from your\n"
 						"legitimate Q3 CDROM.\n"
 						"**************************************************\n\n\n",
 						curpack->checksum);
@@ -3889,8 +3866,13 @@ qboolean FS_VerifyPureGamecode(void) {
 		return qfalse;
 	}
 
-	if (fs_uiBinChecksum != fs_cgameBinChecksum) {
-		Com_DPrintf("different paks for ui and cgame modules\n");
+	if (fs_qagameBinChecksum == 0) {
+		Com_DPrintf("no pak for qagame module\n");
+		return qfalse;
+	}
+
+	if (fs_uiBinChecksum == fs_cgameBinChecksum == fs_qagameBinChecksum) {
+		Com_DPrintf("different paks for ui/cgame/qagame modules\n");
 		return qfalse;
 	}
 
@@ -3933,7 +3915,7 @@ FS_ExtractGamecode
 Extracts the specified game module binary (e.g., uix86.dll or cgamex86.dll)
 from a loaded and server-authorised pak file. Only paks whose checksums
 appear in fs_serverPaks[] and are flagged as being referenced by the
-specified module (FS_UI_REF or FS_CGAME_REF) are eligible.
+specified module (FS_UI_REF, FS_CGAME_REF or FS_QAGAME_REF) are eligible.
 
 The extracted binary is written to the game homepath, and its full
 OS path is returned via outOSPath. This function ensures that only
@@ -3951,8 +3933,8 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 	void* buffer;
 	int fileLen;
 
-	// Build expected filename (e.g., "cgamex86.dll" or "uix86.dll")
-	Com_sprintf(filename, sizeof(filename), "%sx86.dll", module);
+	// Build expected filename (e.g., "cgamex86.dll", "uix86.dll" or "qagamex86.dll")
+	Com_sprintf(filename, sizeof(filename), "%s" ARCH_STRING DLL_EXT, module);
 
 	for (search = fs_searchpaths; search != NULL; search = search->next) {
 		pak = search->pack;
@@ -3975,18 +3957,26 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 
 		// Check if this pak is referenced by this module
 		int refFlag = 0;
-		if (!Q_stricmp(module, "ui")) {
+		if (Q_stricmp(module, "ui") == 0) {
 			refFlag = FS_UI_REF;
-		}
-		else if (!Q_stricmp(module, "cgame")) {
+		} else if (Q_stricmp(module, "cgame") == 0) {
 			refFlag = FS_CGAME_REF;
+		} else if (Q_stricmp(module, "qagame") == 0) {
+			refFlag = FS_QAGAME_REF;
+		} else {
+			Com_Error(ERR_FATAL, "FS_ExtractGamecode: invalid module name '%s'.", module);
 		}
+
+		if (Q_stricmp(pak->pakBasename, "bin") == 0 && pak->numfiles == 3) {
+			pak->referenced |= FS_UI_REF | FS_CGAME_REF | FS_QAGAME_REF;
+		}
+
 		if (!(pak->referenced & refFlag)) {
 			continue;
 		}
 
 		// Look for the file in the pack hash table
-		hash = COM_HashFileName(filename, pak->hashSize);
+		hash = FS_HashFileName(filename, pak->hashSize);
 		for (fileEntry = pak->hashTable[hash]; fileEntry; fileEntry = fileEntry->next) {
 			if (FS_FilenameCompare(fileEntry->name, filename) != 0)
 				continue;
@@ -4015,7 +4005,7 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 			Q_strncpyz(outOSPath, path, MAX_OSPATH);
 
 			if (!handleOut) {
-				Com_Error(ERR_FATAL, "failed to open %s for writing", filename);
+				Com_Error(ERR_FATAL, "FS_ExtractGamecode: failed to open %s for writing", filename);
 			}
 
 			// Read entire file from zip and write to disk
@@ -4023,22 +4013,25 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 			buffer = Z_Malloc(fileLen);
 
 			if (FS_Read(buffer, fileLen, handleIn) != fileLen) {
-				Com_Error(ERR_FATAL, "short read in FS_ExtractGamecode");
+				Com_Error(ERR_FATAL, "FS_ExtractGamecode: short read");
 			}
 			if (FS_Write(buffer, fileLen, handleOut) != fileLen) {
-				Com_Error(ERR_FATAL, "short write in FS_ExtractGamecode");
+				Com_Error(ERR_FATAL, "FS_ExtractGamecode: short write");
 			}
+
+			Com_DPrintf("Extracted '%s' from '%s/%s.pk3' to '%s'\n", filename, pak->pakGamename, pak->pakBasename, path);
 
 			Z_Free(buffer);
 			FS_FCloseFile(handleIn);
 			FS_FCloseFile(handleOut);
 
 			// Set module checksum
-			if (!Q_stricmp(module, "ui")) {
+			if (Q_stricmp(module, "ui") == 0) {
 				fs_uiBinChecksum = checksum;
-			}
-			else if (!Q_stricmp(module, "cgame")) {
+			} else if (Q_stricmp(module, "cgame") == 0) {
 				fs_cgameBinChecksum = checksum;
+			} else if (Q_stricmp(module, "qagame") == 0) {
+				fs_qagameBinChecksum = checksum;
 			}
 
 			return qtrue;
