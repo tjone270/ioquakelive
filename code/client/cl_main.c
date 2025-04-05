@@ -142,18 +142,6 @@ void CL_ServerStatus_f(void);
 void CL_ServerStatusResponse(netadr_t from, msg_t* msg);
 
 /*
-===============
-CL_CDDialog
-
-Called by Com_Error when a cd is needed
-===============
-*/
-void CL_CDDialog(void) {
-	cls.cddialog = qtrue;	// start it next frame
-}
-
-
-/*
 =======================================================================
 
 CLIENT RELIABLE COMMAND COMMUNICATION
