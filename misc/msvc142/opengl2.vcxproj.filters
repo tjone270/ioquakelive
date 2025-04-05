@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="..\..\code\qcommon\puff.c" />
     <ClCompile Include="..\..\code\qcommon\q_math.c" />
     <ClCompile Include="..\..\code\qcommon\q_shared.c" />
     <ClCompile Include="..\..\code\renderercommon\tr_font.c" />
@@ -284,18 +283,16 @@
       <Filter>zlib</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\renderergl2\tr_dsa.c" />
+    <ClCompile Include="..\..\code\qcommon\puff.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\code\cgame\tr_types.h" />
     <ClInclude Include="..\..\code\client\snd_local.h" />
     <ClInclude Include="..\..\code\client\snd_public.h" />
-    <ClInclude Include="..\..\code\qcommon\puff.h" />
     <ClInclude Include="..\..\code\qcommon\qcommon.h" />
     <ClInclude Include="..\..\code\qcommon\qfiles.h" />
     <ClInclude Include="..\..\code\qcommon\q_shared.h" />
     <ClInclude Include="..\..\code\qcommon\surfaceflags.h" />
-    <ClInclude Include="..\..\code\qcommon\unzip.h" />
-    <ClInclude Include="..\..\code\qcommon\vm_local.h" />
     <ClInclude Include="..\..\code\renderercommon\qgl.h" />
     <ClInclude Include="..\..\code\renderercommon\tr_public.h" />
     <ClInclude Include="..\..\code\renderergl2\tr_extramath.h" />
@@ -304,9 +301,6 @@
     <ClInclude Include="..\..\code\renderergl2\tr_local.h" />
     <ClInclude Include="..\..\code\renderergl2\tr_postprocess.h" />
     <ClInclude Include="..\..\code\server\server.h" />
-    <ClInclude Include="..\..\code\ui\ui_public.h" />
-    <ClInclude Include="..\..\code\win32\resource.h" />
-    <ClInclude Include="..\..\code\win32\win_local.h" />
     <ClInclude Include="..\..\code\jpeg-6b\jchuff.h">
       <Filter>jpeg</Filter>
     </ClInclude>
@@ -340,6 +334,7 @@
     <ClInclude Include="..\..\code\jpeg-6b\jversion.h">
       <Filter>jpeg</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\code\qcommon\puff.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="jpeg">
