@@ -4946,6 +4946,14 @@ qboolean ItemParse_cvarTest( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+qboolean ItemParse_cvarTest2(itemDef_t* item, int handle) {
+	Com_Printf("MENU PARSING: cvarTest2 keyword item support not yet implemented. Doing cvarTest instead.\n");
+	if (!PC_String_Parse(handle, &item->cvarTest2)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 qboolean ItemParse_cvar( itemDef_t *item, int handle ) {
 	editFieldDef_t *editPtr;
 
@@ -5166,11 +5174,20 @@ qboolean ItemParse_hideCvar( itemDef_t *item, int handle ) {
 	return qfalse;
 }
 
+qboolean ItemParse_hideCvar2(itemDef_t* item, int handle) {
+	Com_Printf("MENU PARSING: hideCvar2 keyword item support not yet implemented. Doing hideCvar instead.\n");
+	if (PC_Script_Parse(handle, &item->enableCvar)) {
+		item->cvarFlags = CVAR_HIDE;
+		return qtrue;
+	}
+	return qfalse;
+}
+
 qboolean ItemParse_font(itemDef_t* item, int handle) {
 	int fontVal;
 	PC_Int_Parse(handle, &fontVal);
 
-	Com_Printf("Font keyword item support not yet implemented.\n");
+	Com_Printf("MENU PARSING: font keyword item support not yet implemented.\n");
 
 	return qtrue;
 }
@@ -5234,9 +5251,11 @@ keywordHash_t itemParseKeywords[] = {
 	{"ownerdrawFlag", ItemParse_ownerdrawFlag, NULL},
 	{"enableCvar", ItemParse_enableCvar, NULL},
 	{"cvarTest", ItemParse_cvarTest, NULL},
+	{"cvarTest2", ItemParse_cvarTest2, NULL},
 	{"disableCvar", ItemParse_disableCvar, NULL},
 	{"showCvar", ItemParse_showCvar, NULL},
 	{"hideCvar", ItemParse_hideCvar, NULL},
+	{"hideCvar2", ItemParse_hideCvar2, NULL},
 	{"cinematic", ItemParse_cinematic, NULL},
 	{"doubleclick", ItemParse_doubleClick, NULL},
 	{"font", ItemParse_font, NULL},
@@ -5783,7 +5802,7 @@ qboolean MenuParse_widescreen(itemDef_t* item, int handle) {
 
 	int widescreenVal;
 	PC_Int_Parse(handle, &widescreenVal);
-	Com_Printf("Widescreen support not yet implemented.\n");
+	Com_Printf("MENU PARSING: widescreen support not yet implemented.\n");
 
 	return qtrue;
 }
