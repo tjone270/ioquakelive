@@ -226,7 +226,7 @@ void AssetCache(void) {
 	uiInfo.uiDC.Assets.sliderBar = trap_R_RegisterShaderNoMip(ASSET_SLIDER_BAR);
 	uiInfo.uiDC.Assets.sliderThumb = trap_R_RegisterShaderNoMip(ASSET_SLIDER_THUMB);
 
-	for (n = 0; n < NUM_CROSSHAIRS; n++) {
+	for (n = 1; n < NUM_CROSSHAIRS; n++) {
 		uiInfo.uiDC.Assets.crosshairShader[n] = trap_R_RegisterShaderNoMip(va("gfx/2d/crosshair%i", n));
 	}
 
@@ -663,7 +663,7 @@ _UI_Shutdown
 =================
 */
 void _UI_Shutdown(void) {
-	trap_LAN_SaveCachedServers();
+
 }
 
 char* defaultMenu = NULL;
@@ -5211,7 +5211,6 @@ void _UI_Init(qboolean inGameLoad) {
 
 	Menus_CloseAll();
 
-	trap_LAN_LoadCachedServers();
 	UI_LoadBestScores(uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum);
 
 	UI_BuildQ3Model_List();
@@ -5849,10 +5848,6 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_new, "ui_new", "0", CVAR_TEMP },
 	{ &ui_debug, "ui_debug", "0", CVAR_TEMP },
 	{ &ui_initialized, "ui_initialized", "0", CVAR_TEMP },
-	{ &ui_teamName, "ui_teamName", "Pagans", CVAR_ARCHIVE },
-	{ &ui_opponentName, "ui_opponentName", "Stroggs", CVAR_ARCHIVE },
-	{ &ui_redteam, "ui_redteam", "Pagans", CVAR_ARCHIVE },
-	{ &ui_blueteam, "ui_blueteam", "Stroggs", CVAR_ARCHIVE },
 	{ &ui_dedicated, "ui_dedicated", "0", CVAR_ARCHIVE },
 	{ &ui_gameType, "ui_gametype", "3", CVAR_ARCHIVE },
 	{ &ui_joinGameType, "ui_joinGametype", "0", CVAR_ARCHIVE },
