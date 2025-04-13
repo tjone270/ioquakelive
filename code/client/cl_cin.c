@@ -25,8 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * desc:		video and cinematic playback
  *
- * $Archive: /MissionPack/code/client/cl_cin.c $
- *
  * cl_glconfig.hwtype trtypes 3dfx/ragepro need 256x256
  *
  *****************************************************************************/

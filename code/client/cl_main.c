@@ -887,20 +887,20 @@ void CL_ClearState(void) {
 ====================
 CL_UpdateGUID
 
-update cl_guid using QKEY_FILE and optional prefix
+update cl_guid using RND_FILE and optional prefix
 ====================
 */
 static void CL_UpdateGUID(const char* prefix, int prefix_len) {
 	fileHandle_t f;
 	int len;
 
-	len = FS_SV_FOpenFileRead(QKEY_FILE, &f);
+	len = FS_SV_FOpenFileRead(RND_FILE, &f);
 	FS_FCloseFile(f);
 
-	if (len != QKEY_SIZE)
+	if (len != RND_SIZE)
 		Cvar_Set("cl_guid", "");
 	else
-		Cvar_Set("cl_guid", Com_MD5File(QKEY_FILE, QKEY_SIZE,
+		Cvar_Set("cl_guid", Com_MD5File(RND_FILE, RND_SIZE,
 										prefix, prefix_len));
 }
 
@@ -2753,40 +2753,40 @@ void CL_StopVideo_f(void) {
 
 /*
 ===============
-CL_GenerateQKey
+CL_GenerateRnd
 
-test to see if a valid QKEY_FILE exists.  If one does not, try to generate
+test to see if a valid RND_FILE exists.  If one does not, try to generate
 it by filling it with 2048 bytes of random data.
 ===============
 */
-static void CL_GenerateQKey(void) {
+static void CL_GenerateRnd(void) {
 	int len = 0;
-	unsigned char buff[QKEY_SIZE];
+	unsigned char buff[RND_SIZE];
 	fileHandle_t f;
 
-	len = FS_SV_FOpenFileRead(QKEY_FILE, &f);
+	len = FS_SV_FOpenFileRead(RND_FILE, &f);
 	FS_FCloseFile(f);
-	if (len == QKEY_SIZE) {
-		Com_Printf("QKEY found.\n");
+	if (len == RND_SIZE) {
+		Com_Printf(RND_FILE " found.\n");
 		return;
 	} else {
 		if (len > 0) {
-			Com_Printf("QKEY file size != %d, regenerating\n",
-					   QKEY_SIZE);
+			Com_Printf(RND_FILE " file size != %d, regenerating\n",
+					   RND_SIZE);
 		}
 
-		Com_Printf("QKEY building random string\n");
+		Com_Printf(RND_FILE " building random string\n");
 		Com_RandomBytes(buff, sizeof(buff));
 
-		f = FS_SV_FOpenFileWrite(QKEY_FILE);
+		f = FS_SV_FOpenFileWrite(RND_FILE);
 		if (!f) {
-			Com_Printf("QKEY could not open %s for write\n",
-					   QKEY_FILE);
+			Com_Printf(RND_FILE " could not open %s for write\n",
+					   RND_FILE);
 			return;
 		}
 		FS_Write(buff, sizeof(buff), f);
 		FS_FCloseFile(f);
-		Com_Printf("QKEY generated\n");
+		Com_Printf(RND_FILE " generated\n");
 	}
 }
 
@@ -2975,8 +2975,6 @@ void CL_Init(void) {
 	Cvar_Get("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
 	Cvar_Get("team_model", "james", CVAR_USERINFO | CVAR_ARCHIVE);
 	Cvar_Get("team_headmodel", "*james", CVAR_USERINFO | CVAR_ARCHIVE);
-	Cvar_Get("g_redTeam", "Stroggs", CVAR_SERVERINFO | CVAR_ARCHIVE);
-	Cvar_Get("g_blueTeam", "Pagans", CVAR_SERVERINFO | CVAR_ARCHIVE);
 	Cvar_Get("color1", "4", CVAR_USERINFO | CVAR_ARCHIVE);
 	Cvar_Get("color2", "5", CVAR_USERINFO | CVAR_ARCHIVE);
 	Cvar_Get("handicap", "100", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -3030,7 +3028,7 @@ void CL_Init(void) {
 
 	Cvar_Set("cl_running", "1");
 
-	CL_GenerateQKey();
+	CL_GenerateRnd();
 	Cvar_Get("cl_guid", "", CVAR_USERINFO | CVAR_ROM);
 	CL_UpdateGUID(NULL, 0);
 

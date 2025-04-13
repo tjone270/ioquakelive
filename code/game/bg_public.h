@@ -248,9 +248,7 @@ void Pmove(pmove_t* pmove);
 typedef enum {
 	STAT_HEALTH,
 	STAT_HOLDABLE_ITEM,
-#ifdef MISSIONPACK
 	STAT_PERSISTANT_POWERUP,
-#endif
 	STAT_WEAPONS,					// 16 bit fields
 	STAT_ARMOR,
 	STAT_DEAD_YAW,					// look this direction when dead (FIXME: get rid of?)
@@ -285,9 +283,7 @@ typedef enum {
 
 // entityState_t->eFlags
 #define	EF_DEAD				0x00000001		// don't draw a foe marker over players with EF_DEAD
-#ifdef MISSIONPACK
 #define EF_TICKING			0x00000002		// used to make players play the prox mine ticking sound
-#endif
 #define	EF_TELEPORT_BIT		0x00000004		// toggled every time the origin abruptly changes
 #define	EF_AWARD_EXCELLENT	0x00000008		// draw an excellent sprite
 #define EF_PLAYER_EVENT		0x00000010
@@ -306,7 +302,6 @@ typedef enum {
 #define	EF_AWARD_DEFEND		0x00010000		// draw a defend sprite
 #define	EF_AWARD_ASSIST		0x00020000		// draw a assist sprite
 #define EF_AWARD_DENIED		0x00040000		// denied
-#define EF_TEAMVOTED		0x00080000		// already cast a team vote
 
 // NOTE: may not have more than 16
 typedef enum {
@@ -359,11 +354,9 @@ typedef enum {
 	WP_PLASMAGUN,
 	WP_BFG,
 	WP_GRAPPLING_HOOK,
-#ifdef MISSIONPACK
 	WP_NAILGUN,
 	WP_PROX_LAUNCHER,
 	WP_CHAINGUN,
-#endif
 
 	WP_NUM_WEAPONS
 } weapon_t;

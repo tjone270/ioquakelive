@@ -25,8 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * desc:		sound caching
  *
- * $Archive: /MissionPack/code/client/snd_mem.c $
- *
  *****************************************************************************/
 
 #include "snd_local.h"

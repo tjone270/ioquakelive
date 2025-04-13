@@ -23,11 +23,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
 
-#ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
 // display context for new ui stuff
 displayContextDef_t cgDC;
-#endif
 
 int forceModelModificationCount = -1;
 
@@ -65,10 +63,8 @@ Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, in
 		CG_KeyEvent(arg0, arg1);
 		return 0;
 	case CG_MOUSE_EVENT:
-#ifdef MISSIONPACK
 		cgDC.cursorx = cgs.cursorX;
 		cgDC.cursory = cgs.cursorY;
-#endif
 		CG_MouseEvent(arg0, arg1);
 		return 0;
 	case CG_EVENT_HANDLING:
@@ -817,7 +813,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.blueProxMine = trap_R_RegisterModel("models/weaphits/proxmineb.md3");
 
 	cgs.media.plasmaBallShader = trap_R_RegisterShader("sprites/plasma1");
-	cgs.media.bloodTrailShader = trap_R_RegisterShader("bloodTrail");
+	cgs.media.bloodTrailShader = trap_R_RegisterShader("dlc_gibs/juicer");
 	cgs.media.lagometerShader = trap_R_RegisterShader("lagometer");
 	cgs.media.connectionShader = trap_R_RegisterShader("disconnected");
 
@@ -826,7 +822,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.tracerShader = trap_R_RegisterShader("gfx/misc/tracer");
 	cgs.media.selectShader = trap_R_RegisterShader("gfx/2d/select");
 
-	for (i = 0; i < NUM_CROSSHAIRS; i++) {
+	for (i = 1; i < NUM_CROSSHAIRS; i++) {
 		cgs.media.crosshairShader[i] = trap_R_RegisterShader(va("gfx/2d/crosshair%i", i));
 	}
 
@@ -925,7 +921,7 @@ static void CG_RegisterGraphics(void) {
 
 	cgs.media.balloonShader = trap_R_RegisterShader("sprites/balloon3");
 
-	cgs.media.bloodExplosionShader = trap_R_RegisterShader("bloodExplosion");
+	cgs.media.bloodExplosionShader = trap_R_RegisterShader("dlc_gibs/juicer");
 
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
 	cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
@@ -981,7 +977,7 @@ static void CG_RegisterGraphics(void) {
 	cgs.media.energyMarkShader = trap_R_RegisterShader("gfx/damage/plasma_mrk");
 	cgs.media.shadowMarkShader = trap_R_RegisterShader("markShadow");
 	cgs.media.wakeMarkShader = trap_R_RegisterShader("wake");
-	cgs.media.bloodMarkShader = trap_R_RegisterShader("bloodMark");
+	cgs.media.bloodMarkShader = trap_R_RegisterShader("dlc_gibs/blood_stain");
 
 	// register the inline models
 	cgs.numInlineModels = trap_CM_NumInlineModels();
@@ -1837,9 +1833,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 
 	trap_CM_LoadMap(cgs.mapname);
 
-#ifdef MISSIONPACK
 	String_Init();
-#endif
 
 	cg.loading = qtrue;		// force players to load instead of defer
 
@@ -1855,10 +1849,8 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 
 	CG_RegisterClients();		// if low on memory, some clients will be deferred
 
-#ifdef MISSIONPACK
 	CG_AssetCache();
 	CG_LoadHudMenu();      // load new hud stuff
-#endif
 
 	cg.loading = qfalse;	// future players will be deferred
 
@@ -1876,9 +1868,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 
 	CG_LoadingString("");
 
-#ifdef MISSIONPACK
 	CG_InitTeamChat();
-#endif
 
 	CG_ShaderStateChanged();
 
@@ -1896,27 +1886,3 @@ void CG_Shutdown(void) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
 }
-
-
-/*
-==================
-CG_EventHandling
-==================
- type 0 - no event handling
-	  1 - team menu
-	  2 - hud editor
-
-*/
-#ifndef MISSIONPACK
-void CG_EventHandling(int type) {
-}
-
-
-
-void CG_KeyEvent(int key, qboolean down) {
-}
-
-void CG_MouseEvent(int x, int y) {
-}
-#endif
-

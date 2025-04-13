@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // A user mod should never modify this file
 
 // BEGIN Thomas changes
-//#define STANDALONE
 #define LEGACY_PROTOCOL
 // END Thomas changes
 
@@ -40,7 +39,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define HOMEPATH_NAME_WIN			"quakelive"
 #define HOMEPATH_NAME_MACOSX		HOMEPATH_NAME_WIN
 #define PROTOCOL_HANDLER		    "quakelive"
-//#define MISSIONPACK
 //  #define STEAMPATH_NAME			"Quake Live"
 //  #define STEAMPATH_APPID         "282440"
 

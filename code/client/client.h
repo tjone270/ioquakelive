@@ -35,8 +35,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif /* USE_CURL */
 
 // file full of random crap that gets used to create cl_guid
-#define QKEY_FILE "qkey"
-#define QKEY_SIZE 2048
+#define RND_FILE "rnd.dat"
+#define RND_SIZE 2048
 
 #define	RETRANSMIT_TIMEOUT	3000	// time between connection packet retransmits
 

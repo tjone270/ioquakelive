@@ -25,15 +25,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
-#ifdef MISSIONPACK
 #include "../ui/ui_shared.h"
 
 // used for scoreboard
 extern displayContextDef_t cgDC;
 menuDef_t *menuScoreboard = NULL;
-#else
-int drawTeamOverlayModificationCount = -1;
-#endif
 
 int sortedTeamPlayers[TEAM_MAXOVERLAY];
 int	numSortedTeamPlayers;
@@ -42,7 +38,6 @@ char systemChat[256];
 char teamChat1[256];
 char teamChat2[256];
 
-#ifdef MISSIONPACK
 
 int CG_Text_Width(const char *text, float scale, int limit) {
   int count,len;
@@ -192,71 +187,6 @@ void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text
   }
 }
 
-
-#endif
-
-/*
-==============
-CG_DrawField
-
-Draws large numbers for status bar and powerups
-==============
-*/
-#ifndef MISSIONPACK
-static void CG_DrawField (int x, int y, int width, int value) {
-	char	num[16], *ptr;
-	int		l;
-	int		frame;
-
-	if ( width < 1 ) {
-		return;
-	}
-
-	// draw number string
-	if ( width > 5 ) {
-		width = 5;
-	}
-
-	switch ( width ) {
-	case 1:
-		value = value > 9 ? 9 : value;
-		value = value < 0 ? 0 : value;
-		break;
-	case 2:
-		value = value > 99 ? 99 : value;
-		value = value < -9 ? -9 : value;
-		break;
-	case 3:
-		value = value > 999 ? 999 : value;
-		value = value < -99 ? -99 : value;
-		break;
-	case 4:
-		value = value > 9999 ? 9999 : value;
-		value = value < -999 ? -999 : value;
-		break;
-	}
-
-	Com_sprintf (num, sizeof(num), "%i", value);
-	l = strlen(num);
-	if (l > width)
-		l = width;
-	x += 2 + CHARACTER_WIDTH*(width - l);
-
-	ptr = num;
-	while (*ptr && l)
-	{
-		if (*ptr == '-')
-			frame = STAT_MINUS;
-		else
-			frame = *ptr -'0';
-
-		CG_DrawPic( x,y, CHARACTER_WIDTH, CHAR_HEIGHT, cgs.media.numberShaders[frame] );
-		x += CHARACTER_WIDTH;
-		ptr++;
-		l--;
-	}
-}
-#endif // MISSIONPACK
 
 /*
 ================
@@ -1115,9 +1045,9 @@ static void CG_DrawCenterString( void ) {
 	char	*start;
 	int		l;
 	int		x, y, w;
-#ifdef MISSIONPACK
+
 	int h;
-#endif
+
 	float	*color;
 
 	if ( !cg.centerPrintTime ) {
@@ -1146,22 +1076,12 @@ static void CG_DrawCenterString( void ) {
 		}
 		linebuffer[l] = 0;
 
-#ifdef MISSIONPACK
 		w = CG_Text_Width(linebuffer, 0.5, 0);
 		h = CG_Text_Height(linebuffer, 0.5, 0);
 		x = (SCREEN_WIDTH - w) / 2;
 		CG_Text_Paint(x, y + h, 0.5, color, linebuffer, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 		y += h + 6;
-#else
-		w = cg.centerPrintCharWidth * CG_DrawStrlen( linebuffer );
 
-		x = ( SCREEN_WIDTH - w ) / 2;
-
-		CG_DrawStringExt( x, y, linebuffer, color, qfalse, qtrue,
-			cg.centerPrintCharWidth, (int)(cg.centerPrintCharWidth * 1.5), 0 );
-
-		y += cg.centerPrintCharWidth * 1.5;
-#endif
 		while ( *start && ( *start != '\n' ) ) {
 			start++;
 		}
@@ -1391,14 +1311,9 @@ static void CG_DrawCrosshairNames( void ) {
 	}
 
 	name = cgs.clientinfo[ cg.crosshairClientNum ].name;
-#ifdef MISSIONPACK
 	color[3] *= 0.5f;
 	w = CG_Text_Width(name, 0.3f, 0);
 	CG_Text_Paint( 320 - w / 2, 190, 0.3f, color, name, 0, 0, ITEM_TEXTSTYLE_SHADOWED);
-#else
-	w = CG_DrawStrlen( name ) * BIGCHAR_WIDTH;
-	CG_DrawBigString( 320 - w / 2, 170, name, color[3] * 0.5f );
-#endif
 	trap_R_SetColor( NULL );
 }
 
@@ -1443,15 +1358,10 @@ static void CG_DrawVote(void) {
 	if ( sec < 0 ) {
 		sec = 0;
 	}
-#ifdef MISSIONPACK
 	s = va("VOTE(%i):%s yes:%i no:%i", sec, cgs.voteString, cgs.voteYes, cgs.voteNo);
 	CG_DrawSmallString( 0, 58, s, 1.0F );
 	s = "or press ESC then click Vote";
 	CG_DrawSmallString( 0, 58 + SMALLCHAR_HEIGHT + 2, s, 1.0F );
-#else
-	s = va("VOTE(%i):%s yes:%i no:%i", sec, cgs.voteString, cgs.voteYes, cgs.voteNo );
-	CG_DrawSmallString( 0, 58, s, 1.0F );
-#endif
 }
 
 /*
@@ -1491,7 +1401,6 @@ static void CG_DrawTeamVote(void) {
 
 
 static qboolean CG_DrawScoreboard( void ) {
-#ifdef MISSIONPACK
 	static qboolean firstTime = qtrue;
 
 	if (menuScoreboard) {
@@ -1548,9 +1457,6 @@ static qboolean CG_DrawScoreboard( void ) {
 	}
 
 	return qtrue;
-#else
-	return CG_DrawOldScoreboard();
-#endif
 }
 
 /*
@@ -1560,17 +1466,10 @@ CG_DrawIntermission
 */
 static void CG_DrawIntermission( void ) {
 //	int key;
-#ifdef MISSIONPACK
 	//if (cg_singlePlayer.integer) {
 	//	CG_DrawCenterString();
 	//	return;
 	//}
-#else
-	if ( cgs.gametype == GT_SINGLE_PLAYER ) {
-		CG_DrawCenterString();
-		return;
-	}
-#endif
 	cg.scoreFadeTime = cg.time;
 	cg.scoreBoardShowing = CG_DrawScoreboard();
 }
@@ -1633,8 +1532,6 @@ static void CG_DrawAmmoWarning( void ) {
 	CG_DrawBigString(320 - w / 2, 64, s, 1.0F);
 }
 
-
-#ifdef MISSIONPACK
 /*
 =================
 CG_DrawProxWarning
@@ -1666,7 +1563,6 @@ static void CG_DrawProxWarning( void ) {
 	w = CG_DrawStrlen( s ) * BIGCHAR_WIDTH;
 	CG_DrawBigStringColor( 320 - w / 2, 64 + BIGCHAR_HEIGHT, s, g_color_table[ColorIndex(COLOR_RED)] );
 }
-#endif
 
 
 /*
@@ -1678,11 +1574,8 @@ static void CG_DrawWarmup( void ) {
 	int			w;
 	int			sec;
 	int			i;
-#ifdef MISSIONPACK
 	float		scale;
-#else
-	int			cw;
-#endif
+
 	clientInfo_t	*ci1, *ci2;
 	const char	*s;
 
@@ -1761,7 +1654,6 @@ static void CG_DrawWarmup( void ) {
 		}
 	}
 
-#ifdef MISSIONPACK
 	switch ( cg.warmupCount ) {
 	case 0:
 		scale = 0.54f;
@@ -1779,30 +1671,9 @@ static void CG_DrawWarmup( void ) {
 
 	w = CG_Text_Width(s, scale, 0);
 	CG_Text_Paint(320 - w / 2, 125, scale, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
-#else
-	switch ( cg.warmupCount ) {
-	case 0:
-		cw = 28;
-		break;
-	case 1:
-		cw = 24;
-		break;
-	case 2:
-		cw = 20;
-		break;
-	default:
-		cw = 16;
-		break;
-	}
-
-	w = CG_DrawStrlen( s );
-	CG_DrawStringExt( 320 - w * cw/2, 70, s, colorWhite, 
-			qfalse, qtrue, cw, (int)(cw * 1.5), 0 );
-#endif
 }
 
 //==================================================================================
-#ifdef MISSIONPACK
 /* 
 =================
 CG_DrawTimedMenus
@@ -1818,7 +1689,7 @@ void CG_DrawTimedMenus( void ) {
 		}
 	}
 }
-#endif
+
 /*
 =================
 CG_Draw2D
@@ -1826,11 +1697,10 @@ CG_Draw2D
 */
 static void CG_Draw2D(stereoFrame_t stereoFrame)
 {
-#ifdef MISSIONPACK
 	if (cgs.orderPending && cg.time > cgs.orderTime) {
 		CG_CheckOrderPending();
 	}
-#endif
+
 	// if we are taking a levelshot for the menu, don't draw anything
 	if ( cg.levelShot ) {
 		return;
@@ -1861,38 +1731,24 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 		// don't draw any status if dead or the scoreboard is being explicitly shown
 		if ( !cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
 
-#ifdef MISSIONPACK
 			if ( cg_drawStatus.integer ) {
 				Menu_PaintAll();
 				CG_DrawTimedMenus();
 			}
-#else
-			CG_DrawStatusBar();
-#endif
       
 			CG_DrawAmmoWarning();
 
-#ifdef MISSIONPACK
 			CG_DrawProxWarning();
-#endif      
+
 			if(stereoFrame == STEREO_CENTER)
 				CG_DrawCrosshair();
 			CG_DrawCrosshairNames();
 			CG_DrawWeaponSelect();
 
-#ifndef MISSIONPACK
-			CG_DrawHoldableItem();
-#else
 			//CG_DrawPersistantPowerup();
-#endif
+
 			CG_DrawReward();
 		}
-	}
-
-	if ( cgs.gametype >= GT_TEAM ) {
-#ifndef MISSIONPACK
-		CG_DrawTeamInfo();
-#endif
 	}
 
 	CG_DrawVote();
@@ -1900,18 +1756,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame)
 
 	CG_DrawLagometer();
 
-#ifdef MISSIONPACK
 	if (!cg_paused.integer) {
 		CG_DrawUpperRight(stereoFrame);
 	}
-#else
-	CG_DrawUpperRight(stereoFrame);
-#endif
-
-#ifndef MISSIONPACK
-	CG_DrawLowerRight();
-	CG_DrawLowerLeft();
-#endif
 
 	if ( !CG_DrawFollow() ) {
 		CG_DrawWarmup();

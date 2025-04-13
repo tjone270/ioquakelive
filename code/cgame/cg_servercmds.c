@@ -25,7 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // be a valid snapshot this frame
 
 #include "cg_local.h"
-#ifdef MISSIONPACK
 #include "../../ui/menudef.h"
 
 typedef struct {
@@ -56,7 +55,6 @@ static int CG_ValidOrder(const char *p) {
 	}
 	return -1;
 }
-#endif
 
 /*
 =================
@@ -101,10 +99,7 @@ static void CG_ParseScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
-#ifdef MISSIONPACK
 	CG_SetScoreSelection(NULL);
-#endif
-
 }
 
 /*
@@ -190,11 +185,9 @@ static void CG_ParseWarmup( void ) {
 	if ( warmup == 0 && cg.warmup ) {
 
 	} else if ( warmup > 0 && cg.warmup <= 0 ) {
-#ifdef MISSIONPACK
 		if (cgs.gametype >= GT_CTF && cgs.gametype <= GT_HARVESTER) {
 			trap_S_StartLocalSound( cgs.media.countPrepareTeamSound, CHAN_ANNOUNCER );
 		} else
-#endif
 		{
 			trap_S_StartLocalSound( cgs.media.countPrepareSound, CHAN_ANNOUNCER );
 		}
@@ -221,12 +214,10 @@ void CG_SetConfigValues( void ) {
 		cgs.redflag = s[0] - '0';
 		cgs.blueflag = s[1] - '0';
 	}
-#ifdef MISSIONPACK
 	else if( cgs.gametype == GT_1FCTF ) {
 		s = CG_ConfigString( CS_FLAGSTATUS );
 		cgs.flagStatus = s[0] - '0';
 	}
-#endif
 	cg.warmup = atoi( CG_ConfigString( CS_WARMUP ) );
 }
 
@@ -331,11 +322,9 @@ static void CG_ConfigStringModified( void ) {
 			cgs.redflag = str[0] - '0';
 			cgs.blueflag = str[1] - '0';
 		}
-#ifdef MISSIONPACK
 		else if( cgs.gametype == GT_1FCTF ) {
 			cgs.flagStatus = str[0] - '0';
 		}
-#endif
 	}
 	else if ( num == CS_SHADERSTATE ) {
 		CG_ShaderStateChanged();
@@ -461,14 +450,12 @@ static void CG_MapRestart( void ) {
 		trap_S_StartLocalSound( cgs.media.countFightSound, CHAN_ANNOUNCER );
 		CG_CenterPrint( "FIGHT!", 120, GIANTCHAR_WIDTH*2 );
 	}
-#ifdef MISSIONPACK
 	if (cg_singlePlayerActive.integer) {
 		trap_Cvar_Set("ui_matchStartTime", va("%i", cg.time));
 		if (cg_recordSPDemo.integer && *cg_recordSPDemoName.string) {
 			trap_SendConsoleCommand(va("set g_synchronousclients 1 ; record %s \n", cg_recordSPDemoName.string));
 		}
 	}
-#endif
 	trap_Cvar_Set("cg_thirdPerson", "0");
 }
 
@@ -520,7 +507,6 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_Printf( "%s", CG_Argv(1) );
-#ifdef MISSIONPACK
 		cmd = CG_Argv(1);			// yes, this is obviously a hack, but so is the way we hear about
 									// votes passing or failing
 		if ( !Q_stricmpn( cmd, "vote failed", 11 ) || !Q_stricmpn( cmd, "team vote failed", 16 )) {
@@ -528,7 +514,6 @@ static void CG_ServerCommand( void ) {
 		} else if ( !Q_stricmpn( cmd, "vote passed", 11 ) || !Q_stricmpn( cmd, "team vote passed", 16 ) ) {
 			trap_S_StartLocalSound( cgs.media.votePassed, CHAN_ANNOUNCER );
 		}
-#endif
 		return;
 	}
 

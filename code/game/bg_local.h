@@ -53,7 +53,7 @@ typedef struct {
 	int			previous_waterlevel;
 } pml_t;
 
-extern	pmove_t		*pm;
+extern	pmove_t* pm;
 extern	pml_t		pml;
 
 // movement parameters
@@ -72,11 +72,9 @@ extern	float	pm_flightfriction;
 
 extern	int		c_pmove;
 
-void PM_ClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbounce );
-void PM_AddTouchEnt( int entityNum );
-void PM_AddEvent( int newEvent );
+void PM_ClipVelocity(vec3_t in, vec3_t normal, vec3_t out, float overbounce);
+void PM_AddTouchEnt(int entityNum);
+void PM_AddEvent(int newEvent);
 
-qboolean	PM_SlideMove( qboolean gravity );
-void		PM_StepSlideMove( qboolean gravity );
-
-
+qboolean	PM_SlideMove(qboolean gravity);
+void		PM_StepSlideMove(qboolean gravity);

@@ -80,16 +80,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define TEAM_OVERLAY_MAXLOCATION_WIDTH	16
 
 #define	DEFAULT_MODEL			"sarge"
-#ifdef MISSIONPACK
 #define	DEFAULT_TEAM_MODEL		"james"
 #define	DEFAULT_TEAM_HEAD		"*james"
-#else
-#define	DEFAULT_TEAM_MODEL		"sarge"
-#define	DEFAULT_TEAM_HEAD		"sarge"
-#endif
-
-#define DEFAULT_REDTEAM_NAME		"Stroggs"
-#define DEFAULT_BLUETEAM_NAME		"Pagans"
 
 typedef enum {
 	FOOTSTEP_NORMAL,
@@ -220,12 +212,10 @@ typedef enum {
 	LE_FADE_RGB,
 	LE_SCALE_FADE,
 	LE_SCOREPLUM,
-#ifdef MISSIONPACK
 	LE_KAMIKAZE,
 	LE_INVULIMPACT,
 	LE_INVULJUICED,
 	LE_SHOWREFENTITY
-#endif
 } leType_t;
 
 typedef enum {
@@ -309,6 +299,7 @@ typedef struct {
 
 	char			name[MAX_QPATH];
 	team_t			team;
+	uint64_t		steamId;		// steam id for this client
 
 	int				botSkill;		// 0 = not bot, 1-5 = bot
 
@@ -546,10 +537,8 @@ typedef struct {
 	int				spectatorOffset;										// current offset from start
 	int				spectatorPaintLen; 									// current offset from start
 
-#ifdef MISSIONPACK
 	// skull trails
 	skulltrail_t	skulltrails[MAX_CLIENTS];
-#endif
 
 	// centerprinting
 	int			centerPrintTime;
@@ -586,12 +575,10 @@ typedef struct {
 	int			soundTime;
 	qhandle_t	soundBuffer[MAX_SOUNDBUFFER];
 
-#ifdef MISSIONPACK
 	// for voice chat buffer
 	int			voiceChatTime;
 	int			voiceChatBufferIn;
 	int			voiceChatBufferOut;
-#endif
 
 	// warmup countdown
 	int			warmup;
@@ -652,12 +639,11 @@ typedef struct {
 	qhandle_t	charsetPropB;
 	qhandle_t	whiteShader;
 
-#ifdef MISSIONPACK
 	qhandle_t	redCubeModel;
 	qhandle_t	blueCubeModel;
 	qhandle_t	redCubeIcon;
 	qhandle_t	blueCubeIcon;
-#endif
+
 	qhandle_t	redFlagModel;
 	qhandle_t	blueFlagModel;
 	qhandle_t	neutralFlagModel;
@@ -1411,14 +1397,13 @@ localEntity_t* CG_SmokePuff(const vec3_t p,
 							qhandle_t hShader);
 void CG_BubbleTrail(vec3_t start, vec3_t end, float spacing);
 void CG_SpawnEffect(vec3_t org);
-#ifdef MISSIONPACK
 void CG_KamikazeEffect(vec3_t org);
 void CG_ObeliskExplode(vec3_t org, int entityNum);
 void CG_ObeliskPain(vec3_t org);
 void CG_InvulnerabilityImpact(vec3_t org, vec3_t angles);
 void CG_InvulnerabilityJuiced(vec3_t org);
 void CG_LightningBoltBeam(vec3_t start, vec3_t end);
-#endif
+
 void CG_ScorePlum(int client, vec3_t org, int score);
 
 void CG_GibPlayer(vec3_t playerOrigin);
@@ -1462,11 +1447,9 @@ void CG_ExecuteNewServerCommands(int latestSequence);
 void CG_ParseServerinfo(void);
 void CG_SetConfigValues(void);
 void CG_ShaderStateChanged(void);
-#ifdef MISSIONPACK
 void CG_LoadVoiceChats(void);
 void CG_VoiceChatLocal(int mode, qboolean voiceOnly, int clientNum, int color, const char* cmd);
 void CG_PlayBufferedVoiceChats(void);
-#endif
 
 //
 // cg_playerstate.c

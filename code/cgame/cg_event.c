@@ -25,9 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cg_local.h"
 
 // for the voice chats
-#ifdef MISSIONPACK
 #include "../../ui/menudef.h"
-#endif
 //==========================================================================
 
 /*
@@ -151,11 +149,9 @@ static void CG_Obituary( entityState_t *ent ) {
 	if (attacker == target) {
 		gender = ci->gender;
 		switch (mod) {
-#ifdef MISSIONPACK
 		case MOD_KAMIKAZE:
 			message = "goes out with a bang";
 			break;
-#endif
 		case MOD_GRENADE_SPLASH:
 			if ( gender == GENDER_FEMALE )
 				message = "tripped on her own grenade";
@@ -183,7 +179,6 @@ static void CG_Obituary( entityState_t *ent ) {
 		case MOD_BFG_SPLASH:
 			message = "should have used a smaller gun";
 			break;
-#ifdef MISSIONPACK
 		case MOD_PROXIMITY_MINE:
 			if( gender == GENDER_FEMALE ) {
 				message = "found her prox mine";
@@ -193,7 +188,6 @@ static void CG_Obituary( entityState_t *ent ) {
 				message = "found his prox mine";
 			}
 			break;
-#endif
 		default:
 			if ( gender == GENDER_FEMALE )
 				message = "killed herself";
@@ -221,14 +215,9 @@ static void CG_Obituary( entityState_t *ent ) {
 		} else {
 			s = va("You fragged %s", targetName );
 		}
-#ifdef MISSIONPACK
 		if (!(cg_singlePlayerActive.integer && cg_cameraOrbit.integer)) {
 			CG_CenterPrint( s, SCREEN_HEIGHT * 0.30, BIGCHAR_WIDTH );
 		} 
-#else
-		CG_CenterPrint( s, SCREEN_HEIGHT * 0.30, BIGCHAR_WIDTH );
-#endif
-
 		// print the text message as well
 	}
 
@@ -294,7 +283,6 @@ static void CG_Obituary( entityState_t *ent ) {
 			message = "was blasted by";
 			message2 = "'s BFG";
 			break;
-#ifdef MISSIONPACK
 		case MOD_NAIL:
 			message = "was nailed by";
 			break;
@@ -313,7 +301,6 @@ static void CG_Obituary( entityState_t *ent ) {
 		case MOD_JUICED:
 			message = "was juiced by";
 			break;
-#endif
 		case MOD_TELEFRAG:
 			message = "tried to invade";
 			message2 = "'s personal space";
@@ -382,16 +369,15 @@ static void CG_UseItem( centity_t *cent ) {
 		trap_S_StartSound (NULL, es->number, CHAN_BODY, cgs.media.medkitSound );
 		break;
 
-#ifdef MISSIONPACK
 	case HI_KAMIKAZE:
 		break;
 
 	case HI_PORTAL:
 		break;
+
 	case HI_INVULNERABILITY:
 		trap_S_StartSound (NULL, es->number, CHAN_BODY, cgs.media.useInvulnerabilitySound );
 		break;
-#endif
 	}
 
 }
@@ -716,7 +702,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			if ( item->giType == IT_POWERUP || item->giType == IT_TEAM) {
 				trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.n_healthSound );
 			} else if (item->giType == IT_PERSISTANT_POWERUP) {
-#ifdef MISSIONPACK
 				switch (item->giTag ) {
 					case PW_SCOUT:
 						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.scoutSound );
@@ -731,7 +716,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.ammoregenSound );
 					break;
 				}
-#endif
 			} else {
 				trap_S_StartSound (NULL, es->number, CHAN_AUTO,	trap_S_RegisterSound( item->pickup_sound, qfalse ) );
 			}
