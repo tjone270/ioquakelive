@@ -148,7 +148,6 @@ void CG_DrawInformation(void) {
 	int			y;
 	int			value;
 	qhandle_t	levelshot;
-	qhandle_t	detail;
 	char		buf[1024];
 
 	info = CG_ConfigString(CS_SERVERINFO);

@@ -618,8 +618,6 @@ Only called at main exe startup, not for each game
 */
 void SV_Init (void)
 {
-	int index;
-
 	SV_AddOperatorCommands ();
 
 	// serverinfo vars
@@ -667,9 +665,6 @@ void SV_Init (void)
 	sv_killserver = Cvar_Get ("sv_killserver", "0", 0);
 	sv_mapChecksum = Cvar_Get ("sv_mapChecksum", "", CVAR_ROM);
 	sv_lanForceRate = Cvar_Get ("sv_lanForceRate", "1", CVAR_ARCHIVE );
-#ifndef STANDALONE
-	sv_strictAuth = Cvar_Get ("sv_strictAuth", "1", CVAR_ARCHIVE );
-#endif
 	sv_banFile = Cvar_Get("sv_banFile", "serverbans.dat", CVAR_ARCHIVE);
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
