@@ -269,14 +269,6 @@ int trap_LAN_ServerStatus( const char *serverAddress, char *serverStatus, int ma
 	return syscall( UI_LAN_SERVERSTATUS, serverAddress, serverStatus, maxLen );
 }
 
-void trap_LAN_SaveCachedServers( void ) {
-	syscall( UI_LAN_SAVECACHEDSERVERS );
-}
-
-void trap_LAN_LoadCachedServers( void ) {
-	syscall( UI_LAN_LOADCACHEDSERVERS );
-}
-
 void trap_LAN_ResetPings(int n) {
 	syscall( UI_LAN_RESETPINGS, n );
 }

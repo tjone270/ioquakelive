@@ -44,50 +44,6 @@ static void GetClientState(uiClientState_t* state) {
 
 /*
 ====================
-LAN_LoadCachedServers
-====================
-*/
-void LAN_LoadCachedServers(void) {
-	int size;
-	fileHandle_t fileIn;
-	cls.numglobalservers = cls.numfavoriteservers = 0;
-	cls.numGlobalServerAddresses = 0;
-	if (FS_SV_FOpenFileRead("servercache.dat", &fileIn)) {
-		FS_Read(&cls.numglobalservers, sizeof(int), fileIn);
-		FS_Read(&cls.numfavoriteservers, sizeof(int), fileIn);
-		FS_Read(&size, sizeof(int), fileIn);
-		if (size == sizeof(cls.globalServers) + sizeof(cls.favoriteServers)) {
-			FS_Read(&cls.globalServers, sizeof(cls.globalServers), fileIn);
-			FS_Read(&cls.favoriteServers, sizeof(cls.favoriteServers), fileIn);
-		}
-		else {
-			cls.numglobalservers = cls.numfavoriteservers = 0;
-			cls.numGlobalServerAddresses = 0;
-		}
-		FS_FCloseFile(fileIn);
-	}
-}
-
-/*
-====================
-LAN_SaveServersToCache
-====================
-*/
-void LAN_SaveServersToCache(void) {
-	int size;
-	fileHandle_t fileOut = FS_SV_FOpenFileWrite("servercache.dat");
-	FS_Write(&cls.numglobalservers, sizeof(int), fileOut);
-	FS_Write(&cls.numfavoriteservers, sizeof(int), fileOut);
-	size = sizeof(cls.globalServers) + sizeof(cls.favoriteServers);
-	FS_Write(&size, sizeof(int), fileOut);
-	FS_Write(&cls.globalServers, sizeof(cls.globalServers), fileOut);
-	FS_Write(&cls.favoriteServers, sizeof(cls.favoriteServers), fileOut);
-	FS_FCloseFile(fileOut);
-}
-
-
-/*
-====================
 LAN_ResetPings
 ====================
 */
@@ -871,14 +827,6 @@ intptr_t CL_UISystemCalls(intptr_t* args) {
 
 	case UI_GETCONFIGSTRING:
 		return GetConfigString(args[1], VMA(2), args[3]);
-
-	case UI_LAN_LOADCACHEDSERVERS:
-		LAN_LoadCachedServers();
-		return 0;
-
-	case UI_LAN_SAVECACHEDSERVERS:
-		LAN_SaveServersToCache();
-		return 0;
 
 	case UI_LAN_ADDSERVER:
 		return LAN_AddServer(args[1], VMA(2), VMA(3));
