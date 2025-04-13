@@ -2624,7 +2624,7 @@ void Com_Init(char* commandLine) {
 	// browser-driven event loop. So default throttling to off.
 	com_maxfps = Cvar_Get("com_maxfps", "0", CVAR_ARCHIVE);
 #else
-	com_maxfps = Cvar_Get("com_maxfps", "85", CVAR_ARCHIVE);
+	com_maxfps = Cvar_Get("com_maxfps", "125", CVAR_ARCHIVE);
 #endif
 	com_blood = Cvar_Get("com_blood", "1", CVAR_ARCHIVE);
 
