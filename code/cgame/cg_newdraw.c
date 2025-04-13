@@ -875,7 +875,6 @@ static void CG_DrawAreaPowerUp(rectDef_t* rect, int align, float special, float 
 
 float CG_GetValue(int ownerDraw) {
 	centity_t* cent;
-	clientInfo_t* ci;
 	playerState_t* ps;
 
 	cent = &cg_entities[cg.snap->ps.clientNum];
