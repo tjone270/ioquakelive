@@ -308,12 +308,6 @@ VIRTUAL MACHINE
 typedef struct vm_s vm_t;
 
 typedef enum {
-	VMI_NATIVE,
-	VMI_BYTECODE,
-	VMI_COMPILED
-} vmInterpret_t;
-
-typedef enum {
 	TRAP_MEMSET = 100,
 	TRAP_MEMCPY,
 	TRAP_STRNCPY,
@@ -334,8 +328,7 @@ typedef enum {
 typedef intptr_t(QDECL* vmMainProc)(int callNum, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11);
 
 void	VM_Init(void);
-vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*),
-				vmInterpret_t interpret);
+vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*));
 // module should be bare: "cgame", not "cgame.dll" or "vm/cgame.qvm"
 
 void	VM_Free(vm_t* vm);
@@ -605,7 +598,7 @@ const char* FS_FindSystemFile(const char* file);
 
 qboolean FS_CreatePath(char* OSPath);
 
-int FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, int enableDll);
+void FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, int enableDll);
 
 char* FS_BuildOSPath(const char* base, const char* game, const char* qpath);
 qboolean FS_CompareZipChecksum(const char* zipfile);
