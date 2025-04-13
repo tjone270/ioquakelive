@@ -25,8 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  * desc:		main control for any streaming sound output device
  *
- * $Archive: /MissionPack/code/client/snd_dma.c $
- *
  *****************************************************************************/
 
 #include "snd_local.h"
