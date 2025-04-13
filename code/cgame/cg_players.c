@@ -522,7 +522,6 @@ CG_RegisterClientModelname
 static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelName, const char *skinName, const char *headModelName, const char *headSkinName, const char *teamName ) {
 	char	filename[MAX_QPATH];
 	const char		*headName;
-	char newTeamName[MAX_QPATH];
 
 	if ( headModelName[0] == '\0' ) {
 		headName = modelName;
@@ -567,26 +566,6 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 	if ( !ci->headModel ) {
 		Com_Printf( "Failed to load model file %s\n", filename );
 		return qfalse;
-	}
-
-	// if any skins failed to load, return failure
-	if ( !CG_RegisterClientSkin( ci, teamName, modelName, skinName, headName, headSkinName ) ) {
-		if ( teamName && *teamName) {
-			Com_Printf( "Failed to load skin file: %s : %s : %s, %s : %s\n", teamName, modelName, skinName, headName, headSkinName );
-			if( ci->team == TEAM_BLUE ) {
-				Com_sprintf(newTeamName, sizeof(newTeamName), "%s/", DEFAULT_BLUETEAM_NAME);
-			}
-			else {
-				Com_sprintf(newTeamName, sizeof(newTeamName), "%s/", DEFAULT_REDTEAM_NAME);
-			}
-			if ( !CG_RegisterClientSkin( ci, newTeamName, modelName, skinName, headName, headSkinName ) ) {
-				Com_Printf( "Failed to load skin file: %s : %s : %s, %s : %s\n", newTeamName, modelName, skinName, headName, headSkinName );
-				return qfalse;
-			}
-		} else {
-			Com_Printf( "Failed to load skin file: %s : %s, %s : %s\n", modelName, skinName, headName, headSkinName );
-			return qfalse;
-		}
 	}
 
 	// load the animations
@@ -667,11 +646,6 @@ static void CG_LoadClientInfo( int clientNum, clientInfo_t *ci ) {
 		// fall back to default team name
 		if( cgs.gametype >= GT_TEAM) {
 			// keep skin name
-			if( ci->team == TEAM_BLUE ) {
-				Q_strncpyz(teamname, DEFAULT_BLUETEAM_NAME, sizeof(teamname) );
-			} else {
-				Q_strncpyz(teamname, DEFAULT_REDTEAM_NAME, sizeof(teamname) );
-			}
 			if ( !CG_RegisterClientModelname( ci, DEFAULT_TEAM_MODEL, ci->skinName, DEFAULT_TEAM_HEAD, ci->skinName, teamname ) ) {
 				CG_Error( "DEFAULT_TEAM_MODEL / skin (%s/%s) failed to register", DEFAULT_TEAM_MODEL, ci->skinName );
 			}
