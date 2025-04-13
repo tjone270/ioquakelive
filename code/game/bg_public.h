@@ -368,6 +368,7 @@ typedef enum {
 	WP_NUM_WEAPONS
 } weapon_t;
 
+#define NUM_LIGHTNING_STYLES 5
 
 // reward sounds (stored in ps->persistant[PERS_PLAYEREVENTS])
 #define	PLAYEREVENT_DENIEDREWARD		0x0001

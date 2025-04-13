@@ -225,7 +225,7 @@ void CG_LightningBoltBeam( vec3_t start, vec3_t end ) {
 	VectorCopy( end, beam->oldorigin );
 
 	beam->reType = RT_LIGHTNING;
-	beam->customShader = cgs.media.lightningShader1;
+	beam->customShader = cgs.media.lightningShader[0];
 }
 
 /*
