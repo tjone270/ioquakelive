@@ -1181,6 +1181,7 @@ extern  vmCvar_t		cg_recordSPDemo;
 extern  vmCvar_t		cg_recordSPDemoName;
 extern	vmCvar_t		cg_obeliskRespawnDelay;
 extern	vmCvar_t		cg_lightningStyle;
+extern  vmCvar_t        cg_screenDamage;
 extern  vmCvar_t        cg_kickScale;
 
 //

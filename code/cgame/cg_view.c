@@ -564,6 +564,10 @@ static void CG_DamageBlendBlob(void) {
 		return;
 	}
 
+	if (!cg_screenDamage.integer) {
+		return; // the user disabled this effect
+	}
+
 	if (!cg.damageValue) {
 		return;
 	}
@@ -582,7 +586,6 @@ static void CG_DamageBlendBlob(void) {
 	if (t <= 0 || t >= maxTime) {
 		return;
 	}
-
 
 	memset(&ent, 0, sizeof(ent));
 	ent.reType = RT_SPRITE;
