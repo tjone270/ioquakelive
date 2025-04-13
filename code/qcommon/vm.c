@@ -377,7 +377,7 @@ vm_t* VM_Restart(vm_t* vm, qboolean unpure) {
 
 		VM_Free(vm);
 
-		vm = VM_Create(name, systemCall, VMI_NATIVE);
+		vm = VM_Create(name, systemCall);
 		return vm;
 	}
 
@@ -408,11 +408,10 @@ This function enforces pure server validation and will fail fatally if:
 - The provided syscall handler is invalid
 ===============
 */
-vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*), vmInterpret_t interpret) {
+vm_t* VM_Create(const char* module, intptr_t(*systemCalls)(intptr_t*)) {
 	int i;
 	int vmSlot = -1;
 	vm_t* vm;
-	vmMainProc vmEntry;
 
 	if (!module || !module[0] || !systemCalls) {
 		Com_Error(ERR_FATAL, "VM_Create: bad parms");

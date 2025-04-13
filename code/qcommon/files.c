@@ -1409,7 +1409,6 @@ Find a suitable VM file in search path order.
 
 In each searchpath try:
  - open DLL file if DLL loading enabled
- - open QVM file
 
 Enable search for DLL by setting enableDll to FSVM_ENABLEDLL
 
@@ -1418,7 +1417,7 @@ Return the searchpath in "startSearch".
 =================
 */
 
-int FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, int enableDll)
+void FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, int enableDll)
 {
 	searchpath_t* search, * lastSearch;
 	directory_t* dir;
@@ -1448,8 +1447,7 @@ int FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, i
 				if (FS_FileInPathExists(netpath)) {
 					Q_strncpyz(found, netpath, foundlen);
 					*startSearch = search;
-
-					return VMI_NATIVE;
+					return;
 				}
 			}
 		}
@@ -1470,7 +1468,7 @@ int FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, i
 		search = search->next;
 	}
 
-	return -1;
+	return;
 }
 
 /*

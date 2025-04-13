@@ -1000,9 +1000,8 @@ CL_InitUI
 
 void CL_InitUI(void) {
 	int		v;
-	vmInterpret_t		interpret;
 
-	uivm = VM_Create("ui", CL_UISystemCalls, interpret);
+	uivm = VM_Create("ui", CL_UISystemCalls);
 	if (!uivm) {
 		Com_Error(ERR_FATAL, "VM_Create on UI failed");
 	}
