@@ -721,7 +721,13 @@ typedef struct {
 	qhandle_t	railRingsShader;
 	qhandle_t	railCoreShader;
 
-	qhandle_t	lightningShader;
+	qhandle_t	lightningShader1;
+	qhandle_t	lightningShader2;
+	qhandle_t	lightningShader3;
+	qhandle_t	lightningShader4;
+	qhandle_t	lightningShader5;
+
+	qhandle_t   grapplingChainShader;
 
 	qhandle_t	friendShader;
 
@@ -1192,6 +1198,7 @@ extern	vmCvar_t		cg_singlePlayerActive;
 extern  vmCvar_t		cg_recordSPDemo;
 extern  vmCvar_t		cg_recordSPDemoName;
 extern	vmCvar_t		cg_obeliskRespawnDelay;
+extern	vmCvar_t		cg_lightningStyle;
 
 //
 // cg_main.c
