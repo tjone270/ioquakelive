@@ -1040,31 +1040,12 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 
 	beam.reType = RT_LIGHTNING;
 
-	qhandle_t selectedLightningShader;
-	switch (cg_lightningStyle.integer) {
-	case 1:
-		selectedLightningShader = cgs.media.lightningShader1;
-		break;
-	case 2:
-		selectedLightningShader = cgs.media.lightningShader2;
-		break;
-	case 3:
-		selectedLightningShader = cgs.media.lightningShader3;
-		break;
-	case 4:
-		selectedLightningShader = cgs.media.lightningShader4;
-		break;
-	case 5:
-		selectedLightningShader = cgs.media.lightningShader5;
-		break;
-	default:
-		Com_Printf("Invalid lightning style %i, using default\n", cg_lightningStyle.integer);
-		selectedLightningShader = cgs.media.lightningShader1;
-		cg_lightningStyle.integer = 1;
-		break;
+	if (cg_lightningStyle.integer < 1 || cg_lightningStyle.integer > NUM_LIGHTNING_STYLES) { 
+		trap_Cvar_Set("cg_lightningStyle", "1"); // don't allow invalid values, default to 1
+		cg_lightningStyle.integer = 1; // just in case
 	}
 
-	beam.customShader = selectedLightningShader;
+	beam.customShader = cgs.media.lightningShader[cg_lightningStyle.integer - 1];
 
 	trap_R_AddRefEntityToScene(&beam);
 

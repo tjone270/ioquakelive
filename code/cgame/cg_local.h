@@ -721,11 +721,7 @@ typedef struct {
 	qhandle_t	railRingsShader;
 	qhandle_t	railCoreShader;
 
-	qhandle_t	lightningShader1;
-	qhandle_t	lightningShader2;
-	qhandle_t	lightningShader3;
-	qhandle_t	lightningShader4;
-	qhandle_t	lightningShader5;
+	qhandle_t	lightningShader[5];
 
 	qhandle_t   grapplingChainShader;
 
