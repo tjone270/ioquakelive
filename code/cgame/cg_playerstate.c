@@ -39,6 +39,7 @@ void CG_CheckAmmo( void ) {
 	int		total;
 	int		previous;
 	int		weapons;
+	qboolean infiniteAmmo = qtrue;
 
 	// see about how many seconds of ammo we have remaining
 	weapons = cg.snap->ps.stats[ STAT_WEAPONS ];
@@ -50,7 +51,10 @@ void CG_CheckAmmo( void ) {
 		if ( cg.snap->ps.ammo[i] < 0 ) {
 			continue;
 		}
-		switch ( i ) {
+
+		infiniteAmmo = qfalse;
+
+		switch (i) {
 		case WP_ROCKET_LAUNCHER:
 		case WP_GRENADE_LAUNCHER:
 		case WP_RAILGUN:
@@ -70,12 +74,16 @@ void CG_CheckAmmo( void ) {
 		}
 	}
 
-	previous = cg.lowAmmoWarning;
-
-	if ( total == 0 ) {
-		cg.lowAmmoWarning = 2;
+	if (infiniteAmmo) {
+		cg.lowAmmoWarning = 0;
 	} else {
-		cg.lowAmmoWarning = 1;
+		previous = cg.lowAmmoWarning;
+
+		if (total == 0) {
+			cg.lowAmmoWarning = 2;
+		} else {
+			cg.lowAmmoWarning = 1;
+		}
 	}
 
 	// play a sound on transitions

@@ -791,6 +791,7 @@ void	trap_GetUsercmd( int clientNum, usercmd_t *cmd );
 qboolean	trap_GetEntityToken( char *buffer, int bufferSize );
 
 int		trap_DebugPolygonCreate(int color, int numPoints, vec3_t *points);
+extern  vmCvar_t    g_infiniteAmmo;
 void	trap_DebugPolygonDelete(int id);
 
 int		trap_BotLibSetup( void );
