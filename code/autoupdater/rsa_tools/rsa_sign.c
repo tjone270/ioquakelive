@@ -1,13 +1,12 @@
 #include "rsa_common.h"
 
-static void sign_file(const char *fname, rsa_key *key, prng_state *prng, const int prng_index, const int hash_index)
-{
+static void sign_file(const char* fname, rsa_key* key, prng_state* prng, const int prng_index, const int hash_index) {
     const size_t sigfnamelen = strlen(fname) + 5;
-    char *sigfname = (char *) malloc(sigfnamelen);
+    char* sigfname = (char*)malloc(sigfnamelen);
     unsigned char hash[256];
-    unsigned long hashlen = sizeof (hash);
+    unsigned long hashlen = sizeof(hash);
     unsigned char sig[1024];
-    unsigned long siglen = sizeof (sig);
+    unsigned long siglen = sizeof(sig);
     int rc = 0;
     int status = 0;
 
@@ -36,8 +35,7 @@ static void sign_file(const char *fname, rsa_key *key, prng_state *prng, const i
     free(sigfname);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     int rc = 0;
     prng_state prng;
     int prng_index, hash_index;
@@ -46,7 +44,7 @@ int main(int argc, char **argv)
 
     ltc_mp = tfm_desc;
 
-    prng_index = register_prng(&sprng_desc);  /* (fortuna_desc is a good choice if your platform's PRNG sucks.) */
+    prng_index = register_prng(&sprng_desc); /* (fortuna_desc is a good choice if your platform's PRNG sucks.) */
     if (prng_index == -1) {
         fail("Failed to register a RNG");
     }
@@ -72,4 +70,3 @@ int main(int argc, char **argv)
 }
 
 /* end of rsa_sign.c ... */
-

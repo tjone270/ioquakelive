@@ -24,10 +24,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define IQM_MAGIC "INTERQUAKEMODEL"
 #define IQM_VERSION 2
 
-#define	IQM_MAX_JOINTS		128
+#define IQM_MAX_JOINTS 128
 
-typedef struct iqmheader
-{
+typedef struct iqmheader {
     char magic[16];
     unsigned int version;
     unsigned int filesize;
@@ -44,74 +43,65 @@ typedef struct iqmheader
     unsigned int num_extensions, ofs_extensions;
 } iqmHeader_t;
 
-typedef struct iqmmesh
-{
+typedef struct iqmmesh {
     unsigned int name;
     unsigned int material;
     unsigned int first_vertex, num_vertexes;
     unsigned int first_triangle, num_triangles;
 } iqmMesh_t;
 
-enum
-{
-    IQM_POSITION     = 0,
-    IQM_TEXCOORD     = 1,
-    IQM_NORMAL       = 2,
-    IQM_TANGENT      = 3,
+enum {
+    IQM_POSITION = 0,
+    IQM_TEXCOORD = 1,
+    IQM_NORMAL = 2,
+    IQM_TANGENT = 3,
     IQM_BLENDINDEXES = 4,
     IQM_BLENDWEIGHTS = 5,
-    IQM_COLOR        = 6,
-    IQM_CUSTOM       = 0x10
+    IQM_COLOR = 6,
+    IQM_CUSTOM = 0x10
 };
 
-enum
-{
-    IQM_BYTE   = 0,
-    IQM_UBYTE  = 1,
-    IQM_SHORT  = 2,
+enum {
+    IQM_BYTE = 0,
+    IQM_UBYTE = 1,
+    IQM_SHORT = 2,
     IQM_USHORT = 3,
-    IQM_INT    = 4,
-    IQM_UINT   = 5,
-    IQM_HALF   = 6,
-    IQM_FLOAT  = 7,
+    IQM_INT = 4,
+    IQM_UINT = 5,
+    IQM_HALF = 6,
+    IQM_FLOAT = 7,
     IQM_DOUBLE = 8,
 };
 
-typedef struct iqmtriangle
-{
+typedef struct iqmtriangle {
     unsigned int vertex[3];
 } iqmTriangle_t;
 
-typedef struct iqmjoint
-{
+typedef struct iqmjoint {
     unsigned int name;
     int parent;
     float translate[3], rotate[4], scale[3];
 } iqmJoint_t;
 
-typedef struct iqmpose
-{
+typedef struct iqmpose {
     int parent;
     unsigned int mask;
     float channeloffset[10];
     float channelscale[10];
 } iqmPose_t;
 
-typedef struct iqmanim
-{
+typedef struct iqmanim {
     unsigned int name;
     unsigned int first_frame, num_frames;
     float framerate;
     unsigned int flags;
 } iqmAnim_t;
 
-enum
-{
-    IQM_LOOP = 1<<0
+enum {
+    IQM_LOOP = 1 << 0
 };
 
-typedef struct iqmvertexarray
-{
+typedef struct iqmvertexarray {
     unsigned int type;
     unsigned int flags;
     unsigned int format;
@@ -119,11 +109,9 @@ typedef struct iqmvertexarray
     unsigned int offset;
 } iqmVertexArray_t;
 
-typedef struct iqmbounds
-{
+typedef struct iqmbounds {
     float bbmin[3], bbmax[3];
     float xyradius, radius;
 } iqmBounds_t;
 
 #endif
-
