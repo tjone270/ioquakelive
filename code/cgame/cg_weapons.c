@@ -689,6 +689,12 @@ void CG_RegisterWeapon( int weaponNum ) {
 		cgs.media.sfx_lghit1 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit.wav", qfalse );
 		cgs.media.sfx_lghit2 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit2.wav", qfalse );
 		cgs.media.sfx_lghit3 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit3.wav", qfalse );
+		cgs.media.lightningShader1 = trap_R_RegisterShader("lightningBolt1");
+		cgs.media.lightningShader2 = trap_R_RegisterShader("lightningBolt2");
+		cgs.media.lightningShader3 = trap_R_RegisterShader("lightningBolt3");
+		cgs.media.lightningShader4 = trap_R_RegisterShader("lightningBolt4");
+		cgs.media.lightningShader5 = trap_R_RegisterShader("lightningBolt5");
+		cgs.media.grapplingChainShader = trap_R_RegisterModel("grapplingChain");
 
 		break;
 
@@ -700,7 +706,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		MAKERGB( weaponInfo->missileDlightColor, 1, 0.75f, 0 );
 		weaponInfo->readySound = trap_S_RegisterSound( "sound/weapons/melee/fsthum.wav", qfalse );
 		weaponInfo->firingSound = trap_S_RegisterSound( "sound/weapons/melee/fstrun.wav", qfalse );
-		cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
+		cgs.media.lightningShader1 = trap_R_RegisterShader("lightningBolt1");
 		break;
 
 #ifdef MISSIONPACK
@@ -1033,70 +1039,34 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	VectorCopy( origin, beam.origin );
 
 	beam.reType = RT_LIGHTNING;
-	beam.customShader = cgs.media.lightningShader;
-	trap_R_AddRefEntityToScene( &beam );
 
-	// add the impact flare if it hit something
-	if ( trace.fraction < 1.0 ) {
-		vec3_t	angles;
-		vec3_t	dir;
-
-		VectorSubtract( beam.oldorigin, beam.origin, dir );
-		VectorNormalize( dir );
-
-		memset( &beam, 0, sizeof( beam ) );
-		beam.hModel = cgs.media.lightningExplosionModel;
-
-		VectorMA( trace.endpos, -16, dir, beam.origin );
-
-		// make a random orientation
-		angles[0] = rand() % 360;
-		angles[1] = rand() % 360;
-		angles[2] = rand() % 360;
-		AnglesToAxis( angles, beam.axis );
-		trap_R_AddRefEntityToScene( &beam );
-	}
-}
-/*
-
-static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
-	trace_t		trace;
-	refEntity_t		beam;
-	vec3_t			forward;
-	vec3_t			muzzlePoint, endPoint;
-
-	if ( cent->currentState.weapon != WP_LIGHTNING ) {
-		return;
+	qhandle_t selectedLightningShader;
+	switch (cg_lightningStyle.integer) {
+	case 1:
+		selectedLightningShader = cgs.media.lightningShader1;
+		break;
+	case 2:
+		selectedLightningShader = cgs.media.lightningShader2;
+		break;
+	case 3:
+		selectedLightningShader = cgs.media.lightningShader3;
+		break;
+	case 4:
+		selectedLightningShader = cgs.media.lightningShader4;
+		break;
+	case 5:
+		selectedLightningShader = cgs.media.lightningShader5;
+		break;
+	default:
+		Com_Printf("Invalid lightning style %i, using default\n", cg_lightningStyle.integer);
+		selectedLightningShader = cgs.media.lightningShader1;
+		cg_lightningStyle.integer = 1;
+		break;
 	}
 
-	memset( &beam, 0, sizeof( beam ) );
+	beam.customShader = selectedLightningShader;
 
-	// find muzzle point for this frame
-	VectorCopy( cent->lerpOrigin, muzzlePoint );
-	AngleVectors( cent->lerpAngles, forward, NULL, NULL );
-
-	// FIXME: crouch
-	muzzlePoint[2] += DEFAULT_VIEWHEIGHT;
-
-	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
-
-	// project forward by the lightning range
-	VectorMA( muzzlePoint, LIGHTNING_RANGE, forward, endPoint );
-
-	// see if it hit a wall
-	CG_Trace( &trace, muzzlePoint, vec3_origin, vec3_origin, endPoint, 
-		cent->currentState.number, MASK_SHOT );
-
-	// this is the endpoint
-	VectorCopy( trace.endpos, beam.oldorigin );
-
-	// use the provided origin, even though it may be slightly
-	// different than the muzzle origin
-	VectorCopy( origin, beam.origin );
-
-	beam.reType = RT_LIGHTNING;
-	beam.customShader = cgs.media.lightningShader;
-	trap_R_AddRefEntityToScene( &beam );
+	trap_R_AddRefEntityToScene(&beam);
 
 	// add the impact flare if it hit something
 	if ( trace.fraction < 1.0 ) {
