@@ -77,15 +77,10 @@ Configstring indexes that have changed while the client was in CS_PRIMED
 void SV_UpdateConfigstrings(client_t* client) {
     int index;
 
-    // [QL] Only resend configstrings that actually changed while the client
-    // was in CS_PRIMED state. The gamestate already contained all configstrings
-    // at the time it was sent, so resending everything would overflow the
-    // 64-slot reliable command buffer.
     for (index = 0; index < MAX_CONFIGSTRINGS; index++) {
-        if (!client->csUpdated[index]) {
+        // if the CS hasn't changed since we went to CS_PRIMED, ignore
+        if (!client->csUpdated[index])
             continue;
-        }
-        client->csUpdated[index] = qfalse;
 
         // do not always send server info to all clients
         if (index == CS_SERVERINFO && client->gentity &&
@@ -93,6 +88,7 @@ void SV_UpdateConfigstrings(client_t* client) {
             continue;
         }
         SV_SendConfigstring(client, index);
+        client->csUpdated[index] = qfalse;
     }
 }
 
@@ -128,19 +124,13 @@ void SV_SetConfigstring(int index, const char* val) {
     if (sv.state == SS_GAME || sv.restarting) {
         // send the data to all relevant clients
         for (i = 0, client = svs.clients; i < sv_maxclients->integer; i++, client++) {
-            if (client->state < CS_PRIMED) {
+            if (client->state < CS_ACTIVE) {
+                if (client->state == CS_PRIMED)
+                    client->csUpdated[index] = qtrue;
                 continue;
             }
             // do not always send server info to all clients
             if (index == CS_SERVERINFO && client->gentity && (client->gentity->r.svFlags & SVF_NOSERVERINFO)) {
-                continue;
-            }
-
-            // [QL] PRIMED clients got all configstrings in the gamestate;
-            // just mark the index so SV_UpdateConfigstrings resends only
-            // the ones that actually changed during the PRIMED window.
-            if (client->state == CS_PRIMED) {
-                client->csUpdated[index] = qtrue;
                 continue;
             }
 
@@ -370,6 +360,20 @@ static void SV_ClearServer(void) {
 
 /*
 ================
+SV_TouchFile
+================
+*/
+static void SV_TouchFile(const char* filename) {
+    fileHandle_t f;
+
+    FS_FOpenFileRead(filename, &f, qfalse);
+    if (f) {
+        FS_FCloseFile(f);
+    }
+}
+
+/*
+================
 SV_SpawnServer
 
 Change the server to a new map, taking all connected
@@ -478,7 +482,7 @@ void SV_SpawnServer(char* server, qboolean killBots) {
 
     // run a few frames to allow everything to settle
     for (i = 0; i < 3; i++) {
-        SV_GameRunFrame(sv.time);
+        VM_Call(gvm, GAME_RUN_FRAME, sv.time);
         SV_BotFrame(sv.time);
         sv.time += 100;
         svs.time += 100;
@@ -503,7 +507,7 @@ void SV_SpawnServer(char* server, qboolean killBots) {
             }
 
             // connect the client again
-            denied = SV_GameClientConnect(i, qfalse, isBot);  // firstTime = qfalse
+            denied = VM_ExplicitArgPtr(gvm, VM_Call(gvm, GAME_CLIENT_CONNECT, i, qfalse, isBot));  // firstTime = qfalse
             if (denied) {
                 // this generally shouldn't happen, because the client
                 // was connected before the level change
@@ -524,14 +528,16 @@ void SV_SpawnServer(char* server, qboolean killBots) {
                     client->gentity = ent;
 
                     client->deltaMessage = -1;
-                    client->nextSnapshotTime = 0;  // generate a snapshot immediately
+                    client->lastSnapshotTime = 0;  // generate a snapshot immediately
+
+                    VM_Call(gvm, GAME_CLIENT_BEGIN, i);
                 }
             }
         }
     }
 
     // run another frame to allow things to look at all the players
-    SV_GameRunFrame(sv.time);
+    VM_Call(gvm, GAME_RUN_FRAME, sv.time);
     SV_BotFrame(sv.time);
     sv.time += 100;
     svs.time += 100;
@@ -677,7 +683,7 @@ void SV_FinalMessage(char* message) {
                     SV_SendServerCommand(cl, "disconnect \"%s\"", message);
                 }
                 // force a snapshot to be sent
-                cl->nextSnapshotTime = 0;
+                cl->lastSnapshotTime = 0;
                 SV_SendClientSnapshot(cl);
             }
         }

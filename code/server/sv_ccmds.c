@@ -250,32 +250,22 @@ static void SV_MapRestart_f(void) {
         delay = 5;
     }
     if (delay && !Cvar_VariableValue("g_doWarmup")) {
-        char warmupInfo[MAX_INFO_STRING] = {0};
-        int gametype;
-
         sv.restartTime = sv.time + delay * 1000;
-
-        // [QL] Build info string with time and gametype keys
-        Info_SetValueForKey(warmupInfo, "time", va("%i", sv.restartTime));
-        gametype = (int)Cvar_VariableValue("g_gametype");
-        Info_SetValueForKey(warmupInfo, "g_gametype", va("%d", gametype));
-        SV_SetConfigstring(CS_WARMUP, warmupInfo);
+        SV_SetConfigstring(CS_WARMUP, va("%i", sv.restartTime));
         return;
     }
 
-    // [QL] Skip variable-change checks when game triggered the restart (g_restarted)
-    if (!Cvar_VariableValue("g_restarted")) {
-        // check for changes in variables that can't just be restarted
-        if (sv_maxclients->modified || sv_gametype->modified) {
-            char mapname[MAX_QPATH];
+    // check for changes in variables that can't just be restarted
+    // check for maxclients change
+    if (sv_maxclients->modified || sv_gametype->modified) {
+        char mapname[MAX_QPATH];
 
-            Com_Printf("variable change -- restarting.\n");
-            // restart the map the slow way
-            Q_strncpyz(mapname, Cvar_VariableString("mapname"), sizeof(mapname));
+        Com_Printf("variable change -- restarting.\n");
+        // restart the map the slow way
+        Q_strncpyz(mapname, Cvar_VariableString("mapname"), sizeof(mapname));
 
-            SV_SpawnServer(mapname, qfalse);
-            return;
-        }
+        SV_SpawnServer(mapname, qfalse);
+        return;
     }
 
     // toggle the server bit so clients can detect that a
@@ -283,11 +273,9 @@ static void SV_MapRestart_f(void) {
     svs.snapFlagServerBit ^= SNAPFLAG_SERVERCOUNT;
 
     // generate a new serverid
+    // TTimo - don't update restartedserverId there, otherwise we won't deal correctly with multiple map_restart
     sv.serverId = com_frameTime;
     Cvar_Set("sv_serverid", va("%i", sv.serverId));
-
-    // [QL] Record level start wall-clock time
-    Cvar_Set("g_levelStartTime", va("%i", (int)time(NULL)));
 
     // if a map_restart occurs while a client is changing maps, we need
     // to give them the correct time so that when they finish loading
@@ -308,7 +296,7 @@ static void SV_MapRestart_f(void) {
 
     // run a few frames to allow everything to settle
     for (i = 0; i < 3; i++) {
-        SV_GameRunFrame(sv.time);
+        VM_Call(gvm, GAME_RUN_FRAME, sv.time);
         sv.time += 100;
         svs.time += 100;
     }
@@ -335,7 +323,7 @@ static void SV_MapRestart_f(void) {
         SV_AddServerCommand(client, "map_restart\n");
 
         // connect the client again, without the firstTime flag
-        denied = SV_GameClientConnect(i, qfalse, isBot);
+        denied = VM_ExplicitArgPtr(gvm, VM_Call(gvm, GAME_CLIENT_CONNECT, i, qfalse, isBot));
         if (denied) {
             // this generally shouldn't happen, because the client
             // was connected before the level change
@@ -355,7 +343,7 @@ static void SV_MapRestart_f(void) {
     }
 
     // run another frame to allow things to look at all the players
-    SV_GameRunFrame(sv.time);
+    VM_Call(gvm, GAME_RUN_FRAME, sv.time);
     sv.time += 100;
     svs.time += 100;
 }
@@ -961,32 +949,6 @@ static void SV_DelBanFromList(qboolean isexception) {
 
 /*
 ==================
-SV_CoinToss_f
-
-Do a cointoss and send the result to all clients.
-==================
-*/
-static void SV_CoinToss_f(void) {
-    char* coin;
-
-    // make sure server is running
-    if (!com_sv_running->integer) {
-        Com_Printf("Server is not running.\n");
-        return;
-    }
-
-    int time = sv.time;
-    if (Q_rand(&time) % 2 == 0) {
-        coin = "HEADS";
-    } else {
-        coin = "TAILS";
-    }
-
-    SV_SendServerCommand(NULL, "print \"^3The coin is: ^5%s^7\n\"\n", coin);
-}
-
-/*
-==================
 SV_ListBans_f
 
 List all bans and exceptions on console
@@ -1294,6 +1256,7 @@ Also called by SV_DropClient, SV_DirectConnect, and SV_SpawnServer
 ==================
 */
 void SV_Heartbeat_f(void) {
+    svs.nextHeartbeatTime = -9999999;
 }
 
 /*
@@ -1447,7 +1410,6 @@ void SV_AddOperatorCommands(void) {
     Cmd_AddCommand("kickall", SV_KickAll_f);
     Cmd_AddCommand("kicknum", SV_KickNum_f);
     Cmd_AddCommand("clientkick", SV_KickNum_f);  // Legacy command
-    Cmd_AddCommand("cointoss", SV_CoinToss_f);
     Cmd_AddCommand("status", SV_Status_f);
     Cmd_AddCommand("serverinfo", SV_Serverinfo_f);
     Cmd_AddCommand("systeminfo", SV_Systeminfo_f);
@@ -1458,6 +1420,10 @@ void SV_AddOperatorCommands(void) {
     Cmd_SetCommandCompletionFunc("map", SV_CompleteMapName);
     Cmd_AddCommand("devmap", SV_Map_f);
     Cmd_SetCommandCompletionFunc("devmap", SV_CompleteMapName);
+    Cmd_AddCommand("spmap", SV_Map_f);
+    Cmd_SetCommandCompletionFunc("spmap", SV_CompleteMapName);
+    Cmd_AddCommand("spdevmap", SV_Map_f);
+    Cmd_SetCommandCompletionFunc("spdevmap", SV_CompleteMapName);
     Cmd_AddCommand("killserver", SV_KillServer_f);
     if (com_dedicated->integer) {
         Cmd_AddCommand("say", SV_ConSay_f);

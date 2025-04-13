@@ -32,18 +32,8 @@ static char* netnames[] = {
 static int gamecodetoui[] = {4, 2, 3, 0, 5, 1, 6};
 static int uitogamecode[] = {4, 6, 2, 3, 1, 5, 7};
 
-static const char *skillLevels[] = {
-    "I Can Win",
-    "Bring It On",
-    "Hurt Me Plenty",
-    "Hardcore",
-    "Nightmare"
-};
-static const int numSkillLevels = ARRAY_LEN(skillLevels);
-
 static void UI_FeederSelection(float feederID, int index);
 static int UI_MapCountByGameType(qboolean singlePlayer);
-static int UI_MapCountByCallvoteGameType(void);
 static int UI_HeadCountByTeam(void);
 static void UI_ParseGameInfo(const char* teamFile);
 static void UI_ParseTeamInfo(const char* teamFile);
@@ -69,7 +59,7 @@ void _UI_KeyEvent(int key, qboolean down);
 void _UI_MouseEvent(int dx, int dy);
 void _UI_Refresh(int realtime);
 qboolean _UI_IsFullscreen(void);
-Q_EXPORT intptr_t vmMain(int command, intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4, intptr_t arg5, intptr_t arg6, intptr_t arg7, intptr_t arg8, intptr_t arg9, intptr_t arg10, intptr_t arg11) {
+Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11) {
     switch (command) {
         case UI_GETAPIVERSION:
             return UI_API_VERSION;
@@ -109,19 +99,6 @@ Q_EXPORT intptr_t vmMain(int command, intptr_t arg0, intptr_t arg1, intptr_t arg
             return 0;
         case UI_HASUNIQUECDKEY:
             return qtrue;
-
-        case UI_REGISTER_CVARS:
-            UI_RegisterCvars();
-            return 0;
-
-        case UI_CHECK_ACTIVE_MENU:
-            return _UI_IsFullscreen();
-
-        case UI_WALK_MENUS:
-            return 0;
-
-        case UI_DRAW_ADVERTISEMENT:
-            return 0;
     }
 
     return -1;
@@ -183,32 +160,18 @@ void _UI_DrawRect(float x, float y, float width, float height, float size, const
     trap_R_SetColor(NULL);
 }
 
-// [QL] Resolve fontIndex to a fontInfo_t pointer (UI module version)
-static fontInfo_t* UI_FontForIndex(int fontIndex) {
-    if (fontIndex > 0 && fontIndex < 3) {
-        return &uiInfo.uiDC.Assets.extraFonts[fontIndex];
-    }
-    return &uiInfo.uiDC.Assets.extraFonts[0];
-}
-
-// [QL] Scale-based font selection (used by direct call sites)
-static fontInfo_t* UI_FontForScale(float scale) {
-    fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
-    if (scale <= ui_smallFont.value) {
-        font = &uiInfo.uiDC.Assets.smallFont;
-    } else if (scale >= ui_bigFont.value) {
-        font = &uiInfo.uiDC.Assets.bigFont;
-    }
-    return font;
-}
-
 int Text_Width(const char* text, float scale, int limit) {
     int count, len;
     float out;
     glyphInfo_t* glyph;
     float useScale;
     const char* s = text;
-    fontInfo_t* font = UI_FontForScale(scale);
+    fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
+    if (scale <= ui_smallFont.value) {
+        font = &uiInfo.uiDC.Assets.smallFont;
+    } else if (scale >= ui_bigFont.value) {
+        font = &uiInfo.uiDC.Assets.bigFont;
+    }
     useScale = scale * font->glyphScale;
     out = 0;
     if (text) {
@@ -238,7 +201,12 @@ int Text_Height(const char* text, float scale, int limit) {
     glyphInfo_t* glyph;
     float useScale;
     const char* s = text;
-    fontInfo_t* font = UI_FontForScale(scale);
+    fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
+    if (scale <= ui_smallFont.value) {
+        font = &uiInfo.uiDC.Assets.smallFont;
+    } else if (scale >= ui_bigFont.value) {
+        font = &uiInfo.uiDC.Assets.bigFont;
+    }
     useScale = scale * font->glyphScale;
     max = 0;
     if (text) {
@@ -277,7 +245,12 @@ void Text_Paint(float x, float y, float scale, vec4_t color, const char* text, f
     vec4_t newColor;
     glyphInfo_t* glyph;
     float useScale;
-    fontInfo_t* font = UI_FontForScale(scale);
+    fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
+    if (scale <= ui_smallFont.value) {
+        font = &uiInfo.uiDC.Assets.smallFont;
+    } else if (scale >= ui_bigFont.value) {
+        font = &uiInfo.uiDC.Assets.bigFont;
+    }
     useScale = scale * font->glyphScale;
     if (text) {
         const char* s = text;
@@ -298,12 +271,11 @@ void Text_Paint(float x, float y, float scale, vec4_t color, const char* text, f
                 continue;
             } else {
                 float yadj = useScale * glyph->top;
-                float xadj = useScale * glyph->left;
                 if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
                     int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
                     colorBlack[3] = newColor[3];
                     trap_R_SetColor(colorBlack);
-                    Text_PaintChar(x + xadj + ofs, y - yadj + ofs,
+                    Text_PaintChar(x + ofs, y - yadj + ofs,
                                    glyph->imageWidth,
                                    glyph->imageHeight,
                                    useScale,
@@ -315,7 +287,7 @@ void Text_Paint(float x, float y, float scale, vec4_t color, const char* text, f
                     trap_R_SetColor(newColor);
                     colorBlack[3] = 1.0;
                 }
-                Text_PaintChar(x + xadj, y - yadj,
+                Text_PaintChar(x, y - yadj,
                                glyph->imageWidth,
                                glyph->imageHeight,
                                useScale,
@@ -340,7 +312,12 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
     glyphInfo_t *glyph, *glyph2;
     float yadj;
     float useScale;
-    fontInfo_t* font = UI_FontForScale(scale);
+    fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
+    if (scale <= ui_smallFont.value) {
+        font = &uiInfo.uiDC.Assets.smallFont;
+    } else if (scale >= ui_bigFont.value) {
+        font = &uiInfo.uiDC.Assets.bigFont;
+    }
     useScale = scale * font->glyphScale;
     if (text) {
         const char* s = text;
@@ -361,14 +338,12 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
                 s += 2;
                 continue;
             } else {
-                float xadj;
                 yadj = useScale * glyph->top;
-                xadj = useScale * glyph->left;
                 if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
                     int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
                     colorBlack[3] = newColor[3];
                     trap_R_SetColor(colorBlack);
-                    Text_PaintChar(x + xadj + ofs, y - yadj + ofs,
+                    Text_PaintChar(x + ofs, y - yadj + ofs,
                                    glyph->imageWidth,
                                    glyph->imageHeight,
                                    useScale,
@@ -380,7 +355,7 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
                     colorBlack[3] = 1.0;
                     trap_R_SetColor(newColor);
                 }
-                Text_PaintChar(x + xadj, y - yadj,
+                Text_PaintChar(x, y - yadj,
                                glyph->imageWidth,
                                glyph->imageHeight,
                                useScale,
@@ -392,7 +367,7 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
 
                 yadj = useScale * glyph2->top;
                 if (count == cursorPos && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
-                    Text_PaintChar(x + (useScale * glyph2->left), y - yadj,
+                    Text_PaintChar(x, y - yadj,
                                    glyph2->imageWidth,
                                    glyph2->imageHeight,
                                    useScale,
@@ -411,7 +386,7 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
         // need to paint cursor at end of text
         if (cursorPos == len && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
             yadj = useScale * glyph2->top;
-            Text_PaintChar(x + (useScale * glyph2->left), y - yadj,
+            Text_PaintChar(x, y - yadj,
                            glyph2->imageWidth,
                            glyph2->imageHeight,
                            useScale,
@@ -434,7 +409,12 @@ static void Text_Paint_Limit(float* maxX, float x, float y, float scale, vec4_t 
         const char* s = text;
         float max = *maxX;
         float useScale;
-        fontInfo_t* font = UI_FontForScale(scale);
+        fontInfo_t* font = &uiInfo.uiDC.Assets.textFont;
+        if (scale <= ui_smallFont.value) {
+            font = &uiInfo.uiDC.Assets.smallFont;
+        } else if (scale > ui_bigFont.value) {
+            font = &uiInfo.uiDC.Assets.bigFont;
+        }
         useScale = scale * font->glyphScale;
         trap_R_SetColor(color);
         len = strlen(text);
@@ -452,12 +432,11 @@ static void Text_Paint_Limit(float* maxX, float x, float y, float scale, vec4_t 
                 continue;
             } else {
                 float yadj = useScale * glyph->top;
-                float xadj = useScale * glyph->left;
                 if (Text_Width(s, scale, 1) + x > max) {
                     *maxX = 0;
                     break;
                 }
-                Text_PaintChar(x + xadj, y - yadj,
+                Text_PaintChar(x, y - yadj,
                                glyph->imageWidth,
                                glyph->imageHeight,
                                useScale,
@@ -474,158 +453,6 @@ static void Text_Paint_Limit(float* maxX, float x, float y, float scale, vec4_t 
         }
         trap_R_SetColor(NULL);
     }
-}
-
-// [QL] Font-pointer variant for fontIndex-based painting
-static void Text_Paint_Font(float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit, int style, fontInfo_t* font) {
-    int len, count;
-    vec4_t newColor;
-    glyphInfo_t* glyph;
-    float useScale;
-    useScale = scale * font->glyphScale;
-    if (text) {
-        const char* s = text;
-        trap_R_SetColor(color);
-        memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-        len = strlen(text);
-        if (limit > 0 && len > limit) {
-            len = limit;
-        }
-        count = 0;
-        while (s && *s && count < len) {
-            glyph = &font->glyphs[*s & 255];
-            if (Q_IsColorString(s)) {
-                memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
-                newColor[3] = color[3];
-                trap_R_SetColor(newColor);
-                s += 2;
-                continue;
-            } else {
-                float yadj = useScale * glyph->top;
-                float xadj = useScale * glyph->left;
-                if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
-                    int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
-                    colorBlack[3] = newColor[3];
-                    trap_R_SetColor(colorBlack);
-                    Text_PaintChar(x + xadj + ofs, y - yadj + ofs,
-                                   glyph->imageWidth,
-                                   glyph->imageHeight,
-                                   useScale,
-                                   glyph->s,
-                                   glyph->t,
-                                   glyph->s2,
-                                   glyph->t2,
-                                   glyph->glyph);
-                    trap_R_SetColor(newColor);
-                    colorBlack[3] = 1.0;
-                }
-                Text_PaintChar(x + xadj, y - yadj,
-                               glyph->imageWidth,
-                               glyph->imageHeight,
-                               useScale,
-                               glyph->s,
-                               glyph->t,
-                               glyph->s2,
-                               glyph->t2,
-                               glyph->glyph);
-                x += (glyph->xSkip * useScale) + adjust;
-                s++;
-                count++;
-            }
-        }
-        trap_R_SetColor(NULL);
-    }
-}
-
-static float Text_Width_Font(const char* text, float scale, int limit, fontInfo_t* font) {
-    int count, len;
-    float out;
-    glyphInfo_t* glyph;
-    float useScale;
-    const char* s = text;
-    useScale = scale * font->glyphScale;
-    out = 0;
-    if (text) {
-        len = strlen(text);
-        if (limit > 0 && len > limit) {
-            len = limit;
-        }
-        count = 0;
-        while (s && *s && count < len) {
-            if (Q_IsColorString(s)) {
-                s += 2;
-                continue;
-            } else {
-                glyph = &font->glyphs[*s & 255];
-                out += glyph->xSkip;
-                s++;
-                count++;
-            }
-        }
-    }
-    return out * useScale;
-}
-
-static float Text_Height_Font(const char* text, float scale, int limit, fontInfo_t* font) {
-    int len, count;
-    float max;
-    glyphInfo_t* glyph;
-    float useScale;
-    const char* s = text;
-    useScale = scale * font->glyphScale;
-    max = 0;
-    if (text) {
-        len = strlen(text);
-        if (limit > 0 && len > limit) {
-            len = limit;
-        }
-        count = 0;
-        while (s && *s && count < len) {
-            if (Q_IsColorString(s)) {
-                s += 2;
-                continue;
-            } else {
-                glyph = &font->glyphs[*s & 255];
-                if (max < glyph->height) {
-                    max = glyph->height;
-                }
-                s++;
-                count++;
-            }
-        }
-    }
-    return max * useScale;
-}
-
-// [QL] DC wrapper functions — resolve fontIndex then delegate
-static void UI_DrawText_DC(float x, float y, float scale, vec4_t color, const char* text,
-                           float adjust, int limit, int style, int fontIndex) {
-    fontInfo_t* font = UI_FontForIndex(fontIndex);
-    Text_Paint_Font(x, y, scale, color, text, adjust, limit, style, font);
-}
-
-static float UI_TextWidth_DC(const char* text, float scale, int limit, int fontIndex) {
-    fontInfo_t* font = UI_FontForIndex(fontIndex);
-    return Text_Width_Font(text, scale, limit, font);
-}
-
-static float UI_TextHeight_DC(const char* text, float scale, int limit, int fontIndex) {
-    fontInfo_t* font = UI_FontForIndex(fontIndex);
-    return Text_Height_Font(text, scale, limit, font);
-}
-
-static void UI_DrawTextWithCursor_DC(float x, float y, float scale, vec4_t color, const char* text,
-                                     int cursorPos, char cursor, int limit, int style, int fontIndex) {
-    fontInfo_t* font = UI_FontForIndex(fontIndex);
-    Text_Paint_Font(x, y, scale, color, text, 0, limit, style, font);
-}
-
-static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle);
-
-static void UI_OwnerDraw_DC(float x, float y, float w, float h, float text_x, float text_y,
-                            int ownerDraw, int ownerDrawFlags, int align, float special,
-                            float scale, vec4_t color, qhandle_t shader, int textStyle, int fontIndex) {
-    UI_OwnerDraw(x, y, w, h, text_x, text_y, ownerDraw, ownerDrawFlags, align, special, scale, color, shader, textStyle);
 }
 
 void UI_ShowPostGame(qboolean newHigh) {
@@ -886,9 +713,7 @@ void UI_ParseMenu(const char* menuFile) {
     int handle;
     pc_token_t token;
 
-#ifdef _DEBUG
     Com_Printf("Parsing menu file: %s\n", menuFile);
-#endif
 
     handle = trap_PC_LoadSource(menuFile);
     if (!handle) {
@@ -907,11 +732,6 @@ void UI_ParseMenu(const char* menuFile) {
 
         if (Q_stricmp(token.string, "assetGlobalDef") == 0) {
             if (Asset_Parse(handle)) {
-                // [QL] Populate extraFonts[] for fontIndex-based selection:
-                // 0 = textFont (NotoSans), 1 = bigFont (handelgothic), 2 = smallFont (DroidSansMono)
-                memcpy(&uiInfo.uiDC.Assets.extraFonts[0], &uiInfo.uiDC.Assets.textFont, sizeof(fontInfo_t));
-                memcpy(&uiInfo.uiDC.Assets.extraFonts[1], &uiInfo.uiDC.Assets.bigFont, sizeof(fontInfo_t));
-                memcpy(&uiInfo.uiDC.Assets.extraFonts[2], &uiInfo.uiDC.Assets.smallFont, sizeof(fontInfo_t));
                 continue;
             } else {
                 break;
@@ -992,7 +812,7 @@ void UI_LoadMenus(const char* menuFile, qboolean reset) {
         }
     }
 
-    Com_Printf("UI menu load time = %d milliseconds\n", trap_Milliseconds() - start);
+    Com_Printf("UI menu load time = %d milli seconds\n", trap_Milliseconds() - start);
 
     trap_PC_FreeSource(handle);
 }
@@ -1027,6 +847,10 @@ static void UI_DrawHandicap(rectDef_t* rect, float scale, vec4_t color, int text
     i = 20 - h / 5;
 
     Text_Paint(rect->x, rect->y, scale, color, handicapValues[i], 0, 0, textStyle);
+}
+
+static void UI_DrawClanName(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
+    Text_Paint(rect->x, rect->y, scale, color, UI_Cvar_VariableString("ui_teamName"), 0, 0, textStyle);
 }
 
 static void UI_SetCapFragLimits(qboolean uiVars) {
@@ -1077,6 +901,23 @@ static int UI_TeamIndexFromName(const char* name) {
     }
 
     return 0;
+}
+
+static void UI_DrawClanLogo(rectDef_t* rect, float scale, vec4_t color) {
+    int i;
+    i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
+    if (i >= 0 && i < uiInfo.teamCount) {
+        trap_R_SetColor(color);
+
+        if (uiInfo.teamList[i].teamIcon == -1) {
+            uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+            uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+            uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+        }
+
+        UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon);
+        trap_R_SetColor(NULL);
+    }
 }
 
 static void UI_DrawClanCinematic(rectDef_t* rect, float scale, vec4_t color) {
@@ -1197,6 +1038,7 @@ static void UI_DrawMapCinematic(rectDef_t* rect, float scale, vec4_t color, qboo
 }
 
 static qboolean updateModel = qtrue;
+static qboolean q3Model = qfalse;
 
 static void UI_DrawPlayerModel(rectDef_t* rect) {
     static playerInfo_t info;
@@ -1206,10 +1048,23 @@ static void UI_DrawPlayerModel(rectDef_t* rect) {
     vec3_t viewangles;
     vec3_t moveangles;
 
-    // [QL] always use model/headmodel (no team_model)
-    Q_strncpyz(model, UI_Cvar_VariableString("model"), sizeof(model));
-    Q_strncpyz(head, UI_Cvar_VariableString("headmodel"), sizeof(head));
-    team[0] = '\0';
+    if (trap_Cvar_VariableValue("ui_Q3Model")) {
+        Q_strncpyz(model, UI_Cvar_VariableString("model"), sizeof(model));
+        Q_strncpyz(head, UI_Cvar_VariableString("headmodel"), sizeof(head));
+        if (!q3Model) {
+            q3Model = qtrue;
+            updateModel = qtrue;
+        }
+        team[0] = '\0';
+    } else {
+        Q_strncpyz(team, UI_Cvar_VariableString("ui_teamName"), sizeof(team));
+        Q_strncpyz(model, UI_Cvar_VariableString("team_model"), sizeof(model));
+        Q_strncpyz(head, UI_Cvar_VariableString("team_headmodel"), sizeof(head));
+        if (q3Model) {
+            q3Model = qfalse;
+            updateModel = qtrue;
+        }
+    }
     if (updateModel) {
         memset(&info, 0, sizeof(playerInfo_t));
         viewangles[YAW] = 180 - 10;
@@ -1327,6 +1182,85 @@ static void UI_PriorOpponent(void) {
     trap_Cvar_Set("ui_opponentName", uiInfo.teamList[i].teamName);
 }
 
+static void UI_DrawPlayerLogo(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
+
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon);
+    trap_R_SetColor(NULL);
+}
+
+static void UI_DrawPlayerLogoMetal(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon_Metal);
+    trap_R_SetColor(NULL);
+}
+
+static void UI_DrawPlayerLogoName(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon_Name);
+    trap_R_SetColor(NULL);
+}
+
+static void UI_DrawOpponentLogo(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon);
+    trap_R_SetColor(NULL);
+}
+
+static void UI_DrawOpponentLogoMetal(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon_Metal);
+    trap_R_SetColor(NULL);
+}
+
+static void UI_DrawOpponentLogoName(rectDef_t* rect, vec3_t color) {
+    int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
+    if (uiInfo.teamList[i].teamIcon == -1) {
+        uiInfo.teamList[i].teamIcon = trap_R_RegisterShaderNoMip(uiInfo.teamList[i].imageName);
+        uiInfo.teamList[i].teamIcon_Metal = trap_R_RegisterShaderNoMip(va("%s_metal", uiInfo.teamList[i].imageName));
+        uiInfo.teamList[i].teamIcon_Name = trap_R_RegisterShaderNoMip(va("%s_name", uiInfo.teamList[i].imageName));
+    }
+
+    trap_R_SetColor(color);
+    UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, uiInfo.teamList[i].teamIcon_Name);
+    trap_R_SetColor(NULL);
+}
+
 static void UI_DrawAllMapsSelection(rectDef_t* rect, float scale, vec4_t color, int textStyle, qboolean net) {
     int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;
     if (map >= 0 && map < uiInfo.mapCount) {
@@ -1395,118 +1329,6 @@ static void UI_DrawCrosshair(rectDef_t* rect, float scale, vec4_t color) {
     trap_R_SetColor(color);
     UI_DrawHandlePic(rect->x, rect->y - rect->h, rect->w, rect->h, uiInfo.uiDC.Assets.crosshairShader[uiInfo.currentCrosshair]);
     trap_R_SetColor(NULL);
-}
-
-// [QL] Bot skill level display
-static void UI_DrawBotSkill(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-    if (uiInfo.skillIndex >= 0 && uiInfo.skillIndex < numSkillLevels) {
-        Text_Paint(rect->x, rect->y, scale, color, skillLevels[uiInfo.skillIndex], 0, 0, textStyle);
-    }
-}
-
-// [QL] Vote string display
-static void UI_DrawVoteString(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-    if (ui_votestring.string[0]) {
-        Text_Paint(rect->x, rect->y, scale, color, ui_votestring.string, 0, 0, textStyle);
-    }
-}
-
-// [QL] Team player model preview
-static void UI_DrawTeamPlayerModel(rectDef_t *rect) {
-    static playerInfo_t teamInfo;
-    static qboolean updateTeamModel = qtrue;
-    char model[MAX_QPATH];
-    vec3_t viewangles;
-
-    if (updateTeamModel || ui_forceTeamModel.modificationCount != teamInfo.weapon) {
-        Q_strncpyz(model, ui_forceTeamModel.string[0] ? ui_forceTeamModel.string : "sarge", sizeof(model));
-        memset(&teamInfo, 0, sizeof(playerInfo_t));
-        viewangles[YAW] = 180 - 10;
-        viewangles[PITCH] = 0;
-        viewangles[ROLL] = 0;
-        UI_PlayerInfo_SetModel(&teamInfo, model, model, "");
-        UI_PlayerInfo_SetInfo(&teamInfo, LEGS_IDLE, TORSO_STAND, viewangles, vec3_origin, WP_MACHINEGUN, qfalse);
-        teamInfo.weapon = ui_forceTeamModel.modificationCount;
-        updateTeamModel = qfalse;
-    }
-    UI_DrawPlayer(rect->x, rect->y, rect->w, rect->h, &teamInfo, uiInfo.uiDC.realTime / 2);
-}
-
-// [QL] Enemy player model preview
-static void UI_DrawEnemyPlayerModel(rectDef_t *rect) {
-    static playerInfo_t enemyInfo;
-    static qboolean updateEnemyModel = qtrue;
-    char model[MAX_QPATH];
-    vec3_t viewangles;
-
-    if (updateEnemyModel || ui_forceEnemyModel.modificationCount != enemyInfo.weapon) {
-        Q_strncpyz(model, ui_forceEnemyModel.string[0] ? ui_forceEnemyModel.string : "keel", sizeof(model));
-        memset(&enemyInfo, 0, sizeof(playerInfo_t));
-        viewangles[YAW] = 180 - 10;
-        viewangles[PITCH] = 0;
-        viewangles[ROLL] = 0;
-        UI_PlayerInfo_SetModel(&enemyInfo, model, model, "");
-        UI_PlayerInfo_SetInfo(&enemyInfo, LEGS_IDLE, TORSO_STAND, viewangles, vec3_origin, WP_MACHINEGUN, qfalse);
-        enemyInfo.weapon = ui_forceEnemyModel.modificationCount;
-        updateEnemyModel = qfalse;
-    }
-    UI_DrawPlayer(rect->x, rect->y, rect->w, rect->h, &enemyInfo, uiInfo.uiDC.realTime / 2);
-}
-
-// [QL] Server settings display (in ingame_about menu)
-static void UI_DrawServerSettings(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-    char info[MAX_INFO_STRING];
-    const char *sv;
-    trap_GetConfigString(CS_SERVERINFO, info, sizeof(info));
-    sv = Info_ValueForKey(info, "sv_hostname");
-    if (sv && sv[0]) {
-        Text_Paint(rect->x, rect->y, scale, color, sv, 0, 0, textStyle);
-    }
-}
-
-// [QL] Starting weapons display (in ingame_about menu)
-static void UI_DrawStartingWeapons(rectDef_t *rect, float scale, vec4_t color) {
-    char buf[32];
-    int weapons, w;
-    float x;
-    static const char *weaponIconNames[] = {
-        NULL,                       // WP_NONE
-        "icons/iconw_gauntlet",     // WP_GAUNTLET
-        "icons/iconw_machinegun",   // WP_MACHINEGUN
-        "icons/iconw_shotgun",      // WP_SHOTGUN
-        "icons/iconw_grenade",      // WP_GRENADE_LAUNCHER
-        "icons/iconw_rocket",       // WP_ROCKET_LAUNCHER
-        "icons/iconw_lightning",    // WP_LIGHTNING
-        "icons/iconw_railgun",      // WP_RAILGUN
-        "icons/iconw_plasma",       // WP_PLASMAGUN
-        "icons/iconw_bfg",          // WP_BFG
-        "icons/iconw_grapple",      // WP_GRAPPLING_HOOK
-        "icons/iconw_machinegun",   // WP_NAILGUN (no unique icon)
-        "icons/iconw_grenade",      // WP_PROX_LAUNCHER (no unique icon)
-        "icons/iconw_machinegun",   // WP_CHAINGUN (no unique icon)
-        "icons/weap_hmg",           // WP_HMG
-    };
-
-    trap_GetConfigString(CS_STARTING_WEAPONS, buf, sizeof(buf));
-    if (!buf[0]) return;
-    weapons = atoi(buf);
-    if (!weapons) return;
-
-    x = rect->x;
-    for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
-        if (weapons & (1 << (w - 1))) {
-            const char *iconName = (w < (int)(sizeof(weaponIconNames) / sizeof(weaponIconNames[0]))) ? weaponIconNames[w] : NULL;
-            if (iconName) {
-                qhandle_t icon = trap_R_RegisterShaderNoMip(iconName);
-                if (icon) {
-                    trap_R_SetColor(color);
-                    UI_DrawHandlePic(x, rect->y, rect->h, rect->h, icon);
-                    trap_R_SetColor(NULL);
-                    x += rect->h + 2;
-                }
-            }
-        }
-    }
 }
 
 /*
@@ -1717,33 +1539,12 @@ static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float
         case UI_KEYBINDSTATUS:
             UI_DrawKeyBindStatus(&rect, scale, color, textStyle);
             break;
-        case UI_BOTSKILL:
-            UI_DrawBotSkill(&rect, scale, color, textStyle);
-            break;
-        case UI_VOTESTRING:
-            UI_DrawVoteString(&rect, scale, color, textStyle);
-            break;
-        case UI_TEAMPLAYERMODEL:
-            UI_DrawTeamPlayerModel(&rect);
-            break;
-        case UI_ENEMYPLAYERMODEL:
-            UI_DrawEnemyPlayerModel(&rect);
-            break;
-        case UI_SERVER_SETTINGS:
-            UI_DrawServerSettings(&rect, scale, color, textStyle);
-            break;
-        case UI_STARTING_WEAPONS:
-            UI_DrawStartingWeapons(&rect, scale, color);
-            break;
-        case UI_ADVERT:
-            // [QL] Advertisement display — no-op in standalone build
-            break;
         default:
             break;
     }
 }
 
-static qboolean UI_OwnerDrawVisible(int flags, int flags2) {
+static qboolean UI_OwnerDrawVisible(int flags) {
     qboolean vis = qtrue;
 
     while (flags) {
@@ -1833,49 +1634,7 @@ static qboolean UI_OwnerDrawVisible(int flags, int flags2) {
                 vis = qfalse;
             }
             flags &= ~UI_SHOW_DEMOAVAILABLE;
-        }
-        // [QL] Warmup visibility flags
-        if (flags & UI_SHOW_IF_WARMUP) {
-            if (!trap_Cvar_VariableValue("cl_paused") && trap_Cvar_VariableValue("g_warmup") <= 0) {
-                vis = qfalse;
-            }
-            flags &= ~UI_SHOW_IF_WARMUP;
-        }
-        if (flags & UI_SHOW_IF_NOT_WARMUP) {
-            if (trap_Cvar_VariableValue("g_warmup") > 0) {
-                vis = qfalse;
-            }
-            flags &= ~UI_SHOW_IF_NOT_WARMUP;
-        }
-        // [QL] Loadout visibility flags
-        if (flags & UI_SHOW_IF_LOADOUT_ENABLED) {
-            if (!trap_Cvar_VariableValue("g_loadout")) {
-                vis = qfalse;
-            }
-            flags &= ~UI_SHOW_IF_LOADOUT_ENABLED;
-        }
-        if (flags & UI_SHOW_IF_LOADOUT_DISABLED) {
-            if (trap_Cvar_VariableValue("g_loadout")) {
-                vis = qfalse;
-            }
-            flags &= ~UI_SHOW_IF_LOADOUT_DISABLED;
-        }
-        // [QL] Not intermission visibility flag
-        if (flags & UI_SHOW_IF_NOT_INTERMISSION) {
-            char info[MAX_INFO_STRING];
-            trap_GetConfigString(CS_INTERMISSION, info, sizeof(info));
-            if (info[0]) {
-                vis = qfalse;
-            }
-            flags &= ~UI_SHOW_IF_NOT_INTERMISSION;
-        }
-        // Clear any remaining unrecognized flags
-        if (!(flags & (UI_SHOW_FFA | UI_SHOW_NOTFFA | UI_SHOW_LEADER | UI_SHOW_NOTLEADER |
-                       UI_SHOW_ANYTEAMGAME | UI_SHOW_ANYNONTEAMGAME | UI_SHOW_NETANYTEAMGAME |
-                       UI_SHOW_NETANYNONTEAMGAME | UI_SHOW_NEWHIGHSCORE | UI_SHOW_NEWBESTTIME |
-                       UI_SHOW_DEMOAVAILABLE | UI_SHOW_IF_WARMUP | UI_SHOW_IF_NOT_WARMUP |
-                       UI_SHOW_IF_LOADOUT_ENABLED | UI_SHOW_IF_LOADOUT_DISABLED |
-                       UI_SHOW_IF_NOT_INTERMISSION))) {
+        } else {
             flags = 0;
         }
     }
@@ -1914,6 +1673,35 @@ static qboolean UI_Effects_HandleKey(int flags, float* special, int key) {
         }
 
         trap_Cvar_SetValue("color1", uitogamecode[uiInfo.effectsColor]);
+        return qtrue;
+    }
+    return qfalse;
+}
+
+static qboolean UI_ClanName_HandleKey(int flags, float* special, int key) {
+    int select = UI_SelectForKey(key);
+    if (select != 0) {
+        int i;
+
+        i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
+
+        if (uiInfo.teamList[i].cinematic >= 0) {
+            trap_CIN_StopCinematic(uiInfo.teamList[i].cinematic);
+            uiInfo.teamList[i].cinematic = -1;
+        }
+
+        i += select;
+
+        if (i >= uiInfo.teamCount) {
+            i = 0;
+        } else if (i < 0) {
+            i = uiInfo.teamCount - 1;
+        }
+
+        trap_Cvar_Set("ui_teamName", uiInfo.teamList[i].teamName);
+        UI_HeadCountByTeam();
+        UI_FeederSelection(FEEDER_HEADS, 0);
+        updateModel = qtrue;
         return qtrue;
     }
     return qfalse;
@@ -2139,19 +1927,6 @@ static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float* special, 
         case UI_SELECTEDPLAYER:
             UI_SelectedPlayer_HandleKey(flags, special, key);
             break;
-        case UI_BOTSKILL: {
-            int select = UI_SelectForKey(key);
-            if (select != 0) {
-                uiInfo.skillIndex += select;
-                if (uiInfo.skillIndex >= numSkillLevels) {
-                    uiInfo.skillIndex = 0;
-                } else if (uiInfo.skillIndex < 0) {
-                    uiInfo.skillIndex = numSkillLevels - 1;
-                }
-                return qtrue;
-            }
-            break;
-        }
         default:
             break;
     }
@@ -2450,7 +2225,7 @@ static void UI_Update(const char* name) {
         switch (val) {
             case 0:  // high quality
                 trap_Cvar_SetValue("r_fullScreen", 1);
-                trap_Cvar_SetValue("r_subdivisions", 1);
+                trap_Cvar_SetValue("r_subdivisions", 4);
                 trap_Cvar_SetValue("r_vertexlight", 0);
                 trap_Cvar_SetValue("r_lodbias", 0);
                 trap_Cvar_SetValue("r_colorbits", 32);
@@ -2468,7 +2243,7 @@ static void UI_Update(const char* name) {
                 break;
             case 1:  // normal
                 trap_Cvar_SetValue("r_fullScreen", 1);
-                trap_Cvar_SetValue("r_subdivisions", 4);
+                trap_Cvar_SetValue("r_subdivisions", 12);
                 trap_Cvar_SetValue("r_vertexlight", 0);
                 trap_Cvar_SetValue("r_lodbias", 0);
                 trap_Cvar_SetValue("r_colorbits", 0);
@@ -2504,7 +2279,7 @@ static void UI_Update(const char* name) {
                 break;
             case 3:  // fastest
                 trap_Cvar_SetValue("r_fullScreen", 1);
-                trap_Cvar_SetValue("r_subdivisions", 12);
+                trap_Cvar_SetValue("r_subdivisions", 20);
                 trap_Cvar_SetValue("r_vertexlight", 1);
                 trap_Cvar_SetValue("r_lodbias", 2);
                 trap_Cvar_SetValue("r_colorbits", 16);
@@ -2558,10 +2333,6 @@ static void UI_RunMenuScript(char** args) {
             UI_LoadArenasIntoMapList();
             UI_MapCountByGameType(qfalse);
             Menu_SetFeederSelection(NULL, FEEDER_ALLMAPS, 0, "createserver");
-        } else if (Q_stricmp(name, "updateCallvoteMapPreview") == 0) {
-            // [QL] Re-filter map list by callvote gametype and reset selection
-            UI_MapCountByCallvoteGameType();
-            Menu_SetFeederSelection(NULL, FEEDER_CVMAPS, 0, "ingame_callvote");
         } else if (Q_stricmp(name, "saveControls") == 0) {
             Controls_SetConfig(qtrue);
         } else if (Q_stricmp(name, "loadControls") == 0) {
@@ -2578,9 +2349,12 @@ static void UI_RunMenuScript(char** args) {
             UI_LoadMods();
         } else if (Q_stricmp(name, "RunMod") == 0) {
             trap_Cvar_Set("fs_game", uiInfo.modList[uiInfo.modIndex].modName);
-            trap_Cmd_ExecuteText(EXEC_APPEND, "vid_restart\n");
+            trap_Cmd_ExecuteText(EXEC_APPEND, "vid_restart;");
         } else if (Q_stricmp(name, "RunDemo") == 0) {
             trap_Cmd_ExecuteText(EXEC_APPEND, va("demo %s\n", uiInfo.demoList[uiInfo.demoIndex]));
+        } else if (Q_stricmp(name, "Quake3") == 0) {
+            trap_Cvar_Set("fs_game", "");
+            trap_Cmd_ExecuteText(EXEC_APPEND, "vid_restart;");
         } else if (Q_stricmp(name, "closeJoin") == 0) {
             Menus_CloseByName("joinserver");
             Menus_OpenByName("main");
@@ -2611,6 +2385,10 @@ static void UI_RunMenuScript(char** args) {
             trap_Key_SetCatcher(KEYCATCH_UI);
             Menus_CloseAll();
             Menus_ActivateByName("main");
+        } else if (Q_stricmp(name, "nextSkirmish") == 0) {
+            UI_StartSkirmish(qtrue);
+        } else if (Q_stricmp(name, "SkirmishStart") == 0) {
+            UI_StartSkirmish(qfalse);
         } else if (Q_stricmp(name, "closeingame") == 0) {
             trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_UI);
             trap_Key_ClearStates();
@@ -2670,54 +2448,6 @@ static void UI_RunMenuScript(char** args) {
                 trap_SetPbClStatus(stat);
         } else if (Q_stricmp(name, "stopRefresh") == 0) {
             // do nothing - the Quake Live menus do this often so don't error out in console.
-        } else if (Q_stricmp(name, "clearComError") == 0) {
-			trap_Cvar_Set("com_errorMessage", "");
-        } else if (Q_stricmp(name, "clientViewProfile") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "clientFriendInvite") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "clientMutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "modPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "adminPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "deopPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "putspec") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "putred") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "putblue") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "mutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "unmutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "tempbanPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "banPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "kickPlayer") == 0) {
-            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
-                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientkick %i\n", uiInfo.playerIndex));
-            }
-        } else if (Q_stricmp(name, "teamModelChanged") == 0) {
-            // [QL] Force team model preview to refresh
-            updateModel = qtrue;
-        } else if (Q_stricmp(name, "enemyModelChanged") == 0) {
-            // [QL] Force enemy model preview to refresh
-            updateModel = qtrue;
-        } else if (Q_stricmp(name, "teamColorDefaults") == 0) {
-            // [QL] Reset team color sliders to defaults
-            trap_Cvar_Set("ui_teamHeadColor", "96");
-            trap_Cvar_Set("ui_teamUpperColor", "23");
-            trap_Cvar_Set("ui_teamLowerColor", "23");
-        } else if (Q_stricmp(name, "enemyColorDefaults") == 0) {
-            // [QL] Reset enemy color sliders to defaults
-            trap_Cvar_Set("ui_enemyHeadColor", "27");
-            trap_Cvar_Set("ui_enemyUpperColor", "2");
-            trap_Cvar_Set("ui_enemyLowerColor", "2");
         } else {
             Com_Printf("unknown UI script %s\n", name);
         }
@@ -2751,35 +2481,6 @@ static int UI_MapCountByGameType(qboolean singlePlayer) {
                     continue;
                 }
             }
-            c++;
-            uiInfo.mapList[i].active = qtrue;
-        }
-    }
-    return c;
-}
-
-/*
-==================
-UI_MapCountByCallvoteGameType
-[QL] Filters maps by the gametype selected in the callvote dropdown (ui_cvgametype).
-Unlike UI_MapCountByGameType, ui_cvgametype holds a direct gametype enum value, not an index.
--1 means "Default" (use current gametype from cg_gametype).
-==================
-*/
-static int UI_MapCountByCallvoteGameType(void) {
-    int i, c, game;
-    c = 0;
-    game = ui_cvgametype.integer;
-    if (game < 0) {
-        // "Default" — use current gametype
-        game = (int)trap_Cvar_VariableValue("cg_gametype");
-    }
-    if (game == GT_TEAM) {
-        game = GT_FFA;
-    }
-    for (i = 0; i < uiInfo.mapCount; i++) {
-        uiInfo.mapList[i].active = qfalse;
-        if (uiInfo.mapList[i].typeBits & (1 << game)) {
             c++;
             uiInfo.mapList[i].active = qtrue;
         }
@@ -2896,8 +2597,6 @@ static int UI_FeederCount(float feederID) {
         return uiInfo.movieCount;
     } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
         return UI_MapCountByGameType(feederID == FEEDER_MAPS ? qtrue : qfalse);
-    } else if (feederID == FEEDER_CVMAPS) {
-        return UI_MapCountByCallvoteGameType();
     } else if (feederID == FEEDER_FINDPLAYER) {
         return uiInfo.numFoundPlayerServers;
     } else if (feederID == FEEDER_PLAYER_LIST) {
@@ -2982,11 +2681,12 @@ static const char* UI_FeederItemText(float feederID, int index, int column, qhan
         if (index >= 0 && index < uiInfo.q3HeadCount) {
             return uiInfo.q3HeadNames[index];
         }
-    } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS || feederID == FEEDER_CVMAPS) {
+    } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
         int actual;
         return UI_SelectedMap(index, &actual);
     } else if (feederID == FEEDER_FINDPLAYER) {
         if (index >= 0 && index < uiInfo.numFoundPlayerServers) {
+            // return uiInfo.foundPlayerServerAddresses[index];
             return uiInfo.foundPlayerServerNames[index];
         }
     } else if (feederID == FEEDER_PLAYER_LIST) {
@@ -3032,7 +2732,7 @@ static qhandle_t UI_FeederItemImage(float feederID, int index) {
         if (index >= 0 && index < uiInfo.q3HeadCount) {
             return uiInfo.q3HeadIcons[index];
         }
-    } else if (feederID == FEEDER_ALLMAPS || feederID == FEEDER_MAPS || feederID == FEEDER_CVMAPS) {
+    } else if (feederID == FEEDER_ALLMAPS || feederID == FEEDER_MAPS) {
         int actual;
         UI_SelectedMap(index, &actual);
         index = actual;
@@ -3053,8 +2753,8 @@ static void UI_FeederSelection(float feederID, int index) {
         UI_SelectedHead(index, &actual);
         index = actual;
         if (index >= 0 && index < uiInfo.characterCount) {
-            trap_Cvar_Set("model", uiInfo.characterList[index].base);
-            trap_Cvar_Set("headmodel", uiInfo.characterList[index].base);
+            trap_Cvar_Set("team_model", uiInfo.characterList[index].base);
+            trap_Cvar_Set("team_headmodel", va("*%s", uiInfo.characterList[index].name));
             updateModel = qtrue;
         }
     } else if (feederID == FEEDER_Q3HEADS) {
@@ -3063,9 +2763,9 @@ static void UI_FeederSelection(float feederID, int index) {
             trap_Cvar_Set("headmodel", uiInfo.q3HeadNames[index]);
             updateModel = qtrue;
         }
-    } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS || feederID == FEEDER_CVMAPS) {
+    } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
         int actual, map;
-        map = (feederID == FEEDER_ALLMAPS || feederID == FEEDER_CVMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
+        map = (feederID == FEEDER_ALLMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
         if (uiInfo.mapList[map].cinematic >= 0) {
             trap_CIN_StopCinematic(uiInfo.mapList[map].cinematic);
             uiInfo.mapList[map].cinematic = -1;
@@ -3640,9 +3340,9 @@ void _UI_Init(qboolean inGameLoad) {
     uiInfo.uiDC.setColor = &UI_SetColor;
     uiInfo.uiDC.drawHandlePic = &UI_DrawHandlePic;
     uiInfo.uiDC.drawStretchPic = &trap_R_DrawStretchPic;
-    uiInfo.uiDC.drawText = &UI_DrawText_DC;
-    uiInfo.uiDC.textWidth = &UI_TextWidth_DC;
-    uiInfo.uiDC.textHeight = &UI_TextHeight_DC;
+    uiInfo.uiDC.drawText = &Text_Paint;
+    uiInfo.uiDC.textWidth = &Text_Width;
+    uiInfo.uiDC.textHeight = &Text_Height;
     uiInfo.uiDC.registerModel = &trap_R_RegisterModel;
     uiInfo.uiDC.modelBounds = &trap_R_ModelBounds;
     uiInfo.uiDC.fillRect = &UI_FillRect;
@@ -3653,7 +3353,7 @@ void _UI_Init(qboolean inGameLoad) {
     uiInfo.uiDC.addRefEntityToScene = &trap_R_AddRefEntityToScene;
     uiInfo.uiDC.renderScene = &trap_R_RenderScene;
     uiInfo.uiDC.registerFont = &trap_R_RegisterFont;
-    uiInfo.uiDC.ownerDrawItem = &UI_OwnerDraw_DC;
+    uiInfo.uiDC.ownerDrawItem = &UI_OwnerDraw;
     uiInfo.uiDC.getValue = &UI_GetValue;
     uiInfo.uiDC.ownerDrawVisible = &UI_OwnerDrawVisible;
     uiInfo.uiDC.runScript = &UI_RunMenuScript;
@@ -3661,7 +3361,7 @@ void _UI_Init(qboolean inGameLoad) {
     uiInfo.uiDC.setCVar = trap_Cvar_Set;
     uiInfo.uiDC.getCVarString = trap_Cvar_VariableStringBuffer;
     uiInfo.uiDC.getCVarValue = trap_Cvar_VariableValue;
-    uiInfo.uiDC.drawTextWithCursor = &UI_DrawTextWithCursor_DC;
+    uiInfo.uiDC.drawTextWithCursor = &Text_PaintWithCursor;
     uiInfo.uiDC.setOverstrikeMode = &trap_Key_SetOverstrikeMode;
     uiInfo.uiDC.getOverstrikeMode = &trap_Key_GetOverstrikeMode;
     uiInfo.uiDC.startLocalSound = &trap_S_StartLocalSound;
@@ -3804,32 +3504,26 @@ void _UI_SetActiveMenu(uiMenuCommand_t menu) {
             case UIMENU_NONE:
                 trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_UI);
                 trap_Key_ClearStates();
-                Menus_CloseAll();
                 trap_Cvar_Set("cl_paused", "0");
+                Menus_CloseAll();
+
                 return;
             case UIMENU_MAIN:
+                trap_Cvar_Set("sv_killserver", "1");
                 trap_Key_SetCatcher(KEYCATCH_UI);
-                // [QL] Update UI state from cvars (binary-verified)
-                uiInfo.effectsColor = gamecodetoui[(int)trap_Cvar_VariableValue("color1") - 1];
-                uiInfo.currentCrosshair = (int)trap_Cvar_VariableValue("cg_drawCrosshair");
                 if (uiInfo.inGameLoad) {
                     UI_LoadNonIngame();
                 }
                 Menus_CloseAll();
                 Menus_ActivateByName("main");
                 trap_Cvar_VariableStringBuffer("com_errorMessage", buf, sizeof(buf));
-                // [QL] Play menu music
-                trap_S_StartBackgroundTrack("music/fla_mp05", NULL);
                 if (strlen(buf)) {
-                    Menus_ActivateByName("error_popmenu");
+                    if (!ui_singlePlayerActive.integer) {
+                        Menus_ActivateByName("error_popmenu");
+                    } else {
+                        trap_Cvar_Set("com_errorMessage", "");
+                    }
                 }
-                return;
-            case UIMENU_MAIN_OPTIONS:
-                trap_Cvar_Set("cl_paused", "1");
-                trap_Key_SetCatcher(KEYCATCH_UI);
-                UI_BuildPlayerList();
-                Menus_CloseAll();
-                Menus_ActivateByName("main_options");
                 return;
             case UIMENU_TEAM:
                 trap_Key_SetCatcher(KEYCATCH_UI);
@@ -3845,17 +3539,11 @@ void _UI_SetActiveMenu(uiMenuCommand_t menu) {
                 Menus_ActivateByName("endofgame");
                 return;
             case UIMENU_INGAME:
-                // [QL] Update UI state from cvars (binary-verified)
-                uiInfo.effectsColor = gamecodetoui[(int)trap_Cvar_VariableValue("color1") - 1];
-                uiInfo.currentCrosshair = (int)trap_Cvar_VariableValue("cg_drawCrosshair");
-                trap_Cvar_Set("ui_mousePitch", (trap_Cvar_VariableValue("m_pitch") >= 0) ? "0" : "1");
-                trap_Cvar_Set("ui_cvGameType", "-1");
                 trap_Cvar_Set("cl_paused", "1");
                 trap_Key_SetCatcher(KEYCATCH_UI);
                 UI_BuildPlayerList();
                 Menus_CloseAll();
                 Menus_ActivateByName("ingame");
-                Menus_ActivateByName("ingame_about");
                 return;
         }
     }
@@ -4161,7 +3849,6 @@ vmCvar_t ui_teamName;
 vmCvar_t ui_dedicated;
 vmCvar_t ui_gameType;
 vmCvar_t ui_netGameType;
-vmCvar_t ui_cvgametype;
 vmCvar_t ui_actualNetGameType;
 vmCvar_t ui_joinGameType;
 vmCvar_t ui_netSource;
@@ -4195,79 +3882,12 @@ vmCvar_t ui_fragLimit;
 vmCvar_t ui_smallFont;
 vmCvar_t ui_bigFont;
 vmCvar_t ui_findPlayer;
+vmCvar_t ui_Q3Model;
 vmCvar_t ui_hudFiles;
 vmCvar_t ui_recordSPDemo;
 vmCvar_t ui_realCaptureLimit;
 vmCvar_t ui_realWarmUp;
 vmCvar_t ui_serverStatusTimeOut;
-
-// [QL additions] - player 2 duel scores
-vmCvar_t ui_scoreAccuracy2;
-vmCvar_t ui_scoreImpressives2;
-vmCvar_t ui_scoreExcellents2;
-vmCvar_t ui_scoreDefends2;
-vmCvar_t ui_scoreAssists2;
-vmCvar_t ui_scoreGauntlets2;
-vmCvar_t ui_scoreScore2;
-vmCvar_t ui_scorePerfect2;
-vmCvar_t ui_scoreTeam2;
-vmCvar_t ui_scoreBase2;
-vmCvar_t ui_scoreTimeBonus2;
-vmCvar_t ui_scoreSkillBonus2;
-vmCvar_t ui_scoreShutoutBonus2;
-vmCvar_t ui_scoreTime2;
-vmCvar_t ui_scoreCaptures2;
-
-// [QL additions] - model/skin customization
-vmCvar_t ui_forceTeamModel;
-vmCvar_t ui_forceTeamSkin;
-vmCvar_t ui_forceEnemyModel;
-vmCvar_t ui_forceEnemySkin;
-vmCvar_t ui_forceTeamModelBright;
-vmCvar_t ui_forceEnemyModelBright;
-vmCvar_t ui_teamColor;
-vmCvar_t ui_enemyColor;
-vmCvar_t ui_teamHeadColor;
-vmCvar_t ui_teamUpperColor;
-vmCvar_t ui_teamLowerColor;
-vmCvar_t ui_enemyHeadColor;
-vmCvar_t ui_enemyUpperColor;
-vmCvar_t ui_enemyLowerColor;
-
-// [QL additions] - game settings
-vmCvar_t ui_doWarmup;
-vmCvar_t ui_warmup;
-vmCvar_t ui_pure;
-vmCvar_t ui_friendlyFire;
-vmCvar_t ui_cvGameType;
-vmCvar_t ui_matchStartTime;
-vmCvar_t ui_saveCaptureLimit;
-vmCvar_t ui_saveFragLimit;
-vmCvar_t ui_votestring;
-vmCvar_t ui_intermission;
-
-// [QL additions] - browser
-vmCvar_t ui_browserSortKey;
-vmCvar_t ui_browserShowFull;
-vmCvar_t ui_browserShowEmpty;
-vmCvar_t ui_browserMaster;
-vmCvar_t ui_browserGameType;
-
-// [QL additions] - screen effects
-vmCvar_t ui_screenDamage;
-vmCvar_t ui_screenDamage_Team;
-vmCvar_t ui_bloomPreset;
-
-// [QL additions] - misc
-vmCvar_t ui_version;
-vmCvar_t ui_gibs;
-vmCvar_t ui_announcer;
-vmCvar_t ui_mainmenu;
-vmCvar_t ui_currentTier;
-vmCvar_t ui_opponentModel;
-vmCvar_t ui_mousePitch;
-vmCvar_t ui_favoriteName;
-vmCvar_t ui_favoriteAddress;
 
 static cvarTable_t cvarTable[] = {
     {&ui_ffa_fraglimit, "ui_ffa_fraglimit", "20", CVAR_ARCHIVE},
@@ -4288,8 +3908,8 @@ static cvarTable_t cvarTable[] = {
     {&ui_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM},
 
     {&ui_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE},
-    {&ui_drawCrosshair, "cg_drawCrosshair", "2", CVAR_ARCHIVE},
-    {&ui_drawCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE},
+    {&ui_drawCrosshair, "cg_drawCrosshair", "4", CVAR_ARCHIVE},
+    {&ui_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE},
     {&ui_marks, "cg_marks", "1", CVAR_ARCHIVE},
 
     {&ui_debug, "ui_debug", "0", CVAR_TEMP},
@@ -4298,11 +3918,10 @@ static cvarTable_t cvarTable[] = {
     {&ui_gameType, "ui_gametype", "3", CVAR_ARCHIVE},
     {&ui_joinGameType, "ui_joinGametype", "0", CVAR_ARCHIVE},
     {&ui_netGameType, "ui_netGametype", "3", CVAR_ARCHIVE},
-    {&ui_cvgametype, "ui_cvgametype", "-1", CVAR_ARCHIVE},
     {&ui_actualNetGameType, "ui_actualNetGametype", "3", CVAR_ARCHIVE},
-    {&ui_blueteam, "ui_blueTeam", "Stroggs", CVAR_ARCHIVE},
-    {&ui_redteam, "ui_redTeam", "Pagans", CVAR_ARCHIVE},
-    {&ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE},
+    {&ui_blueteam, "ui_blueTeam", "Blue", CVAR_ARCHIVE},
+    {&ui_redteam, "ui_redTeam", "Red", CVAR_ARCHIVE},
+    {&ui_netSource, "ui_netSource", "1", CVAR_ARCHIVE},
     {&ui_menuFiles, "ui_menuFiles", "ui/menus.txt", CVAR_ARCHIVE},
     {&ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE},
     {&ui_currentNetMap, "ui_currentNetMap", "0", CVAR_ARCHIVE},
@@ -4331,130 +3950,12 @@ static cvarTable_t cvarTable[] = {
     {&ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
     {&ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
     {&ui_findPlayer, "ui_findPlayer", "Sarge", CVAR_ARCHIVE},
+    {&ui_Q3Model, "ui_q3model", "0", CVAR_ARCHIVE},
     {&ui_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_ARCHIVE},
     {&ui_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
-    {&ui_realWarmUp, "g_warmup", "10", CVAR_ARCHIVE},
+    {&ui_realWarmUp, "g_warmup", "20", CVAR_ARCHIVE},
     {&ui_realCaptureLimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART},
     {&ui_serverStatusTimeOut, "ui_serverStatusTimeOut", "7000", CVAR_ARCHIVE},
-
-    // [QL additions] - player 2 duel scores
-    {&ui_scoreAccuracy2, "ui_scoreAccuracy2", "0", CVAR_ARCHIVE},
-    {&ui_scoreImpressives2, "ui_scoreImpressives2", "0", CVAR_ARCHIVE},
-    {&ui_scoreExcellents2, "ui_scoreExcellents2", "0", CVAR_ARCHIVE},
-    {&ui_scoreDefends2, "ui_scoreDefends2", "0", CVAR_ARCHIVE},
-    {&ui_scoreAssists2, "ui_scoreAssists2", "0", CVAR_ARCHIVE},
-    {&ui_scoreGauntlets2, "ui_scoreGauntlets2", "0", CVAR_ARCHIVE},
-    {&ui_scoreScore2, "ui_scoreScore2", "0", CVAR_ARCHIVE},
-    {&ui_scorePerfect2, "ui_scorePerfect2", "0", CVAR_ARCHIVE},
-    {&ui_scoreTeam2, "ui_scoreTeam2", "0 to 0", CVAR_ARCHIVE},
-    {&ui_scoreBase2, "ui_scoreBase2", "0", CVAR_ARCHIVE},
-    {&ui_scoreTimeBonus2, "ui_scoreTimeBonus2", "0", CVAR_ARCHIVE},
-    {&ui_scoreSkillBonus2, "ui_scoreSkillBonus2", "0", CVAR_ARCHIVE},
-    {&ui_scoreShutoutBonus2, "ui_scoreShutoutBonus2", "0", CVAR_ARCHIVE},
-    {&ui_scoreTime2, "ui_scoreTime2", "00:00", CVAR_ARCHIVE},
-    {&ui_scoreCaptures2, "ui_scoreCaptures2", "0", CVAR_ARCHIVE},
-
-    // [QL additions] - model/skin customization
-    {&ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_TEMP},
-    {&ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_TEMP},
-    {&ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE},
-    {&ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE},
-    {&ui_forceTeamModelBright, "ui_forceTeamModelBright", "0", CVAR_ROM},
-    {&ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ARCHIVE},
-    {&ui_teamColor, "ui_teamColor", "0", CVAR_ARCHIVE},
-    {&ui_enemyColor, "ui_enemyColor", "0", CVAR_ARCHIVE},
-    {&ui_teamHeadColor, "ui_teamHeadColor", "96", CVAR_ARCHIVE},
-    {&ui_teamUpperColor, "ui_teamUpperColor", "23", CVAR_ARCHIVE},
-    {&ui_teamLowerColor, "ui_teamLowerColor", "23", CVAR_ARCHIVE},
-    {&ui_enemyHeadColor, "ui_enemyHeadColor", "27", CVAR_ARCHIVE},
-    {&ui_enemyUpperColor, "ui_enemyUpperColor", "2", CVAR_ARCHIVE},
-    {&ui_enemyLowerColor, "ui_enemyLowerColor", "2", CVAR_ARCHIVE},
-
-    // [QL additions] - game settings
-    {&ui_doWarmup, "ui_doWarmup", "0", CVAR_ARCHIVE},
-    {&ui_warmup, "ui_warmup", "0", CVAR_ARCHIVE},
-    {&ui_pure, "ui_pure", "1", CVAR_ARCHIVE},
-    {&ui_friendlyFire, "ui_friendlyFire", "1", CVAR_ARCHIVE},
-    {&ui_cvGameType, "ui_cvGameType", "-1", CVAR_ARCHIVE},
-    {&ui_matchStartTime, "ui_matchStartTime", "0", CVAR_ROM},
-    {&ui_saveCaptureLimit, "ui_saveCaptureLimit", "5", CVAR_ARCHIVE},
-    {&ui_saveFragLimit, "ui_saveFragLimit", "10", CVAR_ARCHIVE},
-    {&ui_votestring, "ui_votestring", "", CVAR_TEMP},
-    {&ui_intermission, "ui_intermission", "0", CVAR_ROM},
-
-    // [QL additions] - browser
-    {&ui_browserSortKey, "ui_browserSortKey", "4", CVAR_ARCHIVE},
-    {&ui_browserShowFull, "ui_browserShowFull", "1", CVAR_ARCHIVE},
-    {&ui_browserShowEmpty, "ui_browserShowEmpty", "1", CVAR_ARCHIVE},
-    {&ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE},
-    {&ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE},
-
-    // [QL additions] - screen effects
-    {&ui_screenDamage, "ui_screenDamage", "0", CVAR_ARCHIVE},
-    {&ui_screenDamage_Team, "ui_screenDamage_Team", "0", CVAR_ARCHIVE},
-    {&ui_bloomPreset, "ui_bloomPreset", "Default", CVAR_ARCHIVE},
-
-    // [QL additions] - misc
-    {&ui_version, "ui_version", "", CVAR_ROM},
-    {&ui_gibs, "ui_gibs", "1", CVAR_ROM},
-    {&ui_announcer, "ui_announcer", "1", CVAR_ARCHIVE},
-    {&ui_mainmenu, "ui_mainmenu", "1", CVAR_ROM},
-    {&ui_currentTier, "ui_currentTier", "0", CVAR_ARCHIVE},
-    {&ui_opponentModel, "ui_opponentModel", "sarge", CVAR_ARCHIVE},
-    {&ui_mousePitch, "ui_mousePitch", "0", CVAR_ARCHIVE},
-    {&ui_favoriteName, "ui_favoriteName", "", CVAR_ARCHIVE},
-    {&ui_favoriteAddress, "ui_favoriteAddress", "", CVAR_ARCHIVE},
-
-    // [QL additions] - server favorites (16 slots)
-    {NULL, "server1", "", CVAR_ARCHIVE},
-    {NULL, "server2", "", CVAR_ARCHIVE},
-    {NULL, "server3", "", CVAR_ARCHIVE},
-    {NULL, "server4", "", CVAR_ARCHIVE},
-    {NULL, "server5", "", CVAR_ARCHIVE},
-    {NULL, "server6", "", CVAR_ARCHIVE},
-    {NULL, "server7", "", CVAR_ARCHIVE},
-    {NULL, "server8", "", CVAR_ARCHIVE},
-    {NULL, "server9", "", CVAR_ARCHIVE},
-    {NULL, "server10", "", CVAR_ARCHIVE},
-    {NULL, "server11", "", CVAR_ARCHIVE},
-    {NULL, "server12", "", CVAR_ARCHIVE},
-    {NULL, "server13", "", CVAR_ARCHIVE},
-    {NULL, "server14", "", CVAR_ARCHIVE},
-    {NULL, "server15", "", CVAR_ARCHIVE},
-    {NULL, "server16", "", CVAR_ARCHIVE},
-
-    // [QL additions] - team bot names
-    {NULL, "ui_blueTeam1", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam2", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam3", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam4", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam5", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam1", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam2", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam3", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam4", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam5", "", CVAR_ARCHIVE},
-
-    // [QL additions] - server browser refresh timestamps
-    {NULL, "ui_lastServerRefresh_0", "", CVAR_ARCHIVE},
-    {NULL, "ui_lastServerRefresh_1", "", CVAR_ARCHIVE},
-    {NULL, "ui_lastServerRefresh_2", "", CVAR_ARCHIVE},
-    {NULL, "ui_lastServerRefresh_3", "", CVAR_ARCHIVE},
-
-    // [QL additions] - misc Q3 cvars in binary table
-    {NULL, "ui_teamName", "", CVAR_ARCHIVE},
-    {NULL, "ui_new", "0", CVAR_TEMP},
-    {NULL, "ui_priv", "0", CVAR_TEMP},
-    {NULL, "ui_cdkeychecked", "0", CVAR_TEMP},
-    {NULL, "g_spAwards", "", CVAR_ARCHIVE},
-    {NULL, "g_spSkill", "2", CVAR_ARCHIVE},
-    {NULL, "g_spScores1", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores2", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores3", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores4", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores5", "", CVAR_ARCHIVE},
-    {NULL, "g_spVideos", "", CVAR_ARCHIVE},
-    {NULL, "ui_spSelection", "", CVAR_ROM},
 
     {NULL, "ui_videomode", "", CVAR_ROM},
     {NULL, "g_localTeamPref", "", 0},

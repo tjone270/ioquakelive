@@ -80,17 +80,22 @@ void SV_GetChallenge(netadr_t from) {
         return;
     }
 
-    // Do not allow game clients who advertise a different game name to connect to this server
     gameName = Cmd_Argv(2);
-    if (*gameName) {
-        if (strcmp(gameName, com_gamename->string) != 0) {
-            NET_OutOfBandPrint(NS_SERVER, from, "print\nGame mismatch: This is a %s server\n",
-                               com_gamename->string);
-            Com_DPrintf("SV_GetChallenge: dropping connection from %s due to game mismatch (%s is not %s)\n",
-                        NET_AdrToString(from), gameName, com_gamename->string);
-            return;
-        }
-    }    
+
+#ifdef LEGACY_PROTOCOL
+    // gamename is optional for legacy protocol
+    if (com_legacyprotocol->integer && !*gameName)
+        gameMismatch = qfalse;
+    else
+#endif
+        gameMismatch = !*gameName || strcmp(gameName, com_gamename->string) != 0;
+
+    // reject client if the gamename string sent by the client doesn't match ours
+    if (gameMismatch) {
+        NET_OutOfBandPrint(NS_SERVER, from, "print\nGame mismatch: This is a %s server\n",
+                           com_gamename->string);
+        return;
+    }
 
     oldest = 0;
     oldestClientTime = oldestTime = 0x7fffffff;
@@ -107,7 +112,7 @@ void SV_GetChallenge(netadr_t from) {
                 oldestClientTime = challenge->time;
         }
 
-        if (wasfound && i >= 4) {
+        if (wasfound && i >= MAX_CHALLENGES_MULTI) {
             i = MAX_CHALLENGES;
             break;
         }
@@ -121,6 +126,7 @@ void SV_GetChallenge(netadr_t from) {
     if (i == MAX_CHALLENGES) {
         // this is the first time this client has asked for a challenge
         challenge = &svs.challenges[oldest];
+        challenge->clientChallenge = clientChallenge;
         challenge->adr = from;
         challenge->firstTime = svs.time;
         challenge->connected = qfalse;
@@ -128,7 +134,7 @@ void SV_GetChallenge(netadr_t from) {
 
     // always generate a new challenge number, so the client cannot circumvent sv_maxping
     challenge->challenge = (((unsigned int)rand() << 16) ^ (unsigned int)rand()) ^ svs.time;
-    challenge->wasRefused[0] = '\0';
+    challenge->wasrefused = qfalse;
     challenge->time = svs.time;
 
     challenge->pingTime = svs.time;
@@ -186,7 +192,7 @@ void SV_AuthorizeIpPacket(netadr_t from) {
     }
     if (!Q_stricmp(s, "accept")) {
         NET_OutOfBandPrint(NS_SERVER, challengeptr->adr,
-                           "challengeResponse %d %d %d", challengeptr->challenge, 0, com_protocol->integer);
+                           "challengeResponse %d %d %d", challengeptr->challenge, challengeptr->clientChallenge, com_protocol->integer);
         return;
     }
     if (!Q_stricmp(s, "unknown")) {
@@ -262,9 +268,13 @@ void SV_DirectConnect(netadr_t from) {
     int challenge;
     char* password;
     int startIndex;
-    char* denied;
+    intptr_t denied;
     int count;
     char* ip;
+#ifdef LEGACY_PROTOCOL
+    qboolean compat = qfalse;
+#endif
+
     Com_DPrintf("SVC_DirectConnect ()\n");
 
     // Check whether this client is banned.
@@ -279,7 +289,7 @@ void SV_DirectConnect(netadr_t from) {
 
 #ifdef LEGACY_PROTOCOL
     if (version > 0 && com_legacyprotocol->integer == version)
-        ;  // legacy protocol match
+        compat = qtrue;
     else
 #endif
     {
@@ -342,7 +352,7 @@ void SV_DirectConnect(netadr_t from) {
 
         challengeptr = &svs.challenges[i];
 
-        if (challengeptr->wasRefused[0]) {
+        if (challengeptr->wasrefused) {
             // Return silently, so that error messages written by the server keep being displayed.
             return;
         }
@@ -354,13 +364,13 @@ void SV_DirectConnect(netadr_t from) {
             if (sv_minPing->value && ping < sv_minPing->value) {
                 NET_OutOfBandPrint(NS_SERVER, from, "print\nServer is for high pings only\n");
                 Com_DPrintf("Client %i rejected on a too low ping\n", i);
-                Q_strncpyz(challengeptr->wasRefused, "ping too low", sizeof(challengeptr->wasRefused));
+                challengeptr->wasrefused = qtrue;
                 return;
             }
             if (sv_maxPing->value && ping > sv_maxPing->value) {
                 NET_OutOfBandPrint(NS_SERVER, from, "print\nServer is for low pings only\n");
                 Com_DPrintf("Client %i rejected on a too high ping\n", i);
-                Q_strncpyz(challengeptr->wasRefused, "ping too high", sizeof(challengeptr->wasRefused));
+                challengeptr->wasrefused = qtrue;
                 return;
             }
         }
@@ -460,7 +470,12 @@ gotnewcl:
     newcl->challenge = challenge;
 
     // save the address
+#ifdef LEGACY_PROTOCOL
+    newcl->compat = compat;
+    Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge, compat);
+#else
     Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge, qfalse);
+#endif
     // init the netchan queue
     newcl->netchan_end_queue = &newcl->netchan_start_queue;
 
@@ -468,10 +483,13 @@ gotnewcl:
     Q_strncpyz(newcl->userinfo, userinfo, sizeof(newcl->userinfo));
 
     // get the game a chance to reject this connection or modify the userinfo
-    denied = (char*)SV_GameClientConnect(clientNum, qtrue, qfalse);  // firstTime = qtrue
+    denied = VM_Call(gvm, GAME_CLIENT_CONNECT, clientNum, qtrue, qfalse);  // firstTime = qtrue
     if (denied) {
-        NET_OutOfBandPrint(NS_SERVER, from, "print\n%s\n", denied);
-        Com_DPrintf("Game rejected a connection: %s.\n", denied);
+        // we can't just use VM_ArgPtr, because that is only valid inside a VM_Call
+        char* str = VM_ExplicitArgPtr(gvm, denied);
+
+        NET_OutOfBandPrint(NS_SERVER, from, "print\n%s\n", str);
+        Com_DPrintf("Game rejected a connection: %s.\n", str);
         return;
     }
 
@@ -480,11 +498,10 @@ gotnewcl:
     // send the connect packet to the client
     NET_OutOfBandPrint(NS_SERVER, from, "connectResponse %d", challenge);
 
-    Com_DPrintf("SV_DirectConnect: client %d (%s) CS_FREE -> CS_CONNECTED (svs.time=%d)\n",
-                clientNum, newcl->name, svs.time);
-    
+    Com_DPrintf("Going from CS_FREE to CS_CONNECTED for %s\n", newcl->name);
+
     newcl->state = CS_CONNECTED;
-    newcl->nextSnapshotTime = 0;
+    newcl->lastSnapshotTime = 0;
     newcl->lastPacketTime = svs.time;
     newcl->lastConnectTime = svs.time;
 
@@ -532,9 +549,6 @@ void SV_DropClient(client_t* drop, const char* reason) {
     challenge_t* challenge;
     const qboolean isBot = drop->netchan.remoteAddress.type == NA_BOT;
 
-    Com_Printf("SV_DropClient: dropping client %d (%s), state=%d, reason='%s'\n",
-               (int)(drop - svs.clients), drop->name, drop->state, reason);
-
     if (drop->state == CS_ZOMBIE) {
         return;  // already dropped
     }
@@ -569,7 +583,7 @@ void SV_DropClient(client_t* drop, const char* reason) {
 
     // call the prog function for removing a client
     // this will remove the body, among other things
-    SV_GameClientDisconnect(drop - svs.clients);
+    VM_Call(gvm, GAME_CLIENT_DISCONNECT, drop - svs.clients);
 
     // add the disconnect command
     SV_SendServerCommand(drop, "disconnect \"%s\"", reason);
@@ -618,14 +632,11 @@ static void SV_SendClientGameState(client_t* client) {
     msg_t msg;
     byte msgBuffer[MAX_MSGLEN];
 
-    Com_DPrintf("SV_SendClientGameState: client %d (%s) -> CS_PRIMED\n",
-                (int)(client - svs.clients), client->name);
+    Com_DPrintf("SV_SendClientGameState() for %s\n", client->name);
+    Com_DPrintf("Going from CS_CONNECTED to CS_PRIMED for %s\n", client->name);
     client->state = CS_PRIMED;
     client->pureAuthentic = 0;
     client->gotCP = qfalse;
-
-    // [QL] clear configstring change tracking — the gamestate contains all current values
-    Com_Memset(client->csUpdated, 0, sizeof(client->csUpdated));
 
     // when we receive the first packet from the client, we will
     // notice that it is from a different serverid and that the
@@ -688,8 +699,7 @@ void SV_ClientEnterWorld(client_t* client, usercmd_t* cmd) {
     int clientNum;
     sharedEntity_t* ent;
 
-    Com_DPrintf("SV_ClientEnterWorld: client %d (%s^7) CS_PRIMED -> CS_ACTIVE\n",
-                (int)(client - svs.clients), client->name);
+    Com_DPrintf("Going from CS_PRIMED to CS_ACTIVE for %s\n", client->name);
     client->state = CS_ACTIVE;
 
     // resend all configstrings using the cs commands since these are
@@ -703,13 +713,15 @@ void SV_ClientEnterWorld(client_t* client, usercmd_t* cmd) {
     client->gentity = ent;
 
     client->deltaMessage = -1;
-    client->nextSnapshotTime = 0;  // generate a snapshot immediately
+    client->lastSnapshotTime = 0;  // generate a snapshot immediately
 
     if (cmd)
         memcpy(&client->lastUsercmd, cmd, sizeof(client->lastUsercmd));
     else
         memset(&client->lastUsercmd, '\0', sizeof(client->lastUsercmd));
 
+    // call the game begin function
+    VM_Call(gvm, GAME_CLIENT_BEGIN, client - svs.clients);
 }
 
 /*
@@ -865,7 +877,7 @@ int SV_WriteDownloadToClient(client_t* cl, msg_t* msg) {
                         // now that we know the file is referenced,
                         // check whether it's legal to download it.
 
-                        idPack = idPack || FS_idPak(pakbuf, BASEGAME_DIR, NUM_ID_PAKS);
+                        idPack = idPack || FS_idPak(pakbuf, BASEGAME, NUM_ID_PAKS);
 
                         break;
                     }
@@ -1224,7 +1236,7 @@ static void SV_VerifyPaks_f(client_t* cl) {
             cl->pureAuthentic = 1;
         } else {
             cl->pureAuthentic = 0;
-            cl->nextSnapshotTime = 0;
+            cl->lastSnapshotTime = 0;
             cl->state = CS_ACTIVE;
             SV_SendClientSnapshot(cl);
             SV_DropClient(cl, "Unpure client detected. Invalid .PK3 files referenced!");
@@ -1304,7 +1316,7 @@ void SV_UserinfoChanged(client_t* cl) {
 
     if (i != cl->snapshotMsec) {
         // Reset last sent snapshot so we avoid desync between server frame time and snapshot send time
-        cl->nextSnapshotTime = 0;
+        cl->lastSnapshotTime = 0;
         cl->snapshotMsec = i;
     }
 
@@ -1338,7 +1350,7 @@ static void SV_UpdateUserinfo_f(client_t* cl) {
 
     SV_UserinfoChanged(cl);
     // call prog code to allow overrides
-    SV_GameClientUserinfoChanged(cl - svs.clients);
+    VM_Call(gvm, GAME_CLIENT_USERINFO_CHANGED, cl - svs.clients);
 }
 
 typedef struct {
@@ -1384,7 +1396,7 @@ void SV_ExecuteClientCommand(client_t* cl, const char* s, qboolean clientOK) {
         // pass unknown strings to the game
         if (!u->name && sv.state == SS_GAME && (cl->state == CS_ACTIVE || cl->state == CS_PRIMED)) {
             Cmd_Args_Sanitize();
-            SV_GameClientCommand(cl - svs.clients);
+            VM_Call(gvm, GAME_CLIENT_COMMAND, cl - svs.clients);
         }
     } else if (!bProcessed)
         Com_DPrintf("client text ignored for %s: %s\n", cl->name, Cmd_Argv(0));
@@ -1461,7 +1473,7 @@ void SV_ClientThink(client_t* cl, usercmd_t* cmd) {
         return;  // may have been kicked during the last usercmd
     }
 
-    SV_GameClientThink(cl - svs.clients);
+    VM_Call(gvm, GAME_CLIENT_THINK, cl - svs.clients);
 }
 
 /*
@@ -1606,9 +1618,6 @@ void SV_ExecuteClientMessage(client_t* cl, msg_t* msg) {
 
     cl->reliableAcknowledge = MSG_ReadLong(msg);
 
-    // [QL] extra byte after header (written by client, discarded by server)
-    MSG_ReadByte(msg);
-
     // NOTE: when the client message is fux0red the acknowledgement numbers
     // can be out of range, this could cause the server to send thousands of server
     // commands which the server thinks are not yet acknowledged in SV_UpdateServerCommandsToClient
@@ -1679,8 +1688,7 @@ void SV_ExecuteClientMessage(client_t* cl, msg_t* msg) {
         SV_UserMove(cl, msg, qtrue);
     } else if (c == clc_moveNoDelta) {
         SV_UserMove(cl, msg, qfalse);
-    } else if (c == clc_EOF) {
-    } else {
-        Com_Printf("WARNING: bad command byte %d for client %i\n", c, (int)(cl - svs.clients));
+    } else if (c != clc_EOF) {
+        Com_Printf("WARNING: bad command byte for client %i\n", (int)(cl - svs.clients));
     }
 }

@@ -48,47 +48,21 @@ AddScore
 Adds score to both the client and his team
 ============
 */
-void AddScore( gentity_t *ent, vec3_t origin, int score ) {
-	if ( !ent->client ) {
-		return;
-	}
-	// [QL] Additional guards matching binary
-	if ( level.warmupTime ) {
-		return;
-	}
-	if ( level.gameStatsReported ) {
-		return;
-	}
-	if ( level.intermissionQueued || level.intermissionTime ) {
-		return;
-	}
-	if ( g_training.integer && !(ent->r.svFlags & SVF_BOT) ) {
-		return;  // only bots score in training mode
-	}
-	if ( g_gametype.integer == GT_RACE ) {
-		return;  // no scoring in race mode
-	}
-	if ( level.scoringDisabled ) {
-		return;
-	}
-
-	// [QL] GT_RR: negative score clamping
-	if ( g_gametype.integer == GT_RR && !g_rrAllowNegativeScores.integer ) {
-		if ( ent->client->ps.persistant[PERS_SCORE] + score < 0 ) {
-			score = -ent->client->ps.persistant[PERS_SCORE];
-		}
-	}
-
-	// ent->client->ps.persistant[PERS_SCORE] += score;
-	ScorePlum( ent, origin, score );
-	ent->client->ps.persistant[PERS_SCORE] += score;
-
-	// [QL] Team score update
-	if ( g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR ) {
-		level.teamScores[ ent->client->ps.persistant[PERS_TEAM] ] += score;
-	}
-
-	CalculateRanks();
+void AddScore(gentity_t* ent, vec3_t origin, int score) {
+    if (!ent->client) {
+        return;
+    }
+    // no scoring during pre-match warmup
+    if (level.warmupTime) {
+        return;
+    }
+    // show score plum
+    ScorePlum(ent, origin, score);
+    //
+    ent->client->ps.persistant[PERS_SCORE] += score;
+    if (g_gametype.integer == GT_TEAM)
+        level.teamScores[ent->client->ps.persistant[PERS_TEAM]] += score;
+    CalculateRanks();
 }
 
 /*
@@ -450,7 +424,7 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
         return;
     }
 
-    if (level.intermissionTime) {
+    if (level.intermissiontime) {
         return;
     }
 
@@ -461,14 +435,6 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
 
     if (self->client && self->client->hook) {
         Weapon_HookFree(self->client->hook);
-    }
-
-    // [QL] respawn any held keys back into the world
-    if (self->client->ps.stats[STAT_KEY]) {
-        if (self->client->ps.stats[STAT_KEY] & KEY_SILVER) G_RespawnKey(KEY_SILVER);
-        if (self->client->ps.stats[STAT_KEY] & KEY_GOLD)   G_RespawnKey(KEY_GOLD);
-        if (self->client->ps.stats[STAT_KEY] & KEY_MASTER) G_RespawnKey(KEY_MASTER);
-        self->client->ps.stats[STAT_KEY] = 0;
     }
     if ((self->client->ps.eFlags & EF_TICKING) && self->activator) {
         self->client->ps.eFlags &= ~EF_TICKING;
@@ -514,7 +480,6 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
     self->enemy = attacker;
 
     self->client->ps.persistant[PERS_KILLED]++;
-    self->client->expandedStats.numDeaths++;
 
     if (attacker && attacker->client) {
         attacker->client->lastkilled_client = self->s.number;
@@ -522,7 +487,6 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
         if (attacker == self || OnSameTeam(self, attacker)) {
             AddScore(attacker, self->r.currentOrigin, -1);
         } else {
-            attacker->client->expandedStats.numKills++;
             AddScore(attacker, self->r.currentOrigin, 1);
 
             if (meansOfDeath == MOD_GAUNTLET) {
@@ -801,47 +765,6 @@ dflags		these flags are used to control how T_Damage works
 ============
 */
 
-/*
-================
-G_KnockbackScale — [QL] per-weapon knockback multiplier from cvars
-================
-*/
-static float G_KnockbackScale(int mod, qboolean isSelf) {
-    // self-damage variants for RL and PG
-    if (isSelf) {
-        switch (mod) {
-            case MOD_ROCKET:
-            case MOD_ROCKET_SPLASH:
-                return g_knockback_rl_self.value;
-            case MOD_PLASMA:
-            case MOD_PLASMA_SPLASH:
-                return g_knockback_pg_self.value;
-            default:
-                break;
-        }
-    }
-    switch (mod) {
-        case MOD_GAUNTLET:       return g_knockback_g.value;
-        case MOD_MACHINEGUN:     return g_knockback_mg.value;
-        case MOD_SHOTGUN:        return g_knockback_sg.value;
-        case MOD_GRENADE:
-        case MOD_GRENADE_SPLASH: return g_knockback_gl.value;
-        case MOD_ROCKET:
-        case MOD_ROCKET_SPLASH:  return g_knockback_rl.value;
-        case MOD_LIGHTNING:      return g_knockback_lg.value;
-        case MOD_RAILGUN:        return g_knockback_rg.value;
-        case MOD_PLASMA:
-        case MOD_PLASMA_SPLASH:  return g_knockback_pg.value;
-        case MOD_BFG:
-        case MOD_BFG_SPLASH:     return g_knockback_bfg.value;
-        case MOD_GRAPPLE:        return g_knockback_gh.value;
-        case MOD_NAIL:           return g_knockback_ng.value;
-        case MOD_PROXIMITY_MINE: return g_knockback_pl.value;
-        case MOD_CHAINGUN:       return g_knockback_cg.value;
-        default:                 return 1.0f;
-    }
-}
-
 void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod) {
     gclient_t* client;
     int take;
@@ -908,18 +831,9 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
         VectorNormalize(dir);
     }
 
-    // [QL] per-weapon knockback multiplier applied BEFORE capping (binary-verified)
-    {
-        float kbScale = G_KnockbackScale(mod, (targ == attacker));
-        // [QL] negative knockback reverses direction (e.g. grapple hook pulls)
-        if (kbScale < 0) {
-            VectorNegate(dir, dir);
-            kbScale = -kbScale;
-        }
-        knockback = (int)(damage * kbScale);
-    }
-    if (knockback > g_max_knockback.integer) {
-        knockback = g_max_knockback.integer;
+    knockback = damage;
+    if (knockback > 200) {
+        knockback = 200;
     }
     if (targ->flags & FL_NO_KNOCKBACK) {
         knockback = 0;
@@ -944,9 +858,8 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
             int t;
 
             t = knockback * 2;
-            // [QL] g_knockback_cripple sets minimum pm_time
-            if (t < g_knockback_cripple.integer) {
-                t = g_knockback_cripple.integer;
+            if (t < 50) {
+                t = 50;
             }
             if (t > 200) {
                 t = 200;
@@ -1015,24 +928,9 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
     asave = CheckArmor(targ, take, dflags);
     take -= asave;
 
-    // [QL] dmflags: self-damage suppression (not for CA/AD which have their own AdjustDamage)
-    if (g_dmflags.integer && targ == attacker) {
-        if ((g_dmflags.integer & DF_NO_SELF_DAMAGE) && mod != MOD_KAMIKAZE) {
-            take = 0;
-        }
-        if (g_dmflags.integer & DF_NO_SELF_ARMOR_DAMAGE) {
-            asave = 0;
-        }
-    }
-
     if (g_debugDamage.integer) {
         G_Printf("%i: client:%i health:%i damage:%i armor:%i\n", level.time, targ->s.number,
                  targ->health, take, asave);
-    }
-
-    // [QL] track damage dealt in expanded stats
-    if (attacker && attacker->client && client && targ != attacker && !OnSameTeam(targ, attacker)) {
-        attacker->client->expandedStats.totalDamageDealt += take + asave;
     }
 
     // add to the damage inflicted on a player this frame
@@ -1046,6 +944,7 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
         }
         client->damage_armor += asave;
         client->damage_blood += take;
+        client->damage_knockback += knockback;
         if (dir) {
             VectorCopy(dir, client->damage_from);
             client->damage_fromWorld = qfalse;
@@ -1062,8 +961,8 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
 
     if (targ->client) {
         // set the last client who damaged the target
-        targ->client->lasthurt_client[0] = attacker->s.number;
-        targ->client->lasthurt_mod[0] = mod;
+        targ->client->lasthurt_client = attacker->s.number;
+        targ->client->lasthurt_mod = mod;
     }
 
     // do the damage
@@ -1195,10 +1094,9 @@ qboolean CanDamage(gentity_t* targ, vec3_t origin) {
 /*
 ============
 G_RadiusDamage
-[QL] added inflictor param for splash offset, dflags param, per-target z-offset cvars
 ============
 */
-qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int dflags, int mod) {
+qboolean G_RadiusDamage(vec3_t origin, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int mod) {
     float points, dist;
     gentity_t* ent;
     int entityList[MAX_GENTITIES];
@@ -1206,41 +1104,16 @@ qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker
     vec3_t mins, maxs;
     vec3_t v;
     vec3_t dir;
-    vec3_t effectiveOrigin;
-    vec3_t rocketOffsetOrigin;
     int i, e;
     qboolean hitClient = qfalse;
-    qboolean isRocket;
-    int weapon;
 
     if (radius < 1) {
         radius = 1;
     }
 
-    // [QL] determine weapon from inflictor for rocket-specific behavior
-    weapon = inflictor ? inflictor->s.weapon : 0;
-    isRocket = (weapon == WP_ROCKET_LAUNCHER);
-
-    // [QL] shift effective explosion center along inflictor velocity (binary-verified)
-    VectorCopy(origin, effectiveOrigin);
-    if (inflictor && g_splashdamageOffset.value != 0.0f) {
-        VectorMA(effectiveOrigin, g_splashdamageOffset.value, inflictor->s.pos.trDelta, effectiveOrigin);
-    }
-
-    // [QL] rocket-specific splash offset: shifts explosion center along direction (binary-verified)
-    // g_rocketsplashOffset default -10.0 moves center backward along missile path,
-    // which for downward rocket jumps shifts center UP toward player, increasing self-knockback
-    VectorCopy(effectiveOrigin, rocketOffsetOrigin);
-    if (isRocket && g_rocketsplashOffset.value != 0.0f) {
-        vec3_t rocketDir;
-        VectorCopy(inflictor->s.pos.trDelta, rocketDir);
-        VectorNormalize(rocketDir);
-        VectorMA(effectiveOrigin, g_rocketsplashOffset.value, rocketDir, rocketOffsetOrigin);
-    }
-
     for (i = 0; i < 3; i++) {
-        mins[i] = effectiveOrigin[i] - radius;
-        maxs[i] = effectiveOrigin[i] + radius;
+        mins[i] = origin[i] - radius;
+        maxs[i] = origin[i] + radius;
     }
 
     numListedEntities = trap_EntitiesInBox(mins, maxs, entityList, MAX_GENTITIES);
@@ -1255,10 +1128,10 @@ qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker
 
         // find the distance from the edge of the bounding box
         for (i = 0; i < 3; i++) {
-            if (effectiveOrigin[i] < ent->r.absmin[i]) {
-                v[i] = ent->r.absmin[i] - effectiveOrigin[i];
-            } else if (effectiveOrigin[i] > ent->r.absmax[i]) {
-                v[i] = effectiveOrigin[i] - ent->r.absmax[i];
+            if (origin[i] < ent->r.absmin[i]) {
+                v[i] = ent->r.absmin[i] - origin[i];
+            } else if (origin[i] > ent->r.absmax[i]) {
+                v[i] = origin[i] - ent->r.absmax[i];
             } else {
                 v[i] = 0;
             }
@@ -1271,20 +1144,15 @@ qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker
 
         points = damage * (1.0 - dist / radius);
 
-        // [QL] binary-verified: rockets require double CanDamage check —
-        // one from effectiveOrigin and one from rocketOffsetOrigin
-        if (CanDamage(ent, effectiveOrigin) && (!isRocket || CanDamage(ent, rocketOffsetOrigin))) {
+        if (CanDamage(ent, origin)) {
             if (LogAccuracyHit(ent, attacker)) {
                 hitClient = qtrue;
             }
-            VectorSubtract(ent->r.currentOrigin, effectiveOrigin, dir);
-            // [QL] configurable z-offset: different for self-damage vs hitting others
-            if (ent == attacker) {
-                dir[2] += g_knockback_z_self.value;
-            } else {
-                dir[2] += g_knockback_z.value;
-            }
-            G_Damage(ent, inflictor, attacker, dir, effectiveOrigin, (int)points, dflags | DAMAGE_RADIUS, mod);
+            VectorSubtract(ent->r.currentOrigin, origin, dir);
+            // push the center of mass higher than the origin so players
+            // get knocked into the air more
+            dir[2] += 24;
+            G_Damage(ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod);
         }
     }
 

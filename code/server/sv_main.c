@@ -93,6 +93,38 @@ static char* SV_ExpandNewlines(char* in) {
 
 /*
 ======================
+SV_ReplacePendingServerCommands
+
+FIXME: This is ugly
+======================
+*/
+#if 0  // unused
+static int SV_ReplacePendingServerCommands( client_t *client, const char *cmd ) {
+	int i, index, csnum1, csnum2;
+
+	for ( i = client->reliableSent+1; i <= client->reliableSequence; i++ ) {
+		index = i & ( MAX_RELIABLE_COMMANDS - 1 );
+		//
+		if ( !Q_strncmp(cmd, client->reliableCommands[ index ], strlen("cs")) ) {
+			sscanf(cmd, "cs %i", &csnum1);
+			sscanf(client->reliableCommands[ index ], "cs %i", &csnum2);
+			if ( csnum1 == csnum2 ) {
+				Q_strncpyz( client->reliableCommands[ index ], cmd, sizeof( client->reliableCommands[ index ] ) );
+				/*
+				if ( client->netchan.remoteAddress.type != NA_BOT ) {
+					Com_Printf( "WARNING: client %i removed double pending config string %i: %s\n", client-svs.clients, csnum1, cmd );
+				}
+				*/
+				return qtrue;
+			}
+		}
+	}
+	return qfalse;
+}
+#endif
+
+/*
+======================
 SV_AddServerCommand
 
 The given command will be transmitted to the client, and is guaranteed to
@@ -102,7 +134,11 @@ not have future snapshot_t executed before it is executed
 void SV_AddServerCommand(client_t* client, const char* cmd) {
     int index, i;
 
-    // It would be wasteful to queue multiple configstring updates for the same index in one snapshot.
+    // this is very ugly but it's also a waste to for instance send multiple config string updates
+    // for the same config string index in one snapshot
+    //	if ( SV_ReplacePendingServerCommands( client, cmd ) ) {
+    //		return;
+    //	}
 
     // do not send commands until the gamestate has been sent
     if (client->state < CS_PRIMED)
@@ -968,7 +1004,7 @@ void SV_Frame(int msec) {
         sv.time += frameMsec;
 
         // let everything in the world think and move
-        SV_GameRunFrame(sv.time);
+        VM_Call(gvm, GAME_RUN_FRAME, sv.time);
     }
 
     if (com_speeds->integer) {

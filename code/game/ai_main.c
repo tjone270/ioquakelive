@@ -1170,7 +1170,7 @@ BotAISetupClient
 ==============
 */
 int BotAISetupClient(int client, struct bot_settings_s* settings, qboolean restart) {
-    char filename[144], name[144];
+    char filename[144], name[144], gender[144];
     bot_state_t* bs;
     int errnum;
 
@@ -1223,8 +1223,23 @@ int BotAISetupClient(int client, struct bot_settings_s* settings, qboolean resta
     bs->cs = trap_BotAllocChatState();
     // load the chat file
     trap_Characteristic_String(bs->character, CHARACTERISTIC_CHAT_FILE, filename, sizeof(filename));
-    trap_Characteristic_String(bs->character, CHARACTERISTIC_NAME, name, sizeof(name));
-    trap_BotLoadChatFile(bs->cs, filename, name);
+    trap_Characteristic_String(bs->character, CHARACTERISTIC_CHAT_NAME, name, sizeof(name));
+    errnum = trap_BotLoadChatFile(bs->cs, filename, name);
+    if (errnum != BLERR_NOERROR) {
+        trap_BotFreeChatState(bs->cs);
+        trap_BotFreeGoalState(bs->gs);
+        trap_BotFreeWeaponState(bs->ws);
+        return qfalse;
+    }
+    // get the gender characteristic
+    trap_Characteristic_String(bs->character, CHARACTERISTIC_GENDER, gender, sizeof(gender));
+    // set the chat gender
+    if (*gender == 'f' || *gender == 'F')
+        trap_BotSetChatGender(bs->cs, CHAT_GENDERFEMALE);
+    else if (*gender == 'm' || *gender == 'M')
+        trap_BotSetChatGender(bs->cs, CHAT_GENDERMALE);
+    else
+        trap_BotSetChatGender(bs->cs, CHAT_GENDERLESS);
 
     bs->inuse = qtrue;
     bs->client = client;
@@ -1235,6 +1250,10 @@ int BotAISetupClient(int client, struct bot_settings_s* settings, qboolean resta
     bs->walker = trap_Characteristic_BFloat(bs->character, CHARACTERISTIC_WALKER, 0, 1);
     numbots++;
 
+    if (trap_Cvar_VariableIntegerValue("bot_testichat")) {
+        trap_BotLibVarSet("bot_testichat", "1");
+        BotChatTest(bs);
+    }
     // NOTE: reschedule the bot thinking
     BotScheduleBotThink();
     // if interbreeding start with a mutation
@@ -1267,12 +1286,15 @@ int BotAIShutdownClient(int client, qboolean restart) {
         BotWriteSessionData(bs);
     }
 
-    // free the chat state
-    if (bs->cs) trap_BotFreeChatState(bs->cs);
+    if (BotChat_ExitGame(bs)) {
+        trap_BotEnterChat(bs->cs, bs->client, CHAT_ALL);
+    }
 
     trap_BotFreeMoveState(bs->ms);
     // free the goal state
     trap_BotFreeGoalState(bs->gs);
+    // free the chat file
+    trap_BotFreeChatState(bs->cs);
     // free the weapon weights
     trap_BotFreeWeaponState(bs->ws);
     // free the bot character
@@ -1653,8 +1675,6 @@ int BotInitLibrary(void) {
     trap_Cvar_VariableStringBuffer("fs_homepath", buf, sizeof(buf));
     if (strlen(buf))
         trap_BotLibVarSet("homedir", buf);
-    // [QL] define MISSIONPACK for bot library — enables Team Arena weapon support
-    trap_BotLibDefine("MISSIONPACK");
     // setup the bot library
     return trap_BotLibSetup();
 }
@@ -1689,9 +1709,8 @@ int BotAISetup(int restart) {
     memset(botstates, 0, sizeof(botstates));
 
     errnum = BotInitLibrary();
-    if (errnum != BLERR_NOERROR) {
+    if (errnum != BLERR_NOERROR)
         return qfalse;
-    }
     return qtrue;
 }
 
