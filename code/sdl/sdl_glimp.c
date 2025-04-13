@@ -1112,8 +1112,17 @@ success:
 	glConfig.hardwareType = GLHW_GENERIC;
 
 	// Only using SDL_SetWindowBrightness to determine if hardware gamma is supported
-	glConfig.deviceSupportsGamma = !r_ignorehwgamma->integer &&
-		SDL_SetWindowBrightness( SDL_window, 1.0f ) >= 0;
+
+#ifdef __WINDOWS__
+	if (GetSystemMetrics(SM_REMOTESESSION)) { // ensure not running in a terminal services session
+		ri.Printf(PRINT_ALL, "Detected running in Terminal Services session, disabling hardware gamma support.\n");
+		glConfig.deviceSupportsGamma = qfalse;
+	} else {
+		glConfig.deviceSupportsGamma = !r_ignorehwgamma->integer && SDL_SetWindowBrightness(SDL_window, 1.0f) >= 0;
+	}
+#else 
+	glConfig.deviceSupportsGamma = !r_ignorehwgamma->integer && SDL_SetWindowBrightness(SDL_window, 1.0f) >= 0;
+#endif
 
 	// get our config strings
 	Q_strncpyz( glConfig.vendor_string, (char *) qglGetString (GL_VENDOR), sizeof( glConfig.vendor_string ) );
