@@ -1113,7 +1113,7 @@ success:
 
 	// Only using SDL_SetWindowBrightness to determine if hardware gamma is supported
 
-#ifdef __WINDOWS__
+#ifdef _WIN32
 	if (GetSystemMetrics(SM_REMOTESESSION)) { // ensure not running in a terminal services session
 		ri.Printf(PRINT_ALL, "Detected running in Terminal Services session, disabling hardware gamma support.\n");
 		glConfig.deviceSupportsGamma = qfalse;
