@@ -858,6 +858,24 @@ void ClientThink_real( gentity_t *ent ) {
 		Weapon_HookFree(client->hook);
 	}
 
+	// infinite ammo
+	if (g_infiniteAmmo.modificationCount != infiniteAmmoLastModification) {
+		infiniteAmmoLastModification = g_infiniteAmmo.modificationCount;
+		if (!g_infiniteAmmo.integer) {
+			for (int i = 1; i < WP_NUM_WEAPONS; i++) {
+				if (i != WP_GAUNTLET && i != WP_GRAPPLING_HOOK) {
+					client->ps.ammo[i] = BG_FindItemForWeapon(i)->quantity;
+				}
+			}
+		}
+	}
+	
+	if (g_infiniteAmmo.integer) {
+		for (int i = 1; i < WP_NUM_WEAPONS; i++) {
+			client->ps.ammo[i] = -1;
+		}
+	}
+
 	// set up for pmove
 	oldEventSequence = client->ps.eventSequence;
 

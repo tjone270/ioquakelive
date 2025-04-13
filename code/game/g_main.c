@@ -95,6 +95,7 @@ vmCvar_t	g_enableDust;
 vmCvar_t	g_enableBreath;
 vmCvar_t	g_proxMineTimeout;
 #endif
+vmCvar_t    g_infiniteAmmo;
 
 static cvarTable_t		gameCvarTable[] = {
 	// don't override the cheat state set by the system
@@ -180,6 +181,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_rankings, "g_rankings", "0", 0, 0, qfalse},
 	{ &g_localTeamPref, "g_localTeamPref", "", 0, 0, qfalse }
 
+    { &g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_SYSTEMINFO, 0, qtrue }
 };
 
 static int gameCvarTableSize = ARRAY_LEN( gameCvarTable );
