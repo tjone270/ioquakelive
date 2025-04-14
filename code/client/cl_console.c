@@ -43,10 +43,10 @@ typedef struct {
 
 	float	xadjust;		// for wide aspect screens
 
-	float	displayFrac;	// aproaches finalFrac at scr_conspeed
 	float	finalFrac;		// 0.0 to 1.0 lines of console to display
 
 	int		vislines;		// in scanlines
+    float displayFrac;  // aproaches finalFrac at con_speed
 
 	int		times[NUM_CON_TIMES];	// cls.realtime time the line was generated
 	// for transparent notify lines
