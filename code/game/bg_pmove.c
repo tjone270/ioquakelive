@@ -628,14 +628,7 @@ static void PM_AirMove(void) {
                         pm->ps->velocity, OVERCLIP);
     }
 
-    // ZOID:  If we are on the grapple, try stair-stepping
-    // this allows a player to use the grapple to pull himself
-    // over a ledge
-    if (pm->ps->pm_flags & PMF_GRAPPLE_PULL) {
-        PM_StepSlideMove(qtrue);
-    } else {
-        PM_SlideMove(qtrue);
-    }
+    PM_StepSlideMove(qtrue);
 }
 
 /*
