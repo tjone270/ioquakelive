@@ -1564,7 +1564,7 @@ void ClientCommand(int clientNum) {
         Cmd_Team_f(ent);
     else if (Q_stricmp(cmd, "where") == 0)
         Cmd_Where_f(ent);
-    else if (Q_stricmp(cmd, "callvote") == 0)
+    else if (Q_stricmp(cmd, "callvote") == 0 || Q_stricmp(cmd, "cv") == 0)
         Cmd_CallVote_f(ent);
     else if (Q_stricmp(cmd, "vote") == 0)
         Cmd_Vote_f(ent);
