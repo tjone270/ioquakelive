@@ -965,34 +965,6 @@ static void UI_DrawTeamName(rectDef_t* rect, float scale, vec4_t color, qboolean
     }
 }
 
-static void UI_DrawTeamMember(rectDef_t* rect, float scale, vec4_t color, qboolean blue, int num, int textStyle) {
-    // 0 - None
-    // 1 - Human
-    // 2..NumCharacters - Bot
-    int value = trap_Cvar_VariableValue(va(blue ? "ui_blueteam%i" : "ui_redteam%i", num));
-    const char* text;
-    if (value <= 0) {
-        text = "Closed";
-    } else if (value == 1) {
-        text = "Human";
-    } else {
-        value -= 2;
-
-        if (ui_actualNetGameType.integer >= GT_TEAM) {
-            if (value >= uiInfo.characterCount) {
-                value = 0;
-            }
-            text = uiInfo.characterList[value].name;
-        } else {
-            if (value >= UI_GetNumBots()) {
-                value = 0;
-            }
-            text = UI_GetBotNameByNumber(value);
-        }
-    }
-    Text_Paint(rect->x, rect->y, scale, color, text, 0, 0, textStyle);
-}
-
 static void UI_DrawEffects(rectDef_t* rect, float scale, vec4_t color) {
     UI_DrawHandlePic(rect->x, rect->y - 14, 128, 8, uiInfo.uiDC.Assets.fxBasePic);
     UI_DrawHandlePic(rect->x + uiInfo.effectsColor * 16 + 8, rect->y - 16, 16, 12, uiInfo.uiDC.Assets.fxPic[uiInfo.effectsColor]);
@@ -1832,37 +1804,6 @@ static qboolean UI_TeamName_HandleKey(int flags, float* special, int key, qboole
     return qfalse;
 }
 
-static qboolean UI_TeamMember_HandleKey(int flags, float* special, int key, qboolean blue, int num) {
-    int select = UI_SelectForKey(key);
-    if (select != 0) {
-        // 0 - None
-        // 1 - Human
-        // 2..NumCharacters - Bot
-        char* cvar = va(blue ? "ui_blueteam%i" : "ui_redteam%i", num);
-        int value = trap_Cvar_VariableValue(cvar);
-
-        value += select;
-
-        if (ui_actualNetGameType.integer >= GT_TEAM) {
-            if (value >= uiInfo.characterCount + 2) {
-                value = 0;
-            } else if (value < 0) {
-                value = uiInfo.characterCount + 2 - 1;
-            }
-        } else {
-            if (value >= UI_GetNumBots() + 2) {
-                value = 0;
-            } else if (value < 0) {
-                value = UI_GetNumBots() + 2 - 1;
-            }
-        }
-
-        trap_Cvar_SetValue(cvar, value);
-        return qtrue;
-    }
-    return qfalse;
-}
-
 static qboolean UI_OpponentName_HandleKey(int flags, float* special, int key) {
     int select = UI_SelectForKey(key);
     if (select != 0) {
@@ -2370,7 +2311,7 @@ static void UI_RunMenuScript(char** args) {
 
     if (String_Parse(args, &name)) {
         if (Q_stricmp(name, "StartServer") == 0) {
-            int i, clients, oldclients;
+            int clients;
             float skill;
             trap_Cvar_Set("cg_thirdPerson", "0");
             trap_Cvar_Set("cg_cameraOrbit", "0");
@@ -2382,56 +2323,7 @@ static void UI_RunMenuScript(char** args) {
             trap_Cmd_ExecuteText(EXEC_APPEND, va("wait ; wait ; map %s\n", uiInfo.mapList[ui_currentNetMap.integer].mapLoadName));
             skill = trap_Cvar_VariableValue("g_spSkill");
             // set max clients based on spots
-            oldclients = trap_Cvar_VariableValue("sv_maxClients");
-            clients = 0;
-            for (i = 0; i < PLAYERS_PER_TEAM; i++) {
-                int bot = trap_Cvar_VariableValue(va("ui_blueteam%i", i + 1));
-                if (bot >= 0) {
-                    clients++;
-                }
-                bot = trap_Cvar_VariableValue(va("ui_redteam%i", i + 1));
-                if (bot >= 0) {
-                    clients++;
-                }
-            }
-            if (clients == 0) {
-                clients = 8;
-            }
-
-            if (oldclients > clients) {
-                clients = oldclients;
-            }
-
-            trap_Cvar_Set("sv_maxClients", va("%d", clients));
-
-            for (i = 0; i < PLAYERS_PER_TEAM; i++) {
-                int bot = trap_Cvar_VariableValue(va("ui_blueteam%i", i + 1));
-                if (bot > 1) {
-                    if (ui_actualNetGameType.integer >= GT_TEAM) {
-                        Com_sprintf(buff, sizeof(buff), "addbot %s %f %s\n", uiInfo.characterList[bot - 2].name, skill, "Blue");
-                    } else {
-                        Com_sprintf(buff, sizeof(buff), "addbot %s %f \n", UI_GetBotNameByNumber(bot - 2), skill);
-                    }
-                    trap_Cmd_ExecuteText(EXEC_APPEND, buff);
-                }
-                bot = trap_Cvar_VariableValue(va("ui_redteam%i", i + 1));
-                if (bot > 1) {
-                    if (ui_actualNetGameType.integer >= GT_TEAM) {
-                        Com_sprintf(buff, sizeof(buff), "addbot %s %f %s\n", uiInfo.characterList[bot - 2].name, skill, "Red");
-                    } else {
-                        Com_sprintf(buff, sizeof(buff), "addbot %s %f \n", UI_GetBotNameByNumber(bot - 2), skill);
-                    }
-                    trap_Cmd_ExecuteText(EXEC_APPEND, buff);
-                }
-            }
-        } else if (Q_stricmp(name, "updateSPMenu") == 0) {
-            UI_SetCapFragLimits(qtrue);
-            UI_MapCountByGameType(qtrue);
-            ui_mapIndex.integer = UI_GetIndexFromSelection(ui_currentMap.integer);
-            trap_Cvar_Set("ui_mapIndex", va("%d", ui_mapIndex.integer));
-            Menu_SetFeederSelection(NULL, FEEDER_MAPS, ui_mapIndex.integer, "skirmish");
-            UI_GameType_HandleKey(0, NULL, K_MOUSE1, qfalse);
-            UI_GameType_HandleKey(0, NULL, K_MOUSE2, qfalse);
+            clients = trap_Cvar_VariableValue("sv_maxClients");
         } else if (Q_stricmp(name, "resetDefaults") == 0) {
             trap_Cmd_ExecuteText(EXEC_APPEND, "exec default.cfg\n");
             trap_Cmd_ExecuteText(EXEC_APPEND, "cvar_restart\n");
@@ -2449,21 +2341,12 @@ static void UI_RunMenuScript(char** args) {
             trap_Cvar_Set("com_errorMessage", "");
         } else if (Q_stricmp(name, "loadGameInfo") == 0) {
             UI_ParseGameInfo("gameinfo.txt");
-        } else if (Q_stricmp(name, "RunSPDemo") == 0) {
-            if (uiInfo.demoAvailable) {
-                trap_Cmd_ExecuteText(EXEC_APPEND, va("demo %s_%i\n", uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum));
-            }
         } else if (Q_stricmp(name, "LoadDemos") == 0) {
             UI_LoadDemos();
         } else if (Q_stricmp(name, "LoadMovies") == 0) {
             UI_LoadMovies();
         } else if (Q_stricmp(name, "LoadMods") == 0) {
             UI_LoadMods();
-        } else if (Q_stricmp(name, "playMovie") == 0) {
-            if (uiInfo.previewMovie >= 0) {
-                trap_CIN_StopCinematic(uiInfo.previewMovie);
-            }
-            trap_Cmd_ExecuteText(EXEC_APPEND, va("cinematic %s.roq 2\n", uiInfo.movieList[uiInfo.movieIndex]));
         } else if (Q_stricmp(name, "RunMod") == 0) {
             trap_Cvar_Set("fs_game", uiInfo.modList[uiInfo.modIndex].modName);
             trap_Cmd_ExecuteText(EXEC_APPEND, "vid_restart;");
@@ -3961,17 +3844,7 @@ vmCvar_t ui_drawCrosshairNames;
 vmCvar_t ui_marks;
 
 vmCvar_t ui_redteam;
-vmCvar_t ui_redteam1;
-vmCvar_t ui_redteam2;
-vmCvar_t ui_redteam3;
-vmCvar_t ui_redteam4;
-vmCvar_t ui_redteam5;
 vmCvar_t ui_blueteam;
-vmCvar_t ui_blueteam1;
-vmCvar_t ui_blueteam2;
-vmCvar_t ui_blueteam3;
-vmCvar_t ui_blueteam4;
-vmCvar_t ui_blueteam5;
 vmCvar_t ui_teamName;
 vmCvar_t ui_dedicated;
 vmCvar_t ui_gameType;
@@ -4046,16 +3919,8 @@ static cvarTable_t cvarTable[] = {
     {&ui_joinGameType, "ui_joinGametype", "0", CVAR_ARCHIVE},
     {&ui_netGameType, "ui_netGametype", "3", CVAR_ARCHIVE},
     {&ui_actualNetGameType, "ui_actualNetGametype", "3", CVAR_ARCHIVE},
-    {&ui_redteam1, "ui_redteam1", "0", CVAR_ARCHIVE},
-    {&ui_redteam2, "ui_redteam2", "0", CVAR_ARCHIVE},
-    {&ui_redteam3, "ui_redteam3", "0", CVAR_ARCHIVE},
-    {&ui_redteam4, "ui_redteam4", "0", CVAR_ARCHIVE},
-    {&ui_redteam5, "ui_redteam5", "0", CVAR_ARCHIVE},
-    {&ui_blueteam1, "ui_blueteam1", "0", CVAR_ARCHIVE},
-    {&ui_blueteam2, "ui_blueteam2", "0", CVAR_ARCHIVE},
-    {&ui_blueteam3, "ui_blueteam3", "0", CVAR_ARCHIVE},
-    {&ui_blueteam4, "ui_blueteam4", "0", CVAR_ARCHIVE},
-    {&ui_blueteam5, "ui_blueteam5", "0", CVAR_ARCHIVE},
+    {&ui_blueteam, "ui_blueTeam", "Blue", CVAR_ARCHIVE},
+    {&ui_redteam, "ui_redTeam", "Red", CVAR_ARCHIVE},
     {&ui_netSource, "ui_netSource", "1", CVAR_ARCHIVE},
     {&ui_menuFiles, "ui_menuFiles", "ui/menus.txt", CVAR_ARCHIVE},
     {&ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE},

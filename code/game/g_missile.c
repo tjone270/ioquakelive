@@ -524,9 +524,9 @@ gentity_t* fire_plasma(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashMethodOfDeath = MOD_PLASMA_SPLASH;
     bolt->clipmask = MASK_SHOT;
     bolt->target_ent = NULL;
-
     bolt->s.pos.trType = TR_LINEAR;
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
+
     VectorCopy(start, bolt->s.pos.trBase);
     VectorScale(dir, 2000, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);  // save net bandwidth
@@ -677,10 +677,10 @@ gentity_t* fire_grapple(gentity_t* self, vec3_t start, vec3_t dir) {
     hook->clipmask = MASK_SHOT;
     hook->parent = self;
     hook->target_ent = NULL;
-
     hook->s.pos.trType = TR_LINEAR;
     hook->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
     hook->s.otherEntityNum = self->s.number;                 // use to match beam in client
+
     VectorCopy(start, hook->s.pos.trBase);
     VectorScale(dir, 800, hook->s.pos.trDelta);
     SnapVector(hook->s.pos.trDelta);  // save net bandwidth

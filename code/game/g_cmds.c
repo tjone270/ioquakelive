@@ -1251,10 +1251,12 @@ void Cmd_CallVote_f(gentity_t* ent) {
         trap_SendServerCommand(ent - g_entities, "print \"A vote is already in progress.\n\"");
         return;
     }
+
     if (ent->client->pers.voteCount >= MAX_VOTE_COUNT) {
         trap_SendServerCommand(ent - g_entities, "print \"You have called the maximum number of votes.\n\"");
         return;
     }
+
     if (ent->client->sess.sessionTeam == TEAM_SPECTATOR) {
         trap_SendServerCommand(ent - g_entities, "print \"Not allowed to call a vote as spectator.\n\"");
         return;

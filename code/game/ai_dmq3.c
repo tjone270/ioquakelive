@@ -1663,8 +1663,6 @@ void BotCheckItemPickup(bot_state_t* bs, int* oldinventory) {
                             (gametype != GT_1FCTF || bs->neutralflagstatus == 0)) {
                             // tell the leader we want to be on offence
                             BotVoiceChat(bs, leader, VOICECHAT_WANTONOFFENSE);
-                            // BotAI_BotInitialChat(bs, "wantoffence", NULL);
-                            // trap_BotEnterChat(bs->cs, leader, CHAT_TELL);
                         }
                     }
                 }
@@ -1677,8 +1675,6 @@ void BotCheckItemPickup(bot_state_t* bs, int* oldinventory) {
                 if (BotTeamLeader(bs)) {
                     // tell the leader we want to be on defense
                     BotVoiceChat(bs, -1, VOICECHAT_WANTONDEFENSE);
-                    // BotAI_BotInitialChat(bs, "wantdefence", NULL);
-                    // trap_BotEnterChat(bs->cs, leader, CHAT_TELL);
                 } else if (g_spSkill.integer <= 3) {
                     if (bs->ltgtype != LTG_DEFENDKEYAREA) {
                         //
@@ -1686,8 +1682,6 @@ void BotCheckItemPickup(bot_state_t* bs, int* oldinventory) {
                             (gametype != GT_1FCTF || bs->neutralflagstatus == 0)) {
                             // tell the leader we want to be on defense
                             BotVoiceChat(bs, -1, VOICECHAT_WANTONDEFENSE);
-                            // BotAI_BotInitialChat(bs, "wantdefence", NULL);
-                            // trap_BotEnterChat(bs->cs, leader, CHAT_TELL);
                         }
                     }
                 }

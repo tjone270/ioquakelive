@@ -688,7 +688,7 @@ void CG_RegisterWeapon(int weaponNum) {
             weaponInfo->missileTrailFunc = CG_GrappleTrail;
             weaponInfo->missileDlight = 200;
             weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/grapple/grfire.ogg", qfalse);
-            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/grapple/grpull.wav", qfalse);
+            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/grapple/grpull.ogg", qfalse);
             cgs.media.grapplingChainShader = trap_R_RegisterShader("grapplingChain");
             break;
 
