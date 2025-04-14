@@ -949,6 +949,32 @@ static void SV_DelBanFromList(qboolean isexception) {
 
 /*
 ==================
+SV_CoinToss_f
+
+Do a cointoss and send the result to all clients.
+==================
+*/
+static void SV_CoinToss_f(void) {
+    char* coin;
+
+    // make sure server is running
+    if (!com_sv_running->integer) {
+        Com_Printf("Server is not running.\n");
+        return;
+    }
+
+    int time = sv.time;
+    if (Q_rand(&time) % 2 == 0) {
+        coin = "HEADS";
+    } else {
+        coin = "TAILS";
+    }
+
+    SV_SendServerCommand(NULL, "print \"^3The coin is: ^5%s^7\"\n", coin);
+}
+
+/*
+==================
 SV_ListBans_f
 
 List all bans and exceptions on console
@@ -1410,6 +1436,7 @@ void SV_AddOperatorCommands(void) {
     Cmd_AddCommand("kickall", SV_KickAll_f);
     Cmd_AddCommand("kicknum", SV_KickNum_f);
     Cmd_AddCommand("clientkick", SV_KickNum_f);  // Legacy command
+    Cmd_AddCommand("cointoss", SV_CoinToss_f);
     Cmd_AddCommand("status", SV_Status_f);
     Cmd_AddCommand("serverinfo", SV_Serverinfo_f);
     Cmd_AddCommand("systeminfo", SV_Systeminfo_f);
