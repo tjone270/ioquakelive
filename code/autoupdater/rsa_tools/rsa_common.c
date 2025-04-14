@@ -1,7 +1,6 @@
 #include "rsa_common.h"
 
-void fail(const char *fmt, ...)
-{
+void fail(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
@@ -11,9 +10,8 @@ void fail(const char *fmt, ...)
     exit(1);
 }
 
-void write_file(const char *fname, const void *buf, const unsigned long len)
-{
-    FILE *io = fopen(fname, "wb");
+void write_file(const char* fname, const void* buf, const unsigned long len) {
+    FILE* io = fopen(fname, "wb");
     if (!io) {
         fail("Can't open '%s' for writing: %s", fname, strerror(errno));
     }
@@ -27,10 +25,9 @@ void write_file(const char *fname, const void *buf, const unsigned long len)
     }
 }
 
-void read_file(const char *fname, void *buf, unsigned long *len)
-{
+void read_file(const char* fname, void* buf, unsigned long* len) {
     ssize_t br;
-    FILE *io = fopen(fname, "rb");
+    FILE* io = fopen(fname, "rb");
     if (!io) {
         fail("Can't open '%s' for reading: %s", fname, strerror(errno));
     }
@@ -43,13 +40,12 @@ void read_file(const char *fname, void *buf, unsigned long *len)
     }
     fclose(io);
 
-    *len = (unsigned long) br;
+    *len = (unsigned long)br;
 }
 
-void read_rsakey(rsa_key *key, const char *fname)
-{
+void read_rsakey(rsa_key* key, const char* fname) {
     unsigned char buf[4096];
-    unsigned long len = sizeof (buf);
+    unsigned long len = sizeof(buf);
     int rc;
 
     read_file(fname, buf, &len);
@@ -58,4 +54,3 @@ void read_rsakey(rsa_key *key, const char *fname)
         fail("rsa_import for '%s' failed: %s", fname, error_to_string(rc));
     }
 }
-

@@ -1,13 +1,12 @@
 #include "rsa_common.h"
 
-static void verify_file(const char *fname, rsa_key *key, const int hash_index)
-{
+static void verify_file(const char* fname, rsa_key* key, const int hash_index) {
     const size_t sigfnamelen = strlen(fname) + 5;
-    char *sigfname = (char *) malloc(sigfnamelen);
+    char* sigfname = (char*)malloc(sigfnamelen);
     unsigned char hash[256];
-    unsigned long hashlen = sizeof (hash);
+    unsigned long hashlen = sizeof(hash);
     unsigned char sig[1024];
-    unsigned long siglen = sizeof (sig);
+    unsigned long siglen = sizeof(sig);
     int status = 0;
     int rc = 0;
 
@@ -32,8 +31,7 @@ static void verify_file(const char *fname, rsa_key *key, const int hash_index)
     }
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     int hash_index;
     rsa_key key;
     int i;
@@ -57,4 +55,3 @@ int main(int argc, char **argv)
 }
 
 /* end of rsa_verify.c ... */
-

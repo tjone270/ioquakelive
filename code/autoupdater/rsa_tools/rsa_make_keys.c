@@ -1,9 +1,8 @@
 #include "rsa_common.h"
 
-static void write_rsakey(rsa_key *key, const int type, const char *fname)
-{
+static void write_rsakey(rsa_key* key, const int type, const char* fname) {
     unsigned char buf[4096];
-    unsigned long len = sizeof (buf);
+    unsigned long len = sizeof(buf);
     int rc;
 
     if ((rc = rsa_export(buf, &len, type, key)) != CRYPT_OK) {
@@ -12,15 +11,14 @@ static void write_rsakey(rsa_key *key, const int type, const char *fname)
     write_file(fname, buf, len);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     int rc = 0;
     prng_state prng;
     int prng_index;
     rsa_key key;
 
     ltc_mp = tfm_desc;
-    prng_index = register_prng(&sprng_desc);  /* (fortuna_desc is a good choice if your platform's PRNG sucks.) */
+    prng_index = register_prng(&sprng_desc); /* (fortuna_desc is a good choice if your platform's PRNG sucks.) */
 
     if (prng_index == -1) {
         fail("Failed to register a RNG");
