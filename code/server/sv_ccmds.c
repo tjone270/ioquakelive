@@ -1447,10 +1447,6 @@ void SV_AddOperatorCommands(void) {
     Cmd_SetCommandCompletionFunc("map", SV_CompleteMapName);
     Cmd_AddCommand("devmap", SV_Map_f);
     Cmd_SetCommandCompletionFunc("devmap", SV_CompleteMapName);
-    Cmd_AddCommand("spmap", SV_Map_f);
-    Cmd_SetCommandCompletionFunc("spmap", SV_CompleteMapName);
-    Cmd_AddCommand("spdevmap", SV_Map_f);
-    Cmd_SetCommandCompletionFunc("spdevmap", SV_CompleteMapName);
     Cmd_AddCommand("killserver", SV_KillServer_f);
     if (com_dedicated->integer) {
         Cmd_AddCommand("say", SV_ConSay_f);
