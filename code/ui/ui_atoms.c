@@ -92,125 +92,6 @@ char *UI_Cvar_VariableString( const char *var_name ) {
 	return buffer;
 }
 
-
-
-void UI_SetBestScores(postGameInfo_t *newInfo, qboolean postGame) {
-	trap_Cvar_Set("ui_scoreAccuracy",     va("%i%%", newInfo->accuracy));
-	trap_Cvar_Set("ui_scoreImpressives",	va("%i", newInfo->impressives));
-	trap_Cvar_Set("ui_scoreExcellents", 	va("%i", newInfo->excellents));
-	trap_Cvar_Set("ui_scoreDefends", 			va("%i", newInfo->defends));
-	trap_Cvar_Set("ui_scoreAssists", 			va("%i", newInfo->assists));
-	trap_Cvar_Set("ui_scoreGauntlets", 		va("%i", newInfo->gauntlets));
-	trap_Cvar_Set("ui_scoreScore", 				va("%i", newInfo->score));
-	trap_Cvar_Set("ui_scorePerfect",	 		va("%i", newInfo->perfects));
-	trap_Cvar_Set("ui_scoreTeam",					va("%i to %i", newInfo->redScore, newInfo->blueScore));
-	trap_Cvar_Set("ui_scoreBase",					va("%i", newInfo->baseScore));
-	trap_Cvar_Set("ui_scoreTimeBonus",		va("%i", newInfo->timeBonus));
-	trap_Cvar_Set("ui_scoreSkillBonus",		va("%i", newInfo->skillBonus));
-	trap_Cvar_Set("ui_scoreShutoutBonus",	va("%i", newInfo->shutoutBonus));
-	trap_Cvar_Set("ui_scoreTime",					va("%02i:%02i", newInfo->time / 60, newInfo->time % 60));
-	trap_Cvar_Set("ui_scoreCaptures",		va("%i", newInfo->captures));
-  if (postGame) {
-		trap_Cvar_Set("ui_scoreAccuracy2",     va("%i%%", newInfo->accuracy));
-		trap_Cvar_Set("ui_scoreImpressives2",	va("%i", newInfo->impressives));
-		trap_Cvar_Set("ui_scoreExcellents2", 	va("%i", newInfo->excellents));
-		trap_Cvar_Set("ui_scoreDefends2", 			va("%i", newInfo->defends));
-		trap_Cvar_Set("ui_scoreAssists2", 			va("%i", newInfo->assists));
-		trap_Cvar_Set("ui_scoreGauntlets2", 		va("%i", newInfo->gauntlets));
-		trap_Cvar_Set("ui_scoreScore2", 				va("%i", newInfo->score));
-		trap_Cvar_Set("ui_scorePerfect2",	 		va("%i", newInfo->perfects));
-		trap_Cvar_Set("ui_scoreTeam2",					va("%i to %i", newInfo->redScore, newInfo->blueScore));
-		trap_Cvar_Set("ui_scoreBase2",					va("%i", newInfo->baseScore));
-		trap_Cvar_Set("ui_scoreTimeBonus2",		va("%i", newInfo->timeBonus));
-		trap_Cvar_Set("ui_scoreSkillBonus2",		va("%i", newInfo->skillBonus));
-		trap_Cvar_Set("ui_scoreShutoutBonus2",	va("%i", newInfo->shutoutBonus));
-		trap_Cvar_Set("ui_scoreTime2",					va("%02i:%02i", newInfo->time / 60, newInfo->time % 60));
-		trap_Cvar_Set("ui_scoreCaptures2",		va("%i", newInfo->captures));
-	}
-}
-
-void UI_LoadBestScores(const char *map, int game)
-{
-	char		fileName[MAX_QPATH];
-	fileHandle_t f;
-	postGameInfo_t newInfo;
-	int protocol, protocolLegacy;
-	
-	memset(&newInfo, 0, sizeof(postGameInfo_t));
-	Com_sprintf(fileName, MAX_QPATH, "games/%s_%i.game", map, game);
-	if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0) {
-		int size = 0;
-		trap_FS_Read(&size, sizeof(int), f);
-		if (size == sizeof(postGameInfo_t)) {
-			trap_FS_Read(&newInfo, sizeof(postGameInfo_t), f);
-		}
-		trap_FS_FCloseFile(f);
-	}
-	UI_SetBestScores(&newInfo, qfalse);
-
-	uiInfo.demoAvailable = qfalse;
-
-	protocolLegacy = trap_Cvar_VariableValue("com_legacyprotocol");
-	protocol = trap_Cvar_VariableValue("com_protocol");
-
-	if(!protocol)
-		protocol = trap_Cvar_VariableValue("protocol");
-	if(protocolLegacy == protocol)
-		protocolLegacy = 0;
-
-	Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.%s%d", map, game, DEMOEXT, protocol);
-	if(trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0)
-	{
-		uiInfo.demoAvailable = qtrue;
-		trap_FS_FCloseFile(f);
-	}
-	else if(protocolLegacy > 0)
-	{
-		Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.%s%d", map, game, DEMOEXT, protocolLegacy);
-		if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0)
-		{
-			uiInfo.demoAvailable = qtrue;
-			trap_FS_FCloseFile(f);
-		}
-	} 
-}
-
-/*
-===============
-UI_ClearScores
-===============
-*/
-void UI_ClearScores(void) {
-	char	gameList[4096];
-	char *gameFile;
-	int		i, len, count, size;
-	fileHandle_t f;
-	postGameInfo_t newInfo;
-
-	count = trap_FS_GetFileList( "games", "game", gameList, sizeof(gameList) );
-
-	size = sizeof(postGameInfo_t);
-	memset(&newInfo, 0, size);
-
-	if (count > 0) {
-		gameFile = gameList;
-		for ( i = 0; i < count; i++ ) {
-			len = strlen(gameFile);
-			if (trap_FS_FOpenFile(va("games/%s",gameFile), &f, FS_WRITE) >= 0) {
-				trap_FS_Write(&size, sizeof(int), f);
-				trap_FS_Write(&newInfo, size, f);
-				trap_FS_FCloseFile(f);
-			}
-			gameFile += len + 1;
-		}
-	}
-	
-	UI_SetBestScores(&newInfo, qfalse);
-
-}
-
-
-
 static void	UI_Cache_f( void ) {
 	Display_CacheAll();
 }
@@ -309,10 +190,7 @@ static void UI_CalcPostGameStats( void ) {
 	trap_Cvar_Set("sv_pure", UI_Cvar_VariableString("ui_pure"));
 	trap_Cvar_Set("g_friendlyFire", UI_Cvar_VariableString("ui_friendlyFire"));
 
-	UI_SetBestScores(&newInfo, qtrue);
 	UI_ShowPostGame(newHigh);
-
-
 }
 
 
@@ -373,13 +251,6 @@ qboolean UI_ConsoleCommand( int realTime ) {
 	}
 
 	if ( Q_stricmp (cmd, "ui_teamOrders") == 0 ) {
-		//UI_TeamOrdersMenu_f();
-		return qtrue;
-	}
-
-
-	if ( Q_stricmp (cmd, "ui_cdkey") == 0 ) {
-		//UI_CDKeyMenu_f();
 		return qtrue;
 	}
 

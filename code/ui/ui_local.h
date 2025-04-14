@@ -48,46 +48,11 @@ extern vmCvar_t	ui_ctf_friendly;
 
 extern vmCvar_t	ui_arenasFile;
 extern vmCvar_t	ui_botsFile;
-extern vmCvar_t	ui_spScores1;
-extern vmCvar_t	ui_spScores2;
-extern vmCvar_t	ui_spScores3;
-extern vmCvar_t	ui_spScores4;
-extern vmCvar_t	ui_spScores5;
-extern vmCvar_t	ui_spAwards;
-extern vmCvar_t	ui_spVideos;
-extern vmCvar_t	ui_spSkill;
-
-extern vmCvar_t	ui_spSelection;
-
-extern vmCvar_t	ui_browserMaster;
-extern vmCvar_t	ui_browserGameType;
-extern vmCvar_t	ui_browserShowFull;
-extern vmCvar_t	ui_browserShowEmpty;
 
 extern vmCvar_t	ui_brassTime;
 extern vmCvar_t	ui_drawCrosshair;
 extern vmCvar_t	ui_drawCrosshairNames;
 extern vmCvar_t	ui_marks;
-
-extern vmCvar_t	ui_server1;
-extern vmCvar_t	ui_server2;
-extern vmCvar_t	ui_server3;
-extern vmCvar_t	ui_server4;
-extern vmCvar_t	ui_server5;
-extern vmCvar_t	ui_server6;
-extern vmCvar_t	ui_server7;
-extern vmCvar_t	ui_server8;
-extern vmCvar_t	ui_server9;
-extern vmCvar_t	ui_server10;
-extern vmCvar_t	ui_server11;
-extern vmCvar_t	ui_server12;
-extern vmCvar_t	ui_server13;
-extern vmCvar_t	ui_server14;
-extern vmCvar_t	ui_server15;
-extern vmCvar_t	ui_server16;
-
-extern vmCvar_t	ui_cdkey;
-extern vmCvar_t	ui_cdkeychecked;
 
 extern vmCvar_t	ui_captureLimit;
 extern vmCvar_t	ui_fragLimit;
@@ -100,17 +65,12 @@ extern vmCvar_t	ui_serverFilterType;
 extern vmCvar_t	ui_dedicated;
 extern vmCvar_t	ui_opponentName;
 extern vmCvar_t	ui_menuFiles;
-extern vmCvar_t	ui_currentTier;
 extern vmCvar_t	ui_currentMap;
 extern vmCvar_t	ui_currentNetMap;
 extern vmCvar_t	ui_mapIndex;
 extern vmCvar_t	ui_currentOpponent;
 extern vmCvar_t	ui_selectedPlayer;
 extern vmCvar_t	ui_selectedPlayerName;
-extern vmCvar_t	ui_lastServerRefresh_0;
-extern vmCvar_t	ui_lastServerRefresh_1;
-extern vmCvar_t	ui_lastServerRefresh_2;
-extern vmCvar_t	ui_lastServerRefresh_3;
 extern vmCvar_t	ui_singlePlayerActive;
 extern vmCvar_t	ui_scoreAccuracy;
 extern vmCvar_t	ui_scoreImpressives;
@@ -357,7 +317,6 @@ void UI_LoadMenus(const char *menuFile, qboolean reset);
 void _UI_SetActiveMenu( uiMenuCommand_t menu );
 int UI_AdjustTimeByGame(int time);
 void UI_ShowPostGame(qboolean newHigh);
-void UI_ClearScores( void );
 void UI_LoadArenas(void);
 void UI_LoadArenasIntoMapList(void);
 
@@ -429,13 +388,6 @@ extern void UI_ModsMenu( void );
 extern void UI_ModsMenu_Cache( void );
 
 //
-// ui_cdkey.c
-//
-extern void UI_CDKeyMenu( void );
-extern void UI_CDKeyMenu_Cache( void );
-extern void UI_CDKeyMenu_f( void );
-
-//
 // ui_playermodel.c
 //
 extern void UI_PlayerModelMenu( void );
@@ -458,20 +410,6 @@ extern void Preferences_Cache( void );
 //
 extern void UI_SpecifyLeagueMenu( void );
 extern void SpecifyLeague_Cache( void );
-
-//
-// ui_specifyserver.c
-//
-extern void UI_SpecifyServerMenu( void );
-extern void SpecifyServer_Cache( void );
-
-//
-// ui_servers2.c
-//
-#define MAX_FAVORITESERVERS 16
-
-extern void UI_ArenaServersMenu( void );
-extern void ArenaServers_Cache( void );
 
 //
 // ui_startserver.c
@@ -631,8 +569,6 @@ typedef struct {
 #define GAMES_TEAMPLAY		2
 #define GAMES_TOURNEY		3
 #define GAMES_CTF			4
-#define MAPS_PER_TIER 3
-#define MAX_TIERS 16
 #define MAX_MODS 64
 #define MAX_DEMOS 512
 #define MAX_MOVIES 256
@@ -681,13 +617,6 @@ typedef struct {
 	qhandle_t levelShot;
 	qboolean active;
 } mapInfo;
-
-typedef struct {
-	const char *tierName;
-	const char *maps[MAPS_PER_TIER];
-	int gameTypes[MAPS_PER_TIER];
-	qhandle_t mapHandles[MAPS_PER_TIER];
-} tierInfo;
 
 typedef struct serverFilter_s {
 	const char *description;
@@ -797,10 +726,6 @@ typedef struct {
 	int mapCount;
 	mapInfo mapList[MAX_MAPS];
 
-
-	int tierCount;
-	tierInfo tierList[MAX_TIERS];
-
 	int skillIndex;
 
 	modInfo_t modList[MAX_MODS];
@@ -886,7 +811,6 @@ extern void			UI_Refresh( int time );
 extern void			UI_KeyEvent( int key );
 extern void			UI_StartDemoLoop( void );
 extern qboolean		m_entersound;
-void UI_LoadBestScores(const char *map, int game);
 extern uiStatic_t	uis;
 
 //
@@ -1065,7 +989,6 @@ const char *UI_GetArenaInfoByMap( const char *map );
 const char *UI_GetSpecialArenaInfo( const char *tag );
 int UI_GetNumArenas( void );
 int UI_GetNumSPArenas( void );
-int UI_GetNumSPTiers( void );
 
 char *UI_GetBotInfoByNumber( int num );
 char *UI_GetBotInfoByName( const char *name );
@@ -1073,11 +996,6 @@ int UI_GetNumBots( void );
 void UI_LoadBots( void );
 char *UI_GetBotNameByNumber( int num );
 
-void UI_GetBestScore( int level, int *score, int *skill );
-void UI_SetBestScore( int level, int score );
-int UI_TierCompleted( int levelWon );
-qboolean UI_ShowTierVideo( int tier );
-qboolean UI_CanShowTierVideo( int tier );
 int  UI_GetCurrentGame( void );
 void UI_NewGame( void );
 void UI_LogAwardData( int award, int data );
