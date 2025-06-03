@@ -23,6 +23,23 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // q_shared.c -- stateless support routines that are included in each code dll
 #include "q_shared.h"
 
+/*
+============
+Q_strreplace
+============
+*/
+char* Q_strreplace(char* s, const char* s1, const char* s2) {
+    char* p = strstr(s, s1);
+    if (p != NULL) {
+        size_t len1 = strlen(s1);
+        size_t len2 = strlen(s2);
+        if (len1 != len2)
+            memmove(p + len2, p + len1, strlen(p + len1) + 1);
+        memcpy(p, s2, len2);
+    }
+    return s;
+}
+
 // ^[0-9a-zA-Z]
 qboolean Q_IsColorString(const char* p) {
     if (!p)
@@ -45,6 +62,11 @@ qboolean Q_IsColorString(const char* p) {
     return qtrue;
 }
 
+/* 
+============
+Com_Clamp
+============
+*/
 float Com_Clamp(float min, float max, float value) {
     if (value < min) {
         return min;

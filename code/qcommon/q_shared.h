@@ -27,20 +27,20 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // A user mod should never modify this file
 
 // BEGIN Thomas changes
-#define LEGACY_PROTOCOL
+// LEGACY_PROTOCOL removed - Quake Live only
 // END Thomas changes
 
 #define PRODUCT_NAME "Quake Live"
-#define BASEGAME "baseq3"
-#define BASETA "baseq3"
+#define BASEGAME     "baseqz"  // [QL] protocol/game name (sent over network)
+#define BASEGAME_DIR "baseq3"  // filesystem directory for game data
 #define CLIENT_WINDOW_TITLE "Quake Live"
 #define CLIENT_WINDOW_MIN_TITLE "QL"
 #define HOMEPATH_NAME_UNIX ".quakelive"
 #define HOMEPATH_NAME_WIN "quakelive"
 #define HOMEPATH_NAME_MACOSX HOMEPATH_NAME_WIN
 #define PROTOCOL_HANDLER "quakelive"
-//  #define STEAMPATH_NAME			"Quake Live"
-//  #define STEAMPATH_APPID         "282440"
+#define STEAMPATH_NAME			"Quake Live"
+#define STEAMPATH_APPID         "282440"
 
 #ifndef PRODUCT_VERSION
 #define PRODUCT_VERSION "1070"
@@ -50,7 +50,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PRODUCT_DATE __DATE__
 #endif
 
-#define FULL_PRODUCT_VERSION PRODUCT_NAME " " PRODUCT_VERSION
+#define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " - " PRODUCT_DATE
 
 #define MAX_TEAMNAME 32
 
@@ -230,7 +230,7 @@ typedef int clipHandle_t;
 #define MAX_OSPATH 256  // max length of a filesystem pathname
 #endif
 
-#define MAX_NAME_LENGTH 32  // max length of a client name
+#define MAX_NAME_LENGTH 40  // [QL] max length of a client name (Q3 used 32)
 
 #define MAX_SAY_TEXT 150
 
@@ -694,7 +694,6 @@ void PerpendicularVector(vec3_t dst, const vec3_t src);
 //=============================================
 
 float Com_Clamp(float min, float max, float value);
-
 char* COM_SkipPath(char* pathname);
 const char* COM_GetExtension(const char* name);
 void COM_StripExtension(const char* in, char* out, int destsize);
@@ -778,6 +777,9 @@ int Q_stricmpn(const char* s1, const char* s2, int n);
 char* Q_strlwr(char* s1);
 char* Q_strupr(char* s1);
 const char* Q_stristr(const char* s, const char* find);
+
+// string replacement
+char* Q_strreplace(char* s, const char* s1, const char* s2);
 
 // buffer size safe library replacements
 void Q_strncpyz(char* dest, const char* src, int destsize);
@@ -871,7 +873,8 @@ default values.
 #define CVAR_CHEAT 0x0200         // can not be changed if cheats are disabled
 #define CVAR_NORESTART 0x0400     // do not clear when a cvar_restart is issued
 
-#define CVAR_SERVER_CREATED 0x0800  // cvar was created by a server the client connected to.
+#define CVAR_REPLICATE 0x0800       // [QL] archived in repconfig.cfg (replicated settings)
+#define CVAR_SERVER_CREATED CVAR_REPLICATE   // ioquake3 compat alias (QL repurposed this bit)
 #define CVAR_VM_CREATED 0x1000      // cvar was created exclusively in one of the VMs.
 #define CVAR_PROTECTED 0x2000       // prevent modifying this var from VMs or the server
 // These flags are only returned by the Cvar_Flags() function
@@ -1074,74 +1077,96 @@ typedef struct {
 // playerState_t is a full superset of entityState_t as it is used by players,
 // so if a playerState_t is transmitted, the entityState_t can be fully derived
 // from it.
+// playerState_t - 592 bytes. Verified from qagamex64.so build 1069.
+// [QL] adds many fields vs Q3: weaponPrimary, fov, location, jump/crouch fields,
+// movement chars, freeze tag fields, respawnTime, localPersistant, round stats.
 typedef struct playerState_s {
-    int commandTime;  // cmd->serverTime of last executed command
-    int pm_type;
-    int bobCycle;  // for view bobbing and footstep generation
-    int pm_flags;  // ducked, jump_held, etc
-    int pm_time;
+    int commandTime;          // +0   cmd->serverTime of last executed command
+    int pm_type;              // +4
+    int bobCycle;             // +8   for view bobbing and footstep generation
+    int pm_flags;             // +12  ducked, jump_held, etc
+    int pm_time;              // +16
 
-    vec3_t origin;
-    vec3_t velocity;
-    int weaponTime;
-    int gravity;
-    int speed;
-    int delta_angles[3];  // add to command angles to get view direction
-    // changed by spawns, rotating objects, and teleporters
+    vec3_t origin;            // +20
+    vec3_t velocity;          // +32
+    int weaponTime;           // +44
+    int gravity;              // +48
+    int speed;                // +52
+    int delta_angles[3];      // +56  add to command angles to get view direction
 
-    int groundEntityNum;  // ENTITYNUM_NONE = in air
+    int groundEntityNum;      // +68  ENTITYNUM_NONE = in air
 
-    int legsTimer;  // don't change low priority animations until this runs out
-    int legsAnim;   // mask off ANIM_TOGGLEBIT
+    int legsTimer;            // +72
+    int legsAnim;             // +76
 
-    int torsoTimer;  // don't change low priority animations until this runs out
-    int torsoAnim;   // mask off ANIM_TOGGLEBIT
+    int torsoTimer;           // +80
+    int torsoAnim;            // +84
 
-    int movementDir;  // a number 0 to 7 that represents the relative angle
-    // of movement to the view angle (axial and diagonals)
-    // when at rest, the value will remain unchanged
-    // used to twist the legs during strafing
+    int movementDir;          // +88
 
-    vec3_t grapplePoint;  // location of grapple to pull towards if PMF_GRAPPLE_PULL
+    vec3_t grapplePoint;      // +92  location of grapple to pull towards
 
-    int eFlags;  // copied to entityState_t->eFlags
+    int eFlags;               // +104 copied to entityState_t->eFlags
 
-    int eventSequence;  // pmove generated events
-    int events[MAX_PS_EVENTS];
-    int eventParms[MAX_PS_EVENTS];
+    int eventSequence;        // +108 pmove generated events
+    int events[MAX_PS_EVENTS];    // +112
+    int eventParms[MAX_PS_EVENTS]; // +120
 
-    int externalEvent;  // events set on player from another source
-    int externalEventParm;
-    int externalEventTime;
+    int externalEvent;        // +128 events set on player from another source
+    int externalEventParm;    // +132
+    // [QL] removed: externalEventTime (was here in Q3)
 
-    int clientNum;  // ranges from 0 to MAX_CLIENTS-1
-    int weapon;     // copied to entityState_t->weapon
-    int weaponstate;
+    int clientNum;            // +136 ranges from 0 to MAX_CLIENTS-1
+    int location;             // +140 [QL]
+    int weapon;               // +144 copied to entityState_t->weapon
+    int weaponPrimary;        // +148 [QL]
+    int weaponstate;          // +152
 
-    vec3_t viewangles;  // for fixed views
-    int viewheight;
+    int fov;                  // +156 [QL]
+    vec3_t viewangles;        // +160 for fixed views
+    int viewheight;           // +172
 
     // damage feedback
-    int damageEvent;  // when it changes, latch the other parms
-    int damageYaw;
-    int damagePitch;
-    int damageCount;
+    int damageEvent;          // +176 when it changes, latch the other parms
+    int damageYaw;            // +180
+    int damagePitch;          // +184
+    int damageCount;          // +188
 
-    int stats[MAX_STATS];
-    int persistant[MAX_PERSISTANT];  // stats that aren't cleared on death
-    int powerups[MAX_POWERUPS];      // level.time that the powerup runs out
-    int ammo[MAX_WEAPONS];
+    int stats[MAX_STATS];             // +192
+    int persistant[MAX_PERSISTANT];   // +256 stats that aren't cleared on death
+    int powerups[MAX_POWERUPS];       // +320 level.time that the powerup runs out
+    int ammo[MAX_WEAPONS];            // +384
 
-    int generic1;
-    int loopSound;
-    int jumppad_ent;  // jumppad entity hit this frame
+    int generic1;             // +448
+    int loopSound;            // +452
+    int jumppad_ent;          // +456 jumppad entity hit this frame
+
+    int jumpTime;             // +460 [QL]
+    int doubleJumped;         // +464 [QL]
+    int crouchTime;           // +468 [QL]
+    int crouchSlideTime;      // +472 [QL]
+    char forwardmove;         // +476 [QL]
+    char rightmove;           // +477 [QL]
+    char upmove;              // +478 [QL]
+    char _pad;                // +479 alignment padding
 
     // not communicated over the net at all
-    int ping;  // server to game info for scoreboard
-    int pmove_framecount;
-    int jumppad_frame;
-    int entityEventSequence;
-} playerState_t;
+    int ping;                 // +480 server to game info for scoreboard
+    int pmove_framecount;     // +484
+    int jumppad_frame;        // +488
+    int entityEventSequence;  // +492
+
+    int freezetime;           // +496 [QL] freeze tag
+    int thawtime;             // +500 [QL]
+    int thawClientNum_valid;  // +504 [QL]
+    int thawClientNum;        // +508 [QL]
+
+    int respawnTime;          // +512 [QL]
+    int localPersistant[MAX_PERSISTANT]; // +516 [QL] (64 bytes)
+    int roundDamage;          // +580 [QL]
+    int roundShots;           // +584 [QL]
+    int roundHits;            // +588 [QL]
+} playerState_t;              // 592 bytes
 
 //====================================================================
 
@@ -1176,8 +1201,12 @@ typedef struct usercmd_s {
     int serverTime;
     int angles[3];
     int buttons;
-    byte weapon;  // weapon
-    signed char forwardmove, rightmove, upmove;
+    byte weapon;              // offset 20
+    byte weaponPrimary;       // [QL] offset 21 - primary weapon selection (1-14)
+    byte fov;                 // [QL] offset 22 - field of view (10-130)
+    signed char forwardmove;  // [QL] offset 23 (was 21 in Q3)
+    signed char rightmove;    // [QL] offset 24 (was 22 in Q3)
+    signed char upmove;       // [QL] offset 25 (was 23 in Q3)
 } usercmd_t;
 
 //===================================================================
@@ -1191,16 +1220,19 @@ typedef enum {
     TR_LINEAR,
     TR_LINEAR_STOP,
     TR_SINE,  // value = base + sin( time / duration ) * delta
-    TR_GRAVITY
+    TR_GRAVITY,
+    TR_CUSTOM_GRAVITY   // [QL] uses trajectory_t.gravity field
 } trType_t;
 
+// trajectory_t - 40 bytes (NOT 36 as in Q3 - QL adds gravity field)
 typedef struct {
     trType_t trType;
     int trTime;
     int trDuration;  // if non 0, trTime + trDuration = stop time
     vec3_t trBase;
     vec3_t trDelta;  // velocity, etc
-} trajectory_t;
+    float gravity;   // [QL] used by TR_CUSTOM_GRAVITY
+} trajectory_t;      // 40 bytes
 
 // entityState_t is the information conveyed from the server
 // in an update message about entities that the client will
@@ -1246,11 +1278,16 @@ typedef struct entityState_s {
 
     // for players
     int powerups;   // bit flags
+    int health;     // [QL]
+    int armor;      // [QL]
     int weapon;     // determines weapon and flash model, etc
+    int location;   // [QL]
     int legsAnim;   // mask off ANIM_TOGGLEBIT
     int torsoAnim;  // mask off ANIM_TOGGLEBIT
 
     int generic1;
+    int jumpTime;       // [QL]
+    int doubleJumped;   // [QL]
 } entityState_t;
 
 typedef enum {
@@ -1280,6 +1317,7 @@ typedef struct {
     int top;          // top of glyph in buffer
     int bottom;       // bottom of glyph in buffer
     int pitch;        // width for copying
+    int left;         // left-side bearing (not in Q3 font.dat files)
     int xSkip;        // x adjustment
     int imageWidth;   // width of actual image
     int imageHeight;  // height of actual image
