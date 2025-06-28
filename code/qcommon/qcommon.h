@@ -133,7 +133,7 @@ NET
 
 #define PORT_ANY -1
 
-#define MAX_RELIABLE_COMMANDS 64  // max string commands buffered for restransmit
+#define MAX_RELIABLE_COMMANDS 64  // [QL] must match binary client (64-slot buffer)
 
 typedef enum {
     NA_BAD = 0,  // an address lookup failed
@@ -196,6 +196,11 @@ void NET_Sleep(int msec);
 Netchan handles packet fragmentation and out of order / duplicate suppression
 */
 
+// [QL] Netchan uses 32KB buffers instead of Q3's 16KB (MAX_MSGLEN)
+#ifndef MAX_NETCHAN_MSGLEN
+#define MAX_NETCHAN_MSGLEN 32768
+#endif
+
 typedef struct {
     netsrc_t sock;
 
@@ -211,14 +216,14 @@ typedef struct {
     // incoming fragment assembly buffer
     int fragmentSequence;
     int fragmentLength;
-    byte fragmentBuffer[MAX_MSGLEN];
+    byte fragmentBuffer[MAX_NETCHAN_MSGLEN];
 
     // outgoing fragment buffer
     // we need to space out the sending of large fragmented messages
     qboolean unsentFragments;
     int unsentFragmentStart;
     int unsentLength;
-    byte unsentBuffer[MAX_MSGLEN];
+    byte unsentBuffer[MAX_NETCHAN_MSGLEN];
 
     int challenge;
     int lastSentTime;
@@ -317,7 +322,7 @@ typedef enum {
     TRAP_TESTPRINTFLOAT
 } sharedTraps_t;
 
-typedef intptr_t(QDECL* vmMainProc)(int callNum, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11);
+typedef intptr_t(QDECL* vmMainProc)(int callNum, intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4, intptr_t arg5, intptr_t arg6, intptr_t arg7, intptr_t arg8, intptr_t arg9, intptr_t arg10, intptr_t arg11);
 
 void VM_Init(void);
 vm_t* VM_Create(const char* module, intptr_t (*systemCalls)(intptr_t*));
@@ -512,9 +517,11 @@ qboolean Cvar_Command(void);
 // command.  Returns true if the command was a variable reference that
 // was handled. (print or change)
 
-void Cvar_WriteVariables(fileHandle_t f);
-// writes lines containing "set variable value" for all variables
-// with the archive flag set to true.
+void Cvar_WriteVariables(fileHandle_t f_hw, fileHandle_t f_rep);
+// [QL] writes archived cvars to two files: f_hw (qzconfig/hardware) and
+// f_rep (repconfig/replicated). CVAR_REPLICATE and CVAR_USER_CREATED
+// cvars go to f_rep; other CVAR_ARCHIVE cvars go to f_hw.
+// Pass the same handle for both to write everything to one file.
 
 void Cvar_Init(void);
 
@@ -563,6 +570,7 @@ issues.
 #define QZCONFIG_CFG "server.cfg"
 #else
 #define QZCONFIG_CFG "qzconfig.cfg"
+#define REPCONFIG_CFG "repconfig.cfg"
 #endif
 
 qboolean FS_Initialized(void);
