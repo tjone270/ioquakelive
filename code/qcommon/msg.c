@@ -659,6 +659,9 @@ void MSG_WriteDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* t
         MSG_WriteBits(msg, 0, 1);
         MSG_WriteBits(msg, to->serverTime, 32);
     }
+    // [QL] field order and count differs from Q3 - must match binary exactly
+    // QL moved forwardmove/rightmove/upmove to offsets 23-25 and added
+    // two unknown byte fields (generic1/generic2) at offsets 21-22.
     if (from->angles[0] == to->angles[0] &&
         from->angles[1] == to->angles[1] &&
         from->angles[2] == to->angles[2] &&
@@ -666,7 +669,9 @@ void MSG_WriteDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* t
         from->rightmove == to->rightmove &&
         from->upmove == to->upmove &&
         from->buttons == to->buttons &&
-        from->weapon == to->weapon) {
+        from->weapon == to->weapon &&
+        from->weaponPrimary == to->weaponPrimary &&
+        from->fov == to->fov) {
         MSG_WriteBits(msg, 0, 1);  // no change
         oldsize += 7;
         return;
@@ -681,6 +686,8 @@ void MSG_WriteDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* t
     MSG_WriteDeltaKey(msg, key, from->upmove, to->upmove, 8);
     MSG_WriteDeltaKey(msg, key, from->buttons, to->buttons, 16);
     MSG_WriteDeltaKey(msg, key, from->weapon, to->weapon, 8);
+    MSG_WriteDeltaKey(msg, key, from->weaponPrimary, to->weaponPrimary, 8);
+    MSG_WriteDeltaKey(msg, key, from->fov, to->fov, 8);
 }
 
 /*
@@ -694,6 +701,8 @@ void MSG_ReadDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* to
     } else {
         to->serverTime = MSG_ReadBits(msg, 32);
     }
+    // [QL] field order and count differs from Q3 - must match binary exactly
+    // QL order: angles, forwardmove, rightmove, upmove, buttons, weapon, generic1, generic2
     if (MSG_ReadBits(msg, 1)) {
         key ^= to->serverTime;
         to->angles[0] = MSG_ReadDeltaKey(msg, key, from->angles[0], 16);
@@ -710,6 +719,8 @@ void MSG_ReadDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* to
             to->upmove = -127;
         to->buttons = MSG_ReadDeltaKey(msg, key, from->buttons, 16);
         to->weapon = MSG_ReadDeltaKey(msg, key, from->weapon, 8);
+        to->weaponPrimary = MSG_ReadDeltaKey(msg, key, from->weaponPrimary, 8);
+        to->fov = MSG_ReadDeltaKey(msg, key, from->fov, 8);
     } else {
         to->angles[0] = from->angles[0];
         to->angles[1] = from->angles[1];
@@ -719,6 +730,8 @@ void MSG_ReadDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* to
         to->upmove = from->upmove;
         to->buttons = from->buttons;
         to->weapon = from->weapon;
+        to->weaponPrimary = from->weaponPrimary;
+        to->fov = from->fov;
     }
 }
 
@@ -755,59 +768,69 @@ typedef struct {
 // using the stringizing operator to save typing...
 #define NETF(x) #x, (size_t)&((entityState_t*)0)->x
 
+// [QL] field order and bit counts must match the QL binary exactly -
+// delta encoding uses field indices, so any mismatch desynchronizes the bitstream
 netField_t entityStateFields[] =
     {
-        {NETF(pos.trTime), 32},
-        {NETF(pos.trBase[0]), 0},
-        {NETF(pos.trBase[1]), 0},
-        {NETF(pos.trDelta[0]), 0},
-        {NETF(pos.trDelta[1]), 0},
-        {NETF(pos.trBase[2]), 0},
-        {NETF(apos.trBase[1]), 0},
-        {NETF(pos.trDelta[2]), 0},
-        {NETF(apos.trBase[0]), 0},
-        {NETF(event), 10},
-        {NETF(angles2[1]), 0},
-        {NETF(eType), 8},
-        {NETF(torsoAnim), 8},
-        {NETF(eventParm), 8},
-        {NETF(legsAnim), 8},
-        {NETF(groundEntityNum), GENTITYNUM_BITS},
-        {NETF(pos.trType), 8},
-        {NETF(eFlags), 19},
-        {NETF(otherEntityNum), GENTITYNUM_BITS},
-        {NETF(weapon), 8},
-        {NETF(clientNum), 8},
-        {NETF(angles[1]), 0},
-        {NETF(pos.trDuration), 32},
-        {NETF(apos.trType), 8},
-        {NETF(origin[0]), 0},
-        {NETF(origin[1]), 0},
-        {NETF(origin[2]), 0},
-        {NETF(solid), 24},
-        {NETF(powerups), MAX_POWERUPS},
-        {NETF(modelindex), 8},
-        {NETF(otherEntityNum2), GENTITYNUM_BITS},
-        {NETF(loopSound), 8},
-        {NETF(generic1), 8},
-        {NETF(origin2[2]), 0},
-        {NETF(origin2[0]), 0},
-        {NETF(origin2[1]), 0},
-        {NETF(modelindex2), 8},
-        {NETF(angles[0]), 0},
-        {NETF(time), 32},
-        {NETF(apos.trTime), 32},
-        {NETF(apos.trDuration), 32},
-        {NETF(apos.trBase[2]), 0},
-        {NETF(apos.trDelta[0]), 0},
-        {NETF(apos.trDelta[1]), 0},
-        {NETF(apos.trDelta[2]), 0},
-        {NETF(time2), 32},
-        {NETF(angles[2]), 0},
-        {NETF(angles2[0]), 0},
-        {NETF(angles2[2]), 0},
-        {NETF(constantLight), 32},
-        {NETF(frame), 16}};
+        {NETF(pos.trTime), 32},         // 0
+        {NETF(pos.trBase[0]), 0},        // 1
+        {NETF(pos.trBase[1]), 0},        // 2
+        {NETF(pos.trDelta[0]), 0},       // 3
+        {NETF(pos.trDelta[1]), 0},       // 4
+        {NETF(pos.trBase[2]), 0},        // 5
+        {NETF(apos.trBase[1]), 0},       // 6
+        {NETF(pos.trDelta[2]), 0},       // 7
+        {NETF(apos.trBase[0]), 0},       // 8
+        {NETF(pos.gravity), 32},         // 9  [QL] int, not float
+        {NETF(event), 10},               // 10
+        {NETF(angles2[1]), 0},           // 11
+        {NETF(eType), 8},               // 12
+        {NETF(torsoAnim), 8},           // 13
+        {NETF(eventParm), 8},           // 14
+        {NETF(legsAnim), 8},            // 15
+        {NETF(groundEntityNum), GENTITYNUM_BITS}, // 16
+        {NETF(pos.trType), 8},          // 17
+        {NETF(eFlags), 19},             // 18
+        {NETF(otherEntityNum), GENTITYNUM_BITS},   // 19
+        {NETF(weapon), 8},              // 20
+        {NETF(clientNum), 8},           // 21
+        {NETF(angles[1]), 0},           // 22
+        {NETF(pos.trDuration), 32},     // 23
+        {NETF(apos.trType), 8},         // 24
+        {NETF(origin[0]), 0},           // 25
+        {NETF(origin[1]), 0},           // 26
+        {NETF(origin[2]), 0},           // 27
+        {NETF(solid), 24},              // 28
+        {NETF(powerups), MAX_POWERUPS}, // 29
+        {NETF(modelindex), 8},          // 30
+        {NETF(otherEntityNum2), GENTITYNUM_BITS},  // 31
+        {NETF(loopSound), 8},           // 32
+        {NETF(generic1), 8},            // 33
+        {NETF(origin2[2]), 0},          // 34
+        {NETF(origin2[0]), 0},          // 35
+        {NETF(origin2[1]), 0},          // 36
+        {NETF(modelindex2), 8},         // 37
+        {NETF(angles[0]), 0},           // 38
+        {NETF(time), 32},               // 39
+        {NETF(apos.trTime), 32},        // 40
+        {NETF(apos.trDuration), 32},    // 41
+        {NETF(apos.trBase[2]), 0},      // 42
+        {NETF(apos.trDelta[0]), 0},     // 43
+        {NETF(apos.trDelta[1]), 0},     // 44
+        {NETF(apos.trDelta[2]), 0},     // 45
+        {NETF(apos.gravity), 32},       // 46 [QL] int, not float
+        {NETF(time2), 32},              // 47
+        {NETF(angles[2]), 0},           // 48
+        {NETF(angles2[0]), 0},          // 49
+        {NETF(angles2[2]), 0},          // 50
+        {NETF(constantLight), 32},      // 51
+        {NETF(frame), 16},              // 52
+        {NETF(jumpTime), 32},           // 53 [QL]
+        {NETF(doubleJumped), 1},        // 54 [QL]
+        {NETF(health), 16},             // 55 [QL]
+        {NETF(armor), 16},              // 56 [QL]
+        {NETF(location), 8},            // 57 [QL]
+};
 
 // if (int)f == f and (int)f + ( 1<<(FLOAT_INT_BITS-1) ) < ( 1 << FLOAT_INT_BITS )
 // the float will be sent with FLOAT_INT_BITS, otherwise all 32 bits will be sent
@@ -1067,56 +1090,69 @@ plyer_state_t communication
 // using the stringizing operator to save typing...
 #define PSF(x) #x, (size_t)&((playerState_t*)0)->x
 
+// [QL] field order and bit counts must match the QL binary exactly -
+// delta encoding uses field indices, so any mismatch desynchronizes the bitstream
 netField_t playerStateFields[] =
     {
-        {PSF(commandTime), 32},
-        {PSF(origin[0]), 0},
-        {PSF(origin[1]), 0},
-        {PSF(bobCycle), 8},
-        {PSF(velocity[0]), 0},
-        {PSF(velocity[1]), 0},
-        {PSF(viewangles[1]), 0},
-        {PSF(viewangles[0]), 0},
-        {PSF(weaponTime), -16},
-        {PSF(origin[2]), 0},
-        {PSF(velocity[2]), 0},
-        {PSF(legsTimer), 8},
-        {PSF(pm_time), -16},
-        {PSF(eventSequence), 16},
-        {PSF(torsoAnim), 8},
-        {PSF(movementDir), 4},
-        {PSF(events[0]), 8},
-        {PSF(legsAnim), 8},
-        {PSF(events[1]), 8},
-        {PSF(pm_flags), 16},
-        {PSF(groundEntityNum), GENTITYNUM_BITS},
-        {PSF(weaponstate), 4},
-        {PSF(eFlags), 16},
-        {PSF(externalEvent), 10},
-        {PSF(gravity), 16},
-        {PSF(speed), 16},
-        {PSF(delta_angles[1]), 16},
-        {PSF(externalEventParm), 8},
-        {PSF(viewheight), -8},
-        {PSF(damageEvent), 8},
-        {PSF(damageYaw), 8},
-        {PSF(damagePitch), 8},
-        {PSF(damageCount), 8},
-        {PSF(generic1), 8},
-        {PSF(pm_type), 8},
-        {PSF(delta_angles[0]), 16},
-        {PSF(delta_angles[2]), 16},
-        {PSF(torsoTimer), 12},
-        {PSF(eventParms[0]), 8},
-        {PSF(eventParms[1]), 8},
-        {PSF(clientNum), 8},
-        {PSF(weapon), 5},
-        {PSF(viewangles[2]), 0},
-        {PSF(grapplePoint[0]), 0},
-        {PSF(grapplePoint[1]), 0},
-        {PSF(grapplePoint[2]), 0},
-        {PSF(jumppad_ent), GENTITYNUM_BITS},
-        {PSF(loopSound), 16}};
+        {PSF(commandTime), 32},              // 0
+        {PSF(origin[0]), 0},                 // 1
+        {PSF(origin[1]), 0},                 // 2
+        {PSF(bobCycle), 8},                  // 3
+        {PSF(velocity[0]), 0},               // 4
+        {PSF(velocity[1]), 0},               // 5
+        {PSF(viewangles[1]), 0},             // 6
+        {PSF(viewangles[0]), 0},             // 7
+        {PSF(weaponTime), -16},              // 8
+        {PSF(origin[2]), 0},                 // 9
+        {PSF(velocity[2]), 0},               // 10
+        {PSF(legsTimer), 8},                 // 11
+        {PSF(pm_time), -16},                 // 12
+        {PSF(eventSequence), 16},            // 13
+        {PSF(torsoAnim), 8},                 // 14
+        {PSF(movementDir), 4},               // 15
+        {PSF(events[0]), 8},                 // 16
+        {PSF(legsAnim), 8},                  // 17
+        {PSF(events[1]), 8},                 // 18
+        {PSF(pm_flags), 24},                 // 19 [QL] 24 bits (was 16 in Q3)
+        {PSF(groundEntityNum), GENTITYNUM_BITS}, // 20
+        {PSF(weaponstate), 4},               // 21
+        {PSF(eFlags), 16},                   // 22
+        {PSF(externalEvent), 10},            // 23
+        {PSF(gravity), 16},                  // 24
+        {PSF(speed), 16},                    // 25
+        {PSF(delta_angles[1]), 16},          // 26
+        {PSF(externalEventParm), 8},         // 27
+        {PSF(viewheight), -8},               // 28
+        {PSF(damageEvent), 8},               // 29
+        {PSF(damageYaw), 8},                 // 30
+        {PSF(damagePitch), 8},               // 31
+        {PSF(damageCount), 8},               // 32
+        {PSF(generic1), 8},                  // 33
+        {PSF(pm_type), 8},                   // 34
+        {PSF(delta_angles[0]), 16},          // 35
+        {PSF(delta_angles[2]), 16},          // 36
+        {PSF(torsoTimer), 12},               // 37
+        {PSF(eventParms[0]), 8},             // 38
+        {PSF(eventParms[1]), 8},             // 39
+        {PSF(clientNum), 8},                 // 40
+        {PSF(weapon), 5},                    // 41
+        {PSF(weaponPrimary), 8},             // 42 [QL]
+        {PSF(viewangles[2]), 0},             // 43
+        {PSF(grapplePoint[0]), 0},           // 44
+        {PSF(grapplePoint[1]), 0},           // 45
+        {PSF(grapplePoint[2]), 0},           // 46
+        {PSF(jumppad_ent), GENTITYNUM_BITS}, // 47
+        {PSF(loopSound), 16},               // 48
+        {PSF(jumpTime), 32},                // 49 [QL]
+        {PSF(doubleJumped), 1},             // 50 [QL]
+        {PSF(crouchTime), 32},              // 51 [QL]
+        {PSF(crouchSlideTime), 32},         // 52 [QL]
+        {PSF(location), 8},                 // 53 [QL]
+        {PSF(fov), 8},                      // 54 [QL]
+        {PSF(forwardmove), 8},              // 55 [QL]
+        {PSF(rightmove), 8},                // 56 [QL]
+        {PSF(upmove), 8},                   // 57 [QL]
+};
 
 /*
 =============

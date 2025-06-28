@@ -852,38 +852,55 @@ void Cvar_Reset_f(void) {
 ============
 Cvar_WriteVariables
 
-Appends lines containing "set variable value" for all variables
-with the archive flag set to qtrue.
+[QL] Writes archived cvars to two files:
+  f_hw  = qzconfig.cfg (hardware settings)
+  f_rep = repconfig.cfg (replicated/user-created settings)
+
+Routing logic (matches binary):
+  - CVAR_REPLICATE (0x800) cvars → repconfig
+  - CVAR_USER_CREATED (0x80) cvars → repconfig
+  - Other CVAR_ARCHIVE (0x1) cvars → qzconfig
+
+Pass the same handle for both to write everything to one file.
+Skips "cl_cdkey" and "password" cvars (matches binary).
 ============
 */
-void Cvar_WriteVariables(fileHandle_t f) {
+void Cvar_WriteVariables(fileHandle_t f_hw, fileHandle_t f_rep) {
     cvar_t* var;
-    char buffer[1024];
+    char buffer[2048];
+    const char* value;
+    fileHandle_t dest;
 
     for (var = cvar_vars; var; var = var->next) {
-        if (var->flags & CVAR_ARCHIVE) {
-            // write the latched value, even if it hasn't taken effect yet
-            if (var->latchedString) {
-                if (strlen(var->name) + strlen(var->latchedString) + 10 > sizeof(buffer)) {
-                    Com_Printf(S_COLOR_YELLOW
-                               "WARNING: value of variable "
-                               "\"%s\" too long to write to file\n",
-                               var->name);
-                    continue;
-                }
-                Com_sprintf(buffer, sizeof(buffer), "seta %s \"%s\"\n", var->name, var->latchedString);
-            } else {
-                if (strlen(var->name) + strlen(var->string) + 10 > sizeof(buffer)) {
-                    Com_Printf(S_COLOR_YELLOW
-                               "WARNING: value of variable "
-                               "\"%s\" too long to write to file\n",
-                               var->name);
-                    continue;
-                }
-                Com_sprintf(buffer, sizeof(buffer), "seta %s \"%s\"\n", var->name, var->string);
-            }
-            FS_Write(buffer, strlen(buffer), f);
+        // [QL] skip sensitive cvars
+        if (!Q_stricmp(var->name, "cl_cdkey"))
+            continue;
+        if (!Q_stricmp(var->name, "password"))
+            continue;
+
+        if (!((var->flags & CVAR_ARCHIVE) || (var->flags & CVAR_REPLICATE)))
+            continue;
+
+        // write the latched value, even if it hasn't taken effect yet
+        value = var->latchedString ? var->latchedString : var->string;
+
+        if (strlen(var->name) + strlen(value) + 10 > sizeof(buffer)) {
+            Com_Printf(S_COLOR_YELLOW
+                       "WARNING: value of variable "
+                       "\"%s\" too long to write to file\n",
+                       var->name);
+            continue;
         }
+
+        Com_sprintf(buffer, sizeof(buffer), "seta %s \"%s\"\n", var->name, value);
+
+        // [QL] route to repconfig if CVAR_REPLICATE or CVAR_USER_CREATED
+        dest = f_hw;
+        if ((var->flags & CVAR_REPLICATE) || (var->flags & CVAR_USER_CREATED)) {
+            dest = f_rep;
+        }
+
+        FS_Write(buffer, strlen(buffer), dest);
     }
 }
 
