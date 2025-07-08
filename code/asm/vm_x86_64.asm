@@ -82,4 +82,47 @@ qvmcall64 PROC FRAME
   ret
 qvmcall64 ENDP
 
+; ============================================================================
+; MSVC x64 implementations of functions that use GCC inline asm on other
+; platforms. These are needed because MSVC does not support inline asm on x64.
+; ============================================================================
+
+; long qftolsse(float f)
+; Truncate float to long using SSE.
+; f is passed in xmm0 (Windows x64 calling convention).
+qftolsse PROC
+    cvttss2si rax, xmm0
+    ret
+qftolsse ENDP
+
+; int qvmftolsse(void)
+; Convert float at [rdi + rbx*4] to int using SSE truncation.
+; Called from JIT-compiled VM code which uses rdi=opStack, rbx=opStackOfs.
+qvmftolsse PROC
+    movss xmm0, dword ptr [rdi + rbx*4]
+    cvttss2si eax, xmm0
+    ret
+qvmftolsse ENDP
+
+; void qsnapvectorsse(vec3_t vec)
+; Round each of 3 float components to nearest integer.
+; vec is passed in rcx (Windows x64 calling convention).
+qsnapvectorsse PROC
+    movss xmm0, dword ptr [rcx]
+    cvtss2si eax, xmm0
+    cvtsi2ss xmm0, eax
+    movss dword ptr [rcx], xmm0
+
+    movss xmm0, dword ptr [rcx+4]
+    cvtss2si eax, xmm0
+    cvtsi2ss xmm0, eax
+    movss dword ptr [rcx+4], xmm0
+
+    movss xmm0, dword ptr [rcx+8]
+    cvtss2si eax, xmm0
+    cvtsi2ss xmm0, eax
+    movss dword ptr [rcx+8], xmm0
+    ret
+qsnapvectorsse ENDP
+
 end
