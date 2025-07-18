@@ -589,7 +589,7 @@ void SV_SendClientMessages(void) {
         if (!c->state)
             continue;  // not connected
 
-        if (svs.time - c->lastSnapshotTime < c->snapshotMsec * com_timescale->value)
+        if (svs.time - c->nextSnapshotTime < c->snapshotMsec * com_timescale->value)
             continue;  // It's not time yet
 
         if (*c->downloadName)
@@ -612,7 +612,7 @@ void SV_SendClientMessages(void) {
 
         // generate and send a new message
         SV_SendClientSnapshot(c);
-        c->lastSnapshotTime = svs.time;
+        c->nextSnapshotTime = svs.time;
         c->rateDelayed = qfalse;
     }
 }
