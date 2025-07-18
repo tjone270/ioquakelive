@@ -313,7 +313,9 @@ BotImport_HunkAlloc
 */
 static void* BotImport_HunkAlloc(int size) {
     if (Hunk_CheckMark()) {
-        Com_Error(ERR_DROP, "SV_Bot_HunkAlloc: Alloc with marks already set");
+        // [QL] Downgraded from ERR_DROP - bot AI routinely allocates
+        // after Hunk_SetMark during QL's init sequence
+        Com_DPrintf("SV_Bot_HunkAlloc: Alloc with marks already set\n");
     }
     return Hunk_Alloc(size, h_high);
 }
@@ -444,9 +446,9 @@ void SV_BotFrame(int time) {
     if (!bot_enable)
         return;
     // NOTE: maybe the game is already shutdown
-    if (!gvm)
+    if (!sv.state)
         return;
-    VM_Call(gvm, BOTAI_START_FRAME, time);
+    // BOTAI_START_FRAME doesn't exist in QL
 }
 
 /*

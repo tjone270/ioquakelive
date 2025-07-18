@@ -250,22 +250,32 @@ static void SV_MapRestart_f(void) {
         delay = 5;
     }
     if (delay && !Cvar_VariableValue("g_doWarmup")) {
+        char warmupInfo[MAX_INFO_STRING] = {0};
+        int gametype;
+
         sv.restartTime = sv.time + delay * 1000;
-        SV_SetConfigstring(CS_WARMUP, va("%i", sv.restartTime));
+
+        // [QL] Build info string with time and gametype keys
+        Info_SetValueForKey(warmupInfo, "time", va("%i", sv.restartTime));
+        gametype = (int)Cvar_VariableValue("g_gametype");
+        Info_SetValueForKey(warmupInfo, "g_gametype", va("%d", gametype));
+        SV_SetConfigstring(CS_WARMUP, warmupInfo);
         return;
     }
 
-    // check for changes in variables that can't just be restarted
-    // check for maxclients change
-    if (sv_maxclients->modified || sv_gametype->modified) {
-        char mapname[MAX_QPATH];
+    // [QL] Skip variable-change checks when game triggered the restart (g_restarted)
+    if (!Cvar_VariableValue("g_restarted")) {
+        // check for changes in variables that can't just be restarted
+        if (sv_maxclients->modified || sv_gametype->modified) {
+            char mapname[MAX_QPATH];
 
-        Com_Printf("variable change -- restarting.\n");
-        // restart the map the slow way
-        Q_strncpyz(mapname, Cvar_VariableString("mapname"), sizeof(mapname));
+            Com_Printf("variable change -- restarting.\n");
+            // restart the map the slow way
+            Q_strncpyz(mapname, Cvar_VariableString("mapname"), sizeof(mapname));
 
-        SV_SpawnServer(mapname, qfalse);
-        return;
+            SV_SpawnServer(mapname, qfalse);
+            return;
+        }
     }
 
     // toggle the server bit so clients can detect that a
@@ -273,9 +283,11 @@ static void SV_MapRestart_f(void) {
     svs.snapFlagServerBit ^= SNAPFLAG_SERVERCOUNT;
 
     // generate a new serverid
-    // TTimo - don't update restartedserverId there, otherwise we won't deal correctly with multiple map_restart
     sv.serverId = com_frameTime;
     Cvar_Set("sv_serverid", va("%i", sv.serverId));
+
+    // [QL] Record level start wall-clock time
+    Cvar_Set("g_levelStartTime", va("%i", (int)time(NULL)));
 
     // if a map_restart occurs while a client is changing maps, we need
     // to give them the correct time so that when they finish loading
@@ -296,7 +308,7 @@ static void SV_MapRestart_f(void) {
 
     // run a few frames to allow everything to settle
     for (i = 0; i < 3; i++) {
-        VM_Call(gvm, GAME_RUN_FRAME, sv.time);
+        SV_GameRunFrame(sv.time);
         sv.time += 100;
         svs.time += 100;
     }
@@ -323,7 +335,7 @@ static void SV_MapRestart_f(void) {
         SV_AddServerCommand(client, "map_restart\n");
 
         // connect the client again, without the firstTime flag
-        denied = VM_ExplicitArgPtr(gvm, VM_Call(gvm, GAME_CLIENT_CONNECT, i, qfalse, isBot));
+        denied = SV_GameClientConnect(i, qfalse, isBot);
         if (denied) {
             // this generally shouldn't happen, because the client
             // was connected before the level change
@@ -343,7 +355,7 @@ static void SV_MapRestart_f(void) {
     }
 
     // run another frame to allow things to look at all the players
-    VM_Call(gvm, GAME_RUN_FRAME, sv.time);
+    SV_GameRunFrame(sv.time);
     sv.time += 100;
     svs.time += 100;
 }
@@ -970,7 +982,7 @@ static void SV_CoinToss_f(void) {
         coin = "TAILS";
     }
 
-    SV_SendServerCommand(NULL, "print \"^3The coin is: ^5%s^7\"\n", coin);
+    SV_SendServerCommand(NULL, "print \"^3The coin is: ^5%s^7\n\"\n", coin);
 }
 
 /*
@@ -1282,7 +1294,6 @@ Also called by SV_DropClient, SV_DirectConnect, and SV_SpawnServer
 ==================
 */
 void SV_Heartbeat_f(void) {
-    svs.nextHeartbeatTime = -9999999;
 }
 
 /*
