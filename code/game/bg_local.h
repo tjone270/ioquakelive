@@ -51,6 +51,11 @@ typedef struct {
     vec3_t previous_origin;
     vec3_t previous_velocity;
     int previous_waterlevel;
+
+    // [QL] additional local state
+    qboolean ladder;
+    int stepJumpFlag;
+    int crouchStepJumpFlag;
 } pml_t;
 
 extern pmove_t* pm;
@@ -69,6 +74,46 @@ extern float pm_flyaccelerate;
 extern float pm_friction;
 extern float pm_waterfriction;
 extern float pm_flightfriction;
+extern float pm_spectatorfriction;
+
+// [QL] configurable movement parameters (set via PM_Set* functions)
+extern float pm_jumpVelocity;
+extern float pm_jumpVelocityMax;
+extern float pm_jumpVelocityScaleAdd;
+extern float pm_jumpVelocityTimeThreshold;
+extern float pm_jumpVelocityTimeThresholdOffset;
+extern float pm_chainJumpVelocity;
+extern float pm_stepJumpVelocity;
+extern float pm_jumpTimeDeltaMin;
+extern int pm_chainJump;
+extern int pm_rampJump;
+extern float pm_rampJumpScale;
+extern int pm_stepJump;
+extern int pm_crouchStepJump;
+extern int pm_autoHop;
+extern int pm_bunnyHop;
+extern float pm_airAccel;
+extern float pm_airStopAccel;
+extern float pm_airControl;
+extern float pm_strafeAccel;
+extern float pm_walkAccel;
+extern float pm_walkFriction;
+extern float pm_circleStrafeFriction;
+extern float pm_crouchSlideFriction;
+extern int pm_crouchSlideTime;
+extern int pm_airSteps;
+extern float pm_airStepFriction;
+extern float pm_stepHeight;
+extern float pm_waterSwimScale;
+extern float pm_waterWadeScale;
+extern float pm_wishSpeed;
+extern int pm_weaponDropTime;
+extern int pm_weaponRaiseTime;
+extern int pm_noPlayerClip;
+extern float pm_hookPullVelocity;
+extern int pm_doubleJump;
+extern int pm_crouchSlide;
+extern float pm_velocityGH;
 
 extern int c_pmove;
 
@@ -78,3 +123,7 @@ void PM_AddEvent(int newEvent);
 
 qboolean PM_SlideMove(qboolean gravity);
 void PM_StepSlideMove(qboolean gravity);
+
+// [QL] step-jump support - called from bg_slidemove.c
+qboolean PM_WouldJump(void);
+void PM_DoJump(void);

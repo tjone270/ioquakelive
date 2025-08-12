@@ -25,6 +25,40 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/q_shared.h"
 #include "bg_public.h"
 
+// [QL] gametype short names for entity filtering (indexed by gametype_t)
+const char *gametypeShortNames[] = {
+	"ffa",       // GT_FFA
+	"duel",      // GT_DUEL
+	"race",      // GT_RACE
+	"tdm",       // GT_TEAM
+	"ca",        // GT_CA
+	"ctf",       // GT_CTF
+	"1f",        // GT_1FCTF
+	"ob",        // GT_OBELISK
+	"har",       // GT_HARVESTER
+	"ft",        // GT_FREEZE
+	"dom",       // GT_DOMINATION
+	"ad",        // GT_AD
+	"rr"         // GT_RR
+};
+
+// [QL] gametype display names (indexed by gametype_t)
+const char *gametypeDisplayNames[] = {
+	"Free For All",       // GT_FFA
+	"Duel",               // GT_DUEL
+	"Race",               // GT_RACE
+	"Team Deathmatch",    // GT_TEAM
+	"Clan Arena",         // GT_CA
+	"Capture the Flag",   // GT_CTF
+	"One Flag CTF",       // GT_1FCTF
+	"Overload",           // GT_OBELISK
+	"Harvester",          // GT_HARVESTER
+	"Freeze Tag",         // GT_FREEZE
+	"Domination",         // GT_DOMINATION
+	"Attack and Defend",  // GT_AD
+	"Red Rover"           // GT_RR
+};
+
 /*QUAKED item_***** ( 0 0 0 ) (-16 -16 -16) (16 16 16) suspended
 DO NOT USE THIS CLASS, IT JUST HOLDS GENERAL INFORMATION.
 The suspended flag will allow items to hang in the air, otherwise they are dropped to the next surface.
@@ -40,6 +74,32 @@ An item fires all of its targets when it is picked up.  If the toucher can't car
 "random" random number of plus or minus seconds varied from the respawn time
 "count" override quantity or duration on most items.
 */
+
+// [QL] weapon reload times (fire intervals in ms), indexed by weapon_t
+// Defaults match QL's weapon_reload_* cvar defaults
+int bg_weaponReloadTime[WP_NUM_WEAPONS] = {
+    0,     // WP_NONE
+    100,   // WP_GAUNTLET (weapon_reload_gh)
+    100,   // WP_MACHINEGUN (weapon_reload_mg)
+    1000,  // WP_SHOTGUN (weapon_reload_sg)
+    800,   // WP_GRENADE_LAUNCHER (weapon_reload_gl)
+    800,   // WP_ROCKET_LAUNCHER (weapon_reload_rl)
+    50,    // WP_LIGHTNING (weapon_reload_lg)
+    1500,  // WP_RAILGUN (weapon_reload_rg)
+    100,   // WP_PLASMAGUN (weapon_reload_pg)
+    300,   // WP_BFG (weapon_reload_bfg)
+    100,   // WP_GRAPPLING_HOOK (weapon_reload_gh)
+    1000,  // WP_NAILGUN (weapon_reload_ng)
+    800,   // WP_PROX_LAUNCHER (weapon_reload_prox)
+    50,    // WP_CHAINGUN (weapon_reload_cg)
+    75,    // WP_HMG (weapon_reload_hmg)
+};
+
+void BG_SetWeaponReload(int weapon, int reloadTime) {
+    if (weapon >= 0 && weapon < WP_NUM_WEAPONS) {
+        bg_weaponReloadTime[weapon] = reloadTime;
+    }
+}
 
 gitem_t bg_itemlist[] =
     {
@@ -491,7 +551,7 @@ gitem_t bg_itemlist[] =
          */
         {
             "item_quad",
-            "sound/items/quaddamage.wav",
+            "sound/items/damage3.ogg",  // [QL] renamed from quaddamage.wav
             {"models/powerups/instant/quad.md3",
              "models/powerups/instant/quad_ring.md3",
              NULL, NULL},
@@ -501,7 +561,7 @@ gitem_t bg_itemlist[] =
             IT_POWERUP,
             PW_QUAD,
             /* precache */ "",
-            /* sounds */ "sound/items/damage2.wav sound/items/damage3.wav"},
+            /* sounds */ "sound/items/damage3.ogg"},  // [QL] damage2.wav removed
 
         /*QUAKED item_enviro (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
          */
@@ -517,13 +577,13 @@ gitem_t bg_itemlist[] =
             IT_POWERUP,
             PW_BATTLESUIT,
             /* precache */ "",
-            /* sounds */ "sound/items/airout.wav sound/items/protect3.wav"},
+            /* sounds */ "sound/items/protect3.ogg"},  // [QL] airout.wav removed
 
         /*QUAKED item_haste (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
          */
         {
             "item_haste",
-            "sound/items/haste.wav",
+            "sound/items/guard.wav",  // [QL] uses guard sound for haste pickup
             {"models/powerups/instant/haste.md3",
              "models/powerups/instant/haste_ring.md3",
              NULL, NULL},
@@ -539,7 +599,7 @@ gitem_t bg_itemlist[] =
          */
         {
             "item_invis",
-            "sound/items/invisibility.wav",
+            "sound/items/holdable.wav",  // [QL] uses generic holdable sound
             {"models/powerups/instant/invis.md3",
              "models/powerups/instant/invis_ring.md3",
              NULL, NULL},
@@ -555,7 +615,7 @@ gitem_t bg_itemlist[] =
          */
         {
             "item_regen",
-            "sound/items/regeneration.wav",
+            "sound/items/holdable.wav",  // [QL] uses generic holdable sound
             {"models/powerups/instant/regen.md3",
              "models/powerups/instant/regen_ring.md3",
              NULL, NULL},
@@ -705,6 +765,37 @@ gitem_t bg_itemlist[] =
             /* precache */ "",
             /* sounds */ ""},
 
+        // [QL] Heavy Machine Gun ammo
+        /*QUAKED ammo_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+         */
+        {
+            "ammo_hmg",
+            "sound/misc/am_pkup.wav",
+            {"models/powerups/ammo/hmgam.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/ammo_hmg",
+            /* pickup */ "Heavy Bullets",
+            50,
+            IT_AMMO,
+            WP_HMG,
+            /* precache */ "",
+            /* sounds */ ""},
+
+        // [QL] Ammo Pack - gives a portion of all ammo types
+        // giTag=15 is a sentinel (WP_NUM_WEAPONS) meaning "all weapons"
+        {
+            "ammo_pack",
+            "sound/misc/am_pkup.wav",
+            {"models/powerups/ammo/ammopack.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/ammo_pack",
+            /* pickup */ "Ammo Pack",
+            1,
+            IT_AMMO,
+            WP_NUM_WEAPONS,
+            /* precache */ "",
+            /* sounds */ ""},
+
         //
         // PERSISTANT POWERUP ITEMS
         //
@@ -742,7 +833,7 @@ gitem_t bg_itemlist[] =
          */
         {
             "item_doubler",
-            "sound/items/doubler.wav",
+            "sound/items/damage.ogg",  // [QL] doubler.wav doesn't exist
             {"models/powerups/doubler.md3",
              NULL, NULL, NULL},
             /* icon */ "icons/doubler",
@@ -757,7 +848,7 @@ gitem_t bg_itemlist[] =
          */
         {
             "item_ammoregen",
-            "sound/items/ammoregen.wav",
+            "sound/items/armorregen.ogg",  // [QL] renamed from ammoregen.wav
             {"models/powerups/ammo.md3",
              NULL, NULL, NULL},
             /* icon */ "icons/ammo_regen",
@@ -856,6 +947,68 @@ gitem_t bg_itemlist[] =
             WP_CHAINGUN,
             /* precache */ "",
             /* sounds */ "sound/weapons/vulcan/wvulwind.wav"},
+
+        // [QL] Heavy Machine Gun
+        /*QUAKED weapon_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+         */
+        {
+            "weapon_hmg",
+            "sound/misc/w_pkup.wav",
+            {"models/weapons3/hmg/hmg.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/weap_hmg",
+            /* pickup */ "Heavy Machinegun",
+            100,
+            IT_WEAPON,
+            WP_HMG,
+            /* precache */ "",
+            /* sounds */ ""},
+
+        // [QL] Keys
+        /*QUAKED item_key_silver (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+        */
+        {
+            "item_key_silver",
+            "sound/items/key_silver.wav",
+            {"models/powerups/keys/key_silver.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/key_silver",
+            /* pickup */ "Silver Key",
+            1,
+            IT_KEY,
+            KEY_SILVER,
+            /* precache */ "",
+            /* sounds */ ""},
+
+        /*QUAKED item_key_gold (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+        */
+        {
+            "item_key_gold",
+            "sound/items/key_gold.wav",
+            {"models/powerups/keys/key_gold.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/key_gold",
+            /* pickup */ "Gold Key",
+            1,
+            IT_KEY,
+            KEY_GOLD,
+            /* precache */ "",
+            /* sounds */ ""},
+
+        /*QUAKED item_key_master (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+        */
+        {
+            "item_key_master",
+            "sound/items/key_gold.wav",
+            {"models/powerups/keys/key_master.md3",
+             NULL, NULL, NULL},
+            /* icon */ "icons/key_master",
+            /* pickup */ "Master Key",
+            1,
+            IT_KEY,
+            KEY_MASTER,
+            /* precache */ "",
+            /* sounds */ ""},
 
         // end of list marker
         {NULL}};
@@ -1083,6 +1236,9 @@ qboolean BG_CanItemBeGrabbed(int gametype, const entityState_t* ent, const playe
             }
             return qtrue;
 
+        case IT_KEY:
+            return qtrue;  // [QL] keys are always pickupable
+
         case IT_BAD:
             Com_Error(ERR_DROP, "BG_CanItemBeGrabbed: IT_BAD");
         default:
@@ -1187,109 +1343,108 @@ void BG_EvaluateTrajectoryDelta(const trajectory_t* tr, int atTime, vec3_t resul
     }
 }
 
+// [QL] Event name table - must match entity_event_t enum exactly.
 char* eventnames[] = {
-    "EV_NONE",
-
-    "EV_FOOTSTEP",
-    "EV_FOOTSTEP_METAL",
-    "EV_FOOTSPLASH",
-    "EV_FOOTWADE",
-    "EV_SWIM",
-
-    "EV_STEP_4",
-    "EV_STEP_8",
-    "EV_STEP_12",
-    "EV_STEP_16",
-
-    "EV_FALL_SHORT",
-    "EV_FALL_MEDIUM",
-    "EV_FALL_FAR",
-
-    "EV_JUMP_PAD",  // boing sound at origin", jump sound on player
-
-    "EV_JUMP",
-    "EV_WATER_TOUCH",  // foot touches
-    "EV_WATER_LEAVE",  // foot leaves
-    "EV_WATER_UNDER",  // head touches
-    "EV_WATER_CLEAR",  // head leaves
-
-    "EV_ITEM_PICKUP",         // normal item pickups are predictable
-    "EV_GLOBAL_ITEM_PICKUP",  // powerup / team sounds are broadcast to everyone
-
-    "EV_NOAMMO",
-    "EV_CHANGE_WEAPON",
-    "EV_FIRE_WEAPON",
-
-    "EV_USE_ITEM0",
-    "EV_USE_ITEM1",
-    "EV_USE_ITEM2",
-    "EV_USE_ITEM3",
-    "EV_USE_ITEM4",
-    "EV_USE_ITEM5",
-    "EV_USE_ITEM6",
-    "EV_USE_ITEM7",
-    "EV_USE_ITEM8",
-    "EV_USE_ITEM9",
-    "EV_USE_ITEM10",
-    "EV_USE_ITEM11",
-    "EV_USE_ITEM12",
-    "EV_USE_ITEM13",
-    "EV_USE_ITEM14",
-    "EV_USE_ITEM15",
-
-    "EV_ITEM_RESPAWN",
-    "EV_ITEM_POP",
-    "EV_PLAYER_TELEPORT_IN",
-    "EV_PLAYER_TELEPORT_OUT",
-
-    "EV_GRENADE_BOUNCE",  // eventParm will be the soundindex
-
-    "EV_GENERAL_SOUND",
-    "EV_GLOBAL_SOUND",  // no attenuation
-    "EV_GLOBAL_TEAM_SOUND",
-
-    "EV_BULLET_HIT_FLESH",
-    "EV_BULLET_HIT_WALL",
-
-    "EV_MISSILE_HIT",
-    "EV_MISSILE_MISS",
-    "EV_MISSILE_MISS_METAL",
-    "EV_RAILTRAIL",
-    "EV_SHOTGUN",
-    "EV_BULLET",  // otherEntity is the shooter
-
-    "EV_PAIN",
-    "EV_DEATH1",
-    "EV_DEATH2",
-    "EV_DEATH3",
-    "EV_OBITUARY",
-
-    "EV_POWERUP_QUAD",
-    "EV_POWERUP_BATTLESUIT",
-    "EV_POWERUP_REGEN",
-
-    "EV_GIB_PLAYER",  // gib a previously living player
-    "EV_SCOREPLUM",   // score plum
-
-    "EV_PROXIMITY_MINE_STICK",
-    "EV_PROXIMITY_MINE_TRIGGER",
-    "EV_KAMIKAZE",        // kamikaze explodes
-    "EV_OBELISKEXPLODE",  // obelisk explodes
-    "EV_OBELISKPAIN",     // obelisk pain
-    "EV_INVUL_IMPACT",    // invulnerability sphere impact
-    "EV_JUICED",          // invulnerability juiced effect
-    "EV_LIGHTNINGBOLT",   // lightning bolt bounced of invulnerability sphere
-
-    "EV_DEBUG_LINE",
-    "EV_STOPLOOPINGSOUND",
-    "EV_TAUNT",
-    "EV_TAUNT_YES",
-    "EV_TAUNT_NO",
-    "EV_TAUNT_FOLLOWME",
-    "EV_TAUNT_GETFLAG",
-    "EV_TAUNT_GUARDBASE",
-    "EV_TAUNT_PATROL"
-
+    "EV_NONE",                      // 0x00
+    "EV_FOOTSTEP",                  // 0x01
+    "EV_FOOTSTEP_METAL",            // 0x02
+    "EV_FOOTSPLASH",                // 0x03
+    "EV_FOOTWADE",                  // 0x04
+    "EV_SWIM",                      // 0x05
+    "EV_FALL_SHORT",                // 0x06
+    "EV_FALL_MEDIUM",               // 0x07
+    "EV_FALL_FAR",                  // 0x08
+    "EV_JUMP_PAD",                  // 0x09
+    "EV_JUMP",                      // 0x0A
+    "EV_WATER_TOUCH",               // 0x0B
+    "EV_WATER_LEAVE",               // 0x0C
+    "EV_WATER_UNDER",               // 0x0D
+    "EV_WATER_CLEAR",               // 0x0E
+    "EV_ITEM_PICKUP",               // 0x0F
+    "EV_GLOBAL_ITEM_PICKUP",        // 0x10
+    "EV_NOAMMO",                    // 0x11
+    "EV_CHANGE_WEAPON",             // 0x12
+    "EV_DROP_WEAPON",               // 0x13
+    "EV_FIRE_WEAPON",               // 0x14
+    "EV_USE_ITEM0",                 // 0x15
+    "EV_USE_ITEM1",                 // 0x16
+    "EV_USE_ITEM2",                 // 0x17
+    "EV_USE_ITEM3",                 // 0x18
+    "EV_USE_ITEM4",                 // 0x19
+    "EV_USE_ITEM5",                 // 0x1A
+    "EV_USE_ITEM6",                 // 0x1B
+    "EV_USE_ITEM7",                 // 0x1C
+    "EV_USE_ITEM8",                 // 0x1D
+    "EV_USE_ITEM9",                 // 0x1E
+    "EV_USE_ITEM10",                // 0x1F
+    "EV_USE_ITEM11",                // 0x20
+    "EV_USE_ITEM12",                // 0x21
+    "EV_USE_ITEM13",                // 0x22
+    "EV_USE_ITEM14",                // 0x23
+    "EV_USE_ITEM15",                // 0x24
+    "EV_ITEM_RESPAWN",              // 0x25
+    "EV_ITEM_POP",                  // 0x26
+    "EV_PLAYER_TELEPORT_IN",        // 0x27
+    "EV_PLAYER_TELEPORT_OUT",       // 0x28
+    "EV_GRENADE_BOUNCE",            // 0x29
+    "EV_GENERAL_SOUND",             // 0x2A
+    "EV_GLOBAL_SOUND",              // 0x2B
+    "EV_GLOBAL_TEAM_SOUND",         // 0x2C
+    "EV_BULLET_HIT_FLESH",          // 0x2D
+    "EV_BULLET_HIT_WALL",           // 0x2E
+    "EV_MISSILE_HIT",               // 0x2F
+    "EV_MISSILE_MISS",              // 0x30
+    "EV_MISSILE_MISS_METAL",        // 0x31
+    "EV_RAILTRAIL",                 // 0x32
+    "EV_SHOTGUN",                   // 0x33
+    "EV_BULLET",                    // 0x34
+    "EV_PAIN",                      // 0x35
+    "EV_DEATH1",                    // 0x36
+    "EV_DEATH2",                    // 0x37
+    "EV_DEATH3",                    // 0x38
+    "EV_DROWN",                     // 0x39
+    "EV_OBITUARY",                  // 0x3A
+    "EV_POWERUP_QUAD",              // 0x3B
+    "EV_POWERUP_BATTLESUIT",        // 0x3C
+    "EV_POWERUP_REGEN",             // 0x3D
+    "EV_POWERUP_ARMORREGEN",        // 0x3E
+    "EV_GIB_PLAYER",                // 0x3F
+    "EV_SCOREPLUM",                 // 0x40
+    "EV_PROXIMITY_MINE_STICK",      // 0x41
+    "EV_PROXIMITY_MINE_TRIGGER",    // 0x42
+    "EV_KAMIKAZE",                  // 0x43
+    "EV_OBELISKEXPLODE",            // 0x44
+    "EV_OBELISKPAIN",               // 0x45
+    "EV_INVUL_IMPACT",              // 0x46
+    "EV_JUICED",                    // 0x47
+    "EV_LIGHTNINGBOLT",             // 0x48
+    "EV_DEBUG_LINE",                // 0x49
+    "EV_TAUNT",                     // 0x4A
+    "EV_TAUNT_YES",                 // 0x4B
+    "EV_TAUNT_NO",                  // 0x4C
+    "EV_TAUNT_FOLLOWME",            // 0x4D
+    "EV_TAUNT_GETFLAG",             // 0x4E
+    "EV_TAUNT_GUARDBASE",           // 0x4F
+    "EV_TAUNT_PATROL",              // 0x50
+    "EV_FOOTSTEP_SNOW",             // 0x51
+    "EV_FOOTSTEP_WOOD",             // 0x52
+    "EV_ITEM_PICKUP_SPEC",          // 0x53
+    "EV_OVERTIME",                  // 0x54
+    "EV_GAMEOVER",                  // 0x55
+    "EV_MISSILE_MISS_DMGTHROUGH",   // 0x56
+    "EV_THAW_PLAYER",               // 0x57
+    "EV_THAW_TICK",                 // 0x58
+    "EV_SHOTGUN_KILL",              // 0x59
+    "EV_POI",                       // 0x5A
+    "EV_DEBUG_HITBOX",              // 0x5B
+    "EV_LIGHTNING_DISCHARGE",       // 0x5C
+    "EV_RACE_START",                // 0x5D
+    "EV_RACE_CHECKPOINT",           // 0x5E
+    "EV_RACE_FINISH",               // 0x5F
+    "EV_DAMAGEPLUM",                // 0x60
+    "EV_AWARD",                     // 0x61
+    "EV_INFECTED",                  // 0x62
+    "EV_NEW_HIGH_SCORE",            // 0x63
 };
 
 /*

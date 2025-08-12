@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // because games can change separately from the main system version, we need a
 // second version that must match between game and cgame
 
-#define GAME_VERSION BASEGAME "-1"
+#define GAME_VERSION BASEGAME
 
 #define DEFAULT_GRAVITY 800
 #define GIB_HEALTH -40
@@ -45,6 +45,33 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define SCORE_NOT_PRESENT -9999  // for the CS_SCORES[12] when only one player is present
 
 #define VOTE_TIME 30000  // 30 seconds before vote times out
+
+// [QL] Per-client vote state (binary-verified)
+typedef enum {
+    VOTE_NONE,
+    VOTE_PENDING,
+    VOTE_YES,
+    VOTE_NO,
+    VOTE_PASSED,    // admin/mod force-pass
+    VOTE_VETOED     // admin/mod force-fail
+} voteState_t;
+
+// [QL] g_voteFlags bitmask - set bit to DISABLE that vote type
+#define VF_MAP              0x0001  // bit 0: map change
+#define VF_MAP_RESTART      0x0002  // bit 1: map restart
+#define VF_NEXTMAP          0x0004  // bit 2: next map
+#define VF_GAMETYPE         0x0008  // bit 3: gametype change (via map vote)
+#define VF_KICK             0x0010  // bit 4: kick/clientkick
+#define VF_TIMELIMIT        0x0020  // bit 5: timelimit
+#define VF_FRAGLIMIT        0x0040  // bit 6: fraglimit
+#define VF_SHUFFLE          0x0080  // bit 7: shuffle teams
+#define VF_TEAMSIZE         0x0100  // bit 8: team size
+#define VF_COINTOSS         0x0200  // bit 9: cointoss/random
+#define VF_LOADOUTS         0x0400  // bit 10: loadouts
+#define VF_ENDMAP_VOTING    0x0800  // bit 11: end-of-match map voting
+#define VF_AMMO             0x1000  // bit 12: ammo system
+#define VF_TIMERS           0x2000  // bit 13: item timers
+#define VF_WEAPRESPAWN      0x4000  // bit 14: weapon respawn time
 
 #define MINS_Z -24
 #define DEFAULT_VIEWHEIGHT 26
@@ -129,30 +156,50 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_INFECTED_SURVIVOR_MINSPEED 707
 #define CS_RACE_POINTS 708
 #define CS_DISABLE_LOADOUT 709
-#define CS_MATCH_GUID 710
-#define CS_STARTING_WEAPONS 711
-#define CS_STEAM_ID 712
-#define CS_STEAM_WORKSHOP_IDS 713
-#define CS_MAX 714
+// 710, 711 reserved/unused
+#define CS_MATCH_GUID 712         // also sent in the ZMQ stats
+#define CS_STARTING_WEAPONS 713   // bitmask of weapons identical to g_startingWeapons
+#define CS_STEAM_ID 714           // the server's steam ID (64)
+#define CS_STEAM_WORKSHOP_IDS 715 // space separated list of workshop IDs for the client to load
+#define CS_MAX 716
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
 #endif
 
+// [QL] Game types - completely reordered vs Q3
 typedef enum {
-    GT_FFA,            // free for all
-    GT_TOURNAMENT,     // one on one tournament
-    GT_SINGLE_PLAYER,  // single player ffa
-
-    //-- team games go after this --
-
-    GT_TEAM,  // team deathmatch
-    GT_CTF,   // capture the flag
-    GT_1FCTF,
-    GT_OBELISK,
-    GT_HARVESTER,
+    GT_FFA,            // 0  free for all
+    GT_DUEL,           // 1  [QL] one on one (was GT_TOURNAMENT)
+    GT_RACE,           // 2  [QL] race mode (replaced GT_SINGLE_PLAYER)
+    GT_TEAM,           // 3  team deathmatch
+    GT_CA,             // 4  [QL] clan arena
+    GT_CTF,            // 5  capture the flag
+    GT_1FCTF,          // 6  one flag CTF
+    GT_OBELISK,        // 7  overload (attack/defend obelisk)
+    GT_HARVESTER,      // 8  harvester
+    GT_FREEZE,         // 9  [QL] freeze tag
+    GT_DOMINATION,     // 10 [QL] domination
+    GT_AD,             // 11 [QL] attack & defend
+    GT_RR,             // 12 [QL] red rover
     GT_MAX_GAME_TYPE
 } gametype_t;
+
+// [QL] Aliases for backward compatibility
+#define GT_TOURNAMENT   GT_DUEL
+#define GT_SINGLE_PLAYER GT_RACE
+
+// [QL] gametype name tables (defined in bg_misc.c)
+extern const char *gametypeShortNames[];    // short names for entity/config filtering
+extern const char *gametypeDisplayNames[];  // full display names for UI
+
+// [QL] Round state for round-based game types (CA, AD, FT, RR)
+typedef enum {
+    RS_WARMUP,
+    RS_COUNTDOWN,
+    RS_PLAYING,
+    RS_ROUND_OVER
+} roundStateState_t;
 
 typedef enum { GENDER_MALE,
                GENDER_FEMALE,
@@ -176,7 +223,7 @@ typedef enum {
     PM_DEAD,           // no acceleration or turning, but free falling
     PM_FREEZE,         // stuck in place with no control
     PM_INTERMISSION,   // no movement or status bar
-    PM_SPINTERMISSION  // no movement or status bar
+    PM_TUTORIAL        // [QL] tutorial mode - no movement
 } pmtype_t;
 
 typedef enum {
@@ -187,21 +234,33 @@ typedef enum {
 } weaponstate_t;
 
 // pmove->pm_flags
-#define PMF_DUCKED 1
-#define PMF_JUMP_HELD 2
-#define PMF_BACKWARDS_JUMP 8    // go into backwards land
-#define PMF_BACKWARDS_RUN 16    // coast down to backwards run
-#define PMF_TIME_LAND 32        // pm_time is time before rejump
-#define PMF_TIME_KNOCKBACK 64   // pm_time is an air-accelerate only time
-#define PMF_TIME_WATERJUMP 256  // pm_time is waterjump
-#define PMF_RESPAWNED 512       // clear after attack and jump buttons come up
-#define PMF_USE_ITEM_HELD 1024
-#define PMF_GRAPPLE_PULL 2048  // pull towards grapple location
-#define PMF_FOLLOW 4096        // spectate following another player
-#define PMF_SCOREBOARD 8192    // spectate as a scoreboard
-#define PMF_INVULEXPAND 16384  // invulnerability sphere set to full size
+// [QL] Verified from qagamex86.dll binary decompilation.
+// PMF_TIME_WATERJUMP changed from Q3's 256 to 0x80.
+// PMF_ZOOM and PMF_RESPAWNED share 0x0200 (both block weapon fire after respawn).
+// Several new flags added (FROZEN, PAUSED, ZOOM, NO_AUTOHOP).
+#define PMF_DUCKED          0x0001
+#define PMF_JUMP_HELD       0x0002
+#define PMF_FROZEN          0x0004   // [QL] freeze tag/CA frozen state
+#define PMF_BACKWARDS_JUMP  0x0008   // go into backwards land
+#define PMF_BACKWARDS_RUN   0x0010   // coast down to backwards run
+#define PMF_TIME_LAND       0x0020   // pm_time is time before rejump
+#define PMF_TIME_KNOCKBACK  0x0040   // pm_time is an air-accelerate only time
+#define PMF_TIME_WATERJUMP  0x0080   // pm_time is waterjump [QL: 0x80]
+#define PMF_PAUSED          0x0100   // [QL] movement pause
+#define PMF_ZOOM            0x0200   // [QL] zoom/scope state (shares bit with RESPAWNED)
+#define PMF_RESPAWNED       0x0200   // [QL] blocks weapon fire after respawn
+#define PMF_USE_ITEM_HELD   0x0400   // [QL] use item button held
+#define PMF_GRAPPLE_PULL    0x0800   // pull towards grapple location
+#define PMF_FOLLOW          0x1000   // spectate following another player
+#define PMF_SCOREBOARD      0x2000   // spectate as a scoreboard
+#define PMF_INVULEXPAND     0x4000   // invulnerability sphere set to full size
+#define PMF_TIME_GRAPPLE    0x8000   // [QL] one-frame weapon reset after grapple release
+#define PMF_PROMODE         0x10000  // [QL] CPM/PQL air control mode active
+#define PMF_DOUBLE_JUMPED   0x20000  // [QL] double jump tracking
+#define PMF_NO_AUTOHOP      0x40000  // [QL] auto-hop control
+#define PMF_CROUCH_SLIDE    0x100000 // [QL] crouch slide active
 
-#define PMF_ALL_TIMES (PMF_TIME_WATERJUMP | PMF_TIME_LAND | PMF_TIME_KNOCKBACK)
+#define PMF_ALL_TIMES (PMF_TIME_WATERJUMP | PMF_TIME_LAND | PMF_TIME_KNOCKBACK | PMF_TIME_GRAPPLE)
 
 #define MAXTOUCH 32
 typedef struct {
@@ -212,10 +271,8 @@ typedef struct {
     usercmd_t cmd;
     int tracemask;         // collide against these types of surfaces
     int debugLevel;        // if set, diagnostic output will be printed
-    qboolean noFootsteps;  // if the game is setup for no footsteps by the server
+    int noFootsteps;       // [QL] changed from qboolean
     qboolean gauntletHit;  // true if a gauntlet attack would actually hit something
-
-    int framecount;
 
     // results (out)
     int numtouch;
@@ -228,14 +285,15 @@ typedef struct {
 
     float xyspeed;
 
-    // for fixed msec Pmove
-    int pmove_fixed;
-    int pmove_msec;
+    float stepHeight;   // [QL]
+    int stepTime;       // [QL]
 
     // callbacks to test the world
     // these will be different functions during game and cgame
     void (*trace)(trace_t* results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask);
     int (*pointcontents)(const vec3_t point, int passEntityNum);
+
+    qboolean hookEnemy;  // [QL]
 } pmove_t;
 
 // if a full pmove isn't done on the client, you can just update the angles
@@ -246,16 +304,30 @@ void Pmove(pmove_t* pmove);
 
 // player_state->stats[] indexes
 // NOTE: may not have more than 16
+// [QL] Reordered from Q3 - verified from qagamex64.so binary analysis.
 typedef enum {
-    STAT_HEALTH,
-    STAT_HOLDABLE_ITEM,
-    STAT_PERSISTANT_POWERUP,
-    STAT_WEAPONS,  // 16 bit fields
-    STAT_ARMOR,
-    STAT_DEAD_YAW,       // look this direction when dead (FIXME: get rid of?)
-    STAT_CLIENTS_READY,  // bit mask of clients wishing to exit the intermission (FIXME: configstring?)
-    STAT_MAX_HEALTH      // health / armor limit, changeable by handicap
+    STAT_HEALTH,                // 0
+    STAT_HOLDABLE_ITEM,         // 1
+    STAT_RUNE,                  // 2  [QL moved from 14 in Q3]
+    STAT_WEAPONS,               // 3  - 16 bit fields
+    STAT_ARMOR,                 // 4
+    STAT_BSKILL,                // 5  [QL] bot skill level
+    STAT_CLIENTS_READY,         // 6
+    STAT_MAX_HEALTH,            // 7
+    STAT_SPINUP,                // 8  [QL] chaingun spinup
+    STAT_FLIGHT_THRUST,         // 9  [QL]
+    STAT_CUR_FLIGHT_FUEL,       // 10 [QL] - also used as regen max
+    STAT_MAX_FLIGHT_FUEL,       // 11 [QL] - also used as regen accumulator
+    STAT_FLIGHT_REFUEL,         // 12 [QL] - also used as regen rate
+    STAT_JUMPTIME,              // 13 [QL]
+    STAT_ARMORTYPE,             // 14 [QL]
+    STAT_KEY,                   // 15 [QL] bitmask for keys
 } statIndex_t;
+
+// Backward compatibility aliases for Q3 Team Arena code.
+// In QL these stat slots were repurposed, but existing TA code still compiles.
+#define STAT_PERSISTANT_POWERUP STAT_RUNE
+#define STAT_DEAD_YAW           STAT_BSKILL
 
 // player_state->persistant[] indexes
 // these fields are the only part of player_state that isn't
@@ -303,27 +375,28 @@ typedef enum {
 #define EF_AWARD_DENIED 0x00040000      // denied
 
 // NOTE: may not have more than 16
+// [QL] Reordered from Q3 - flags come first, then powerups.
+// Verified from qagamex64.so binary analysis.
 typedef enum {
     PW_NONE,
 
-    PW_QUAD,
-    PW_BATTLESUIT,
-    PW_HASTE,
-    PW_INVIS,
-    PW_REGEN,
-    PW_FLIGHT,
+    PW_REDFLAG,                     // 1  [QL moved from 7]
+    PW_BLUEFLAG,                    // 2  [QL moved from 8]
+    PW_NEUTRALFLAG,                 // 3  [QL moved from 9]
+    PW_QUAD,                        // 4  [QL moved from 1]
+    PW_BATTLESUIT,                  // 5  [QL moved from 2]
+    PW_HASTE,                       // 6  [QL moved from 3]
+    PW_INVIS,                       // 7  [QL moved from 4]
+    PW_REGEN,                       // 8  [QL moved from 5]
+    PW_FLIGHT,                      // 9  [QL moved from 6]
+    PW_INVULNERABILITY,             // 10 [QL moved from 14]
+    PW_SCOUT,                       // 11
+    PW_GUARD,                       // 12
+    PW_DOUBLER,                     // 13
+    PW_AMMOREGEN,                   // 14
+    PW_FREEZE,                      // 15 [QL] - freeze tag frozen state
 
-    PW_REDFLAG,
-    PW_BLUEFLAG,
-    PW_NEUTRALFLAG,
-
-    PW_SCOUT,
-    PW_GUARD,
-    PW_DOUBLER,
-    PW_AMMOREGEN,
-    PW_INVULNERABILITY,
-
-    PW_NUM_POWERUPS
+    PW_NUM_POWERUPS                 // 16
 
 } powerup_t;
 
@@ -355,6 +428,7 @@ typedef enum {
     WP_NAILGUN,
     WP_PROX_LAUNCHER,
     WP_CHAINGUN,
+    WP_HMG,             // [QL] Heavy Machine Gun
 
     WP_NUM_WEAPONS
 } weapon_t;
@@ -381,109 +455,130 @@ typedef enum {
 
 #define EVENT_VALID_MSEC 300
 
+// [QL] Entity events - verified from cgamex86.dll + qagamex64.so binary analysis.
+// EV_STEP_4/8/12/16 removed from Q3; QL uses playerState_t for step smoothing.
+// EV_STOPLOOPINGSOUND removed; many QL-specific events added.
 typedef enum {
-    EV_NONE,
+    EV_NONE,                        // 0x00
 
-    EV_FOOTSTEP,
-    EV_FOOTSTEP_METAL,
-    EV_FOOTSPLASH,
-    EV_FOOTWADE,
-    EV_SWIM,
+    EV_FOOTSTEP,                    // 0x01
+    EV_FOOTSTEP_METAL,              // 0x02
+    EV_FOOTSPLASH,                  // 0x03
+    EV_FOOTWADE,                    // 0x04
+    EV_SWIM,                        // 0x05
 
-    EV_STEP_4,
-    EV_STEP_8,
-    EV_STEP_12,
-    EV_STEP_16,
+    EV_FALL_SHORT,                  // 0x06
+    EV_FALL_MEDIUM,                 // 0x07
+    EV_FALL_FAR,                    // 0x08
 
-    EV_FALL_SHORT,
-    EV_FALL_MEDIUM,
-    EV_FALL_FAR,
+    EV_JUMP_PAD,                    // 0x09 - boing sound at origin, jump sound on player
+    EV_JUMP,                        // 0x0A
 
-    EV_JUMP_PAD,  // boing sound at origin, jump sound on player
+    EV_WATER_TOUCH,                 // 0x0B - foot touches
+    EV_WATER_LEAVE,                 // 0x0C - foot leaves
+    EV_WATER_UNDER,                 // 0x0D - head touches
+    EV_WATER_CLEAR,                 // 0x0E - head leaves
 
-    EV_JUMP,
-    EV_WATER_TOUCH,  // foot touches
-    EV_WATER_LEAVE,  // foot leaves
-    EV_WATER_UNDER,  // head touches
-    EV_WATER_CLEAR,  // head leaves
+    EV_ITEM_PICKUP,                 // 0x0F - normal item pickups are predictable
+    EV_GLOBAL_ITEM_PICKUP,          // 0x10 - powerup / team sounds are broadcast to everyone
 
-    EV_ITEM_PICKUP,         // normal item pickups are predictable
-    EV_GLOBAL_ITEM_PICKUP,  // powerup / team sounds are broadcast to everyone
+    EV_NOAMMO,                      // 0x11
+    EV_CHANGE_WEAPON,               // 0x12
+    EV_DROP_WEAPON,                 // 0x13 [QL]
+    EV_FIRE_WEAPON,                 // 0x14
 
-    EV_NOAMMO,
-    EV_CHANGE_WEAPON,
-    EV_FIRE_WEAPON,
+    EV_USE_ITEM0,                   // 0x15
+    EV_USE_ITEM1,                   // 0x16
+    EV_USE_ITEM2,                   // 0x17
+    EV_USE_ITEM3,                   // 0x18
+    EV_USE_ITEM4,                   // 0x19
+    EV_USE_ITEM5,                   // 0x1A
+    EV_USE_ITEM6,                   // 0x1B
+    EV_USE_ITEM7,                   // 0x1C
+    EV_USE_ITEM8,                   // 0x1D
+    EV_USE_ITEM9,                   // 0x1E
+    EV_USE_ITEM10,                  // 0x1F
+    EV_USE_ITEM11,                  // 0x20
+    EV_USE_ITEM12,                  // 0x21
+    EV_USE_ITEM13,                  // 0x22
+    EV_USE_ITEM14,                  // 0x23
+    EV_USE_ITEM15,                  // 0x24 - unused slot (no handler in binary)
 
-    EV_USE_ITEM0,
-    EV_USE_ITEM1,
-    EV_USE_ITEM2,
-    EV_USE_ITEM3,
-    EV_USE_ITEM4,
-    EV_USE_ITEM5,
-    EV_USE_ITEM6,
-    EV_USE_ITEM7,
-    EV_USE_ITEM8,
-    EV_USE_ITEM9,
-    EV_USE_ITEM10,
-    EV_USE_ITEM11,
-    EV_USE_ITEM12,
-    EV_USE_ITEM13,
-    EV_USE_ITEM14,
-    EV_USE_ITEM15,
+    EV_ITEM_RESPAWN,                // 0x25
+    EV_ITEM_POP,                    // 0x26
+    EV_PLAYER_TELEPORT_IN,          // 0x27
+    EV_PLAYER_TELEPORT_OUT,         // 0x28
 
-    EV_ITEM_RESPAWN,
-    EV_ITEM_POP,
-    EV_PLAYER_TELEPORT_IN,
-    EV_PLAYER_TELEPORT_OUT,
+    EV_GRENADE_BOUNCE,              // 0x29
 
-    EV_GRENADE_BOUNCE,  // eventParm will be the soundindex
+    EV_GENERAL_SOUND,               // 0x2A
+    EV_GLOBAL_SOUND,                // 0x2B - no attenuation
+    EV_GLOBAL_TEAM_SOUND,           // 0x2C
 
-    EV_GENERAL_SOUND,
-    EV_GLOBAL_SOUND,  // no attenuation
-    EV_GLOBAL_TEAM_SOUND,
+    EV_BULLET_HIT_FLESH,            // 0x2D
+    EV_BULLET_HIT_WALL,             // 0x2E
 
-    EV_BULLET_HIT_FLESH,
-    EV_BULLET_HIT_WALL,
+    EV_MISSILE_HIT,                 // 0x2F
+    EV_MISSILE_MISS,                // 0x30
+    EV_MISSILE_MISS_METAL,          // 0x31
+    EV_RAILTRAIL,                   // 0x32
+    EV_SHOTGUN,                     // 0x33
+    EV_BULLET,                      // 0x34 - no cgame handler (server-side only)
 
-    EV_MISSILE_HIT,
-    EV_MISSILE_MISS,
-    EV_MISSILE_MISS_METAL,
-    EV_RAILTRAIL,
-    EV_SHOTGUN,
-    EV_BULLET,  // otherEntity is the shooter
+    EV_PAIN,                        // 0x35
+    EV_DEATH1,                      // 0x36
+    EV_DEATH2,                      // 0x37
+    EV_DEATH3,                      // 0x38
+    EV_DROWN,                       // 0x39 [QL]
+    EV_OBITUARY,                    // 0x3A
 
-    EV_PAIN,
-    EV_DEATH1,
-    EV_DEATH2,
-    EV_DEATH3,
-    EV_OBITUARY,
+    EV_POWERUP_QUAD,                // 0x3B
+    EV_POWERUP_BATTLESUIT,          // 0x3C
+    EV_POWERUP_REGEN,               // 0x3D
+    EV_POWERUP_ARMORREGEN,          // 0x3E [QL]
 
-    EV_POWERUP_QUAD,
-    EV_POWERUP_BATTLESUIT,
-    EV_POWERUP_REGEN,
+    EV_GIB_PLAYER,                  // 0x3F
+    EV_SCOREPLUM,                   // 0x40
 
-    EV_GIB_PLAYER,  // gib a previously living player
-    EV_SCOREPLUM,   // score plum
+    EV_PROXIMITY_MINE_STICK,        // 0x41
+    EV_PROXIMITY_MINE_TRIGGER,      // 0x42
+    EV_KAMIKAZE,                    // 0x43
+    EV_OBELISKEXPLODE,              // 0x44
+    EV_OBELISKPAIN,                 // 0x45
+    EV_INVUL_IMPACT,                // 0x46
+    EV_JUICED,                      // 0x47
+    EV_LIGHTNINGBOLT,               // 0x48
 
-    EV_PROXIMITY_MINE_STICK,
-    EV_PROXIMITY_MINE_TRIGGER,
-    EV_KAMIKAZE,        // kamikaze explodes
-    EV_OBELISKEXPLODE,  // obelisk explodes
-    EV_OBELISKPAIN,     // obelisk is in pain
-    EV_INVUL_IMPACT,    // invulnerability sphere impact
-    EV_JUICED,          // invulnerability juiced effect
-    EV_LIGHTNINGBOLT,   // lightning bolt bounced of invulnerability sphere
+    EV_DEBUG_LINE,                  // 0x49
+    EV_TAUNT,                       // 0x4A
+    EV_TAUNT_YES,                   // 0x4B
+    EV_TAUNT_NO,                    // 0x4C
+    EV_TAUNT_FOLLOWME,              // 0x4D
+    EV_TAUNT_GETFLAG,               // 0x4E
+    EV_TAUNT_GUARDBASE,             // 0x4F
+    EV_TAUNT_PATROL,                // 0x50
 
-    EV_DEBUG_LINE,
-    EV_STOPLOOPINGSOUND,
-    EV_TAUNT,
-    EV_TAUNT_YES,
-    EV_TAUNT_NO,
-    EV_TAUNT_FOLLOWME,
-    EV_TAUNT_GETFLAG,
-    EV_TAUNT_GUARDBASE,
-    EV_TAUNT_PATROL
+    EV_FOOTSTEP_SNOW,               // 0x51 [QL]
+    EV_FOOTSTEP_WOOD,               // 0x52 [QL]
+    EV_ITEM_PICKUP_SPEC,            // 0x53 [QL] - spectator item pickup notification
+    EV_OVERTIME,                    // 0x54 [QL]
+    EV_GAMEOVER,                    // 0x55 [QL]
+    EV_MISSILE_MISS_DMGTHROUGH,     // 0x56 [QL] - damage-through impact (e.g. BFG)
+    EV_THAW_PLAYER,                 // 0x57 [QL] - freeze tag thaw complete
+    EV_THAW_TICK,                   // 0x58 [QL] - freeze tag thaw tick
+    EV_SHOTGUN_KILL,                // 0x59 [QL] - delayed shotgun kill effect
+    EV_POI,                         // 0x5A [QL] - point of interest marker
+    EV_DEBUG_HITBOX,                // 0x5B [QL] - no cgame handler
+    EV_LIGHTNING_DISCHARGE,         // 0x5C [QL] - LG water discharge
+    EV_RACE_START,                  // 0x5D [QL]
+    EV_RACE_CHECKPOINT,             // 0x5E [QL]
+    EV_RACE_FINISH,                 // 0x5F [QL]
+    EV_DAMAGEPLUM,                  // 0x60 [QL] - floating damage number
+    EV_AWARD,                       // 0x61 [QL] - award notification (10 sub-types)
+    EV_INFECTED,                    // 0x62 [QL]
+    EV_NEW_HIGH_SCORE,              // 0x63 [QL]
 
+    EV_NUM_ETYPES                   // 0x64 - sentinel
 } entity_event_t;
 
 typedef enum {
@@ -500,7 +595,9 @@ typedef enum {
     GTS_REDTEAM_TOOK_LEAD,
     GTS_BLUETEAM_TOOK_LEAD,
     GTS_TEAMS_ARE_TIED,
-    GTS_KAMIKAZE
+    GTS_KAMIKAZE,
+    GTS_REDTEAM_WON,       // 14 [QL]
+    GTS_BLUETEAM_WON        // 15 [QL]
 } global_team_sound_t;
 
 // animations
@@ -629,7 +726,12 @@ typedef enum {
     MOD_PROXIMITY_MINE,
     MOD_KAMIKAZE,
     MOD_JUICED,
-    MOD_GRAPPLE
+    MOD_GRAPPLE,
+    MOD_SWITCH_TEAMS,       // [QL]
+    MOD_THAW,               // [QL]
+    MOD_LIGHTNING_DISCHARGE, // [QL]
+    MOD_HMG,                // [QL]
+    MOD_RAILGUN_HEADSHOT    // [QL]
 } meansOfDeath_t;
 
 //---------------------------------------------------------
@@ -646,8 +748,14 @@ typedef enum {
     IT_HOLDABLE,  // single use, holdable item
     // EFX: rotate + bob
     IT_PERSISTANT_POWERUP,
-    IT_TEAM
+    IT_TEAM,
+    IT_KEY  // [QL] key items (silver, gold, master)
 } itemType_t;
+
+// [QL] key giTag bit flags - stored in stats[STAT_KEY]
+#define KEY_SILVER  1
+#define KEY_GOLD    2
+#define KEY_MASTER  4
 
 #define MAX_ITEM_MODELS 4
 
@@ -672,6 +780,51 @@ typedef struct gitem_s {
 extern gitem_t bg_itemlist[];
 extern int bg_numItems;
 
+// [QL] weapon reload times (fire intervals in ms), indexed by weapon_t
+// Updated at runtime by weapon_reload_* cvars via BG_SetWeaponReload()
+extern int bg_weaponReloadTime[WP_NUM_WEAPONS];
+void BG_SetWeaponReload(int weapon, int reloadTime);
+
+// [QL] PM_Set* - configurable movement physics parameters
+void PM_SetAirAccel(float value);
+void PM_SetAirControl(float value);
+void PM_SetAirStepFriction(float value);
+void PM_SetAirSteps(int value);
+void PM_SetAirStopAccel(float value);
+void PM_SetAutoHop(int value);
+void PM_SetBunnyHop(int value);
+void PM_SetChainJump(int value);
+void PM_SetChainJumpVelocity(float value);
+void PM_SetCircleStrafeFriction(float value);
+void PM_SetCrouchSlideFriction(float value);
+void PM_SetCrouchSlideTime(int value);
+void PM_SetCrouchStepJump(int value);
+void PM_SetHookPullVelocity(float value);
+void PM_SetJumpTimeDeltaMin(float value);
+void PM_SetJumpVelocity(float value);
+void PM_SetJumpVelocityMax(float value);
+void PM_SetJumpVelocityScaleAdd(float value);
+void PM_SetJumpVelocityTimeThreshold(float value);
+void PM_SetJumpVelocityTimeThresholdOffset(float value);
+void PM_SetNoPlayerClip(int value);
+void PM_SetRampJump(int value);
+void PM_SetRampJumpScale(float value);
+void PM_SetStepHeight(float value);
+void PM_SetStepJump(int value);
+void PM_SetStepJumpVelocity(float value);
+void PM_SetStrafeAccel(float value);
+void PM_SetWalkAccel(float value);
+void PM_SetWalkFriction(float value);
+void PM_SetWaterSwimScale(float value);
+void PM_SetWaterWadeScale(float value);
+void PM_SetWeaponDropTime(int value);
+void PM_SetWeaponRaiseTime(int value);
+void PM_SetWishSpeed(float value);
+void PM_SetDoubleJump(int value);
+void PM_SetCrouchSlide(int value);
+void PM_SetVelocityGH(float value);
+void PM_SetMovementConfig(void);  // sets VQ3/CPM mode based on pm_flags
+
 gitem_t* BG_FindItem(const char* pickupName);
 gitem_t* BG_FindItemForWeapon(weapon_t weapon);
 gitem_t* BG_FindItemForPowerup(powerup_t pw);
@@ -680,10 +833,13 @@ gitem_t* BG_FindItemForHoldable(holdable_t pw);
 
 qboolean BG_CanItemBeGrabbed(int gametype, const entityState_t* ent, const playerState_t* ps);
 
-// g_dmflags->integer flags
-#define DF_NO_FALLING 8
-#define DF_FIXED_FOV 16
-#define DF_NO_FOOTSTEPS 32
+// [QL] g_dmflags->integer flags (binary-verified bit assignments)
+#define DF_NO_TEAM_DAMAGE           1   // bit 0: no team health damage (CA/FT/DOM)
+#define DF_NO_TEAM_ARMOR_DAMAGE     2   // bit 1: no team armor damage (CA/FT/DOM)
+#define DF_NO_SELF_DAMAGE           4   // bit 2: no self health damage
+#define DF_NO_SELF_ARMOR_DAMAGE     8   // bit 3: no self armor damage
+#define DF_NO_FALLING_DAMAGE        16  // bit 4: no fall damage
+#define DF_NO_FOOTSTEPS             32  // bit 5: no footstep sounds
 
 // content masks
 #define MASK_ALL (-1)
