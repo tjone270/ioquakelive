@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CARNAGE_REWARD_TIME 3000
 #define REWARD_SPRITE_TIME 2000
 
-#define INTERMISSION_DELAY_TIME 1000
+#define INTERMISSION_DELAY_TIME 200  // [QL] binary uses 200ms (was 1000 in Q3)
 #define SP_INTERMISSION_DELAY_TIME 5000
 
 // gentity->flags
@@ -67,6 +67,7 @@ typedef enum {
 typedef struct gentity_s gentity_t;
 typedef struct gclient_s gclient_t;
 
+// [QL] gentity_s - game entity (1056 bytes)
 struct gentity_s {
     entityState_t s;   // communicated by server to clients
     entityShared_t r;  // shared by both the server system and game
@@ -83,7 +84,6 @@ struct gentity_s {
     int spawnflags;   // set in QuakeEd
 
     qboolean neverFree;  // if true, FreeEntity will only unlink
-    // bodyque uses this
 
     int flags;  // FL_* variables
 
@@ -95,12 +95,9 @@ struct gentity_s {
     qboolean freeAfterEvent;
     qboolean unlinkAfterEvent;
 
-    qboolean physicsObject;  // if true, it can be pushed by movers and fall off edges
-    // all game items are physicsObjects,
+    qboolean physicsObject;
     float physicsBounce;  // 1.0 = continuous bounce, 0.0 = no bounce
-    int clipmask;         // brushes with this content value will be collided against
-    // when moving.  items and corpses do not collide against
-    // players, for instance
+    int clipmask;
 
     // movers
     moverState_t moverState;
@@ -115,12 +112,16 @@ struct gentity_s {
     vec3_t pos1, pos2;
 
     char* message;
+    char* cvar;              // [QL]
+    char* tourPointTarget;   // [QL]
+    char* tourPointTargetName; // [QL]
+    char* noise;             // [QL]
 
     int timestamp;  // body queue sinking, etc
+    float angle;    // [QL]
 
     char* target;
     char* targetname;
-    char* team;
     char* targetShaderName;
     char* targetShaderNewName;
     gentity_t* target_ent;
@@ -130,7 +131,8 @@ struct gentity_s {
 
     int nextthink;
     void (*think)(gentity_t* self);
-    void (*reached)(gentity_t* self);  // movers call this when hitting endpoint
+    void (*framethink)(gentity_t* self);  // [QL]
+    void (*reached)(gentity_t* self);
     void (*blocked)(gentity_t* self, gentity_t* other);
     void (*touch)(gentity_t* self, gentity_t* other, trace_t* trace);
     void (*use)(gentity_t* self, gentity_t* other, gentity_t* activator);
@@ -139,14 +141,14 @@ struct gentity_s {
 
     int pain_debounce_time;
     int fly_sound_debounce_time;  // wind tunnel
-    int last_move_time;
 
     int health;
 
     qboolean takedamage;
 
     int damage;
-    int splashDamage;  // quad will increase this without increasing radius
+    int damageFactor;  // [QL]
+    int splashDamage;
     int splashRadius;
     int methodOfDeath;
     int splashMethodOfDeath;
@@ -156,8 +158,9 @@ struct gentity_s {
     gentity_t* chain;
     gentity_t* enemy;
     gentity_t* activator;
-    gentity_t* teamchain;   // next entity in team
-    gentity_t* teammaster;  // master of the team
+    char* team;
+    gentity_t* teammaster;
+    gentity_t* teamchain;
 
     int kamikazeTime;
     int kamikazeShockTime;
@@ -166,12 +169,16 @@ struct gentity_s {
     int waterlevel;
 
     int noise_index;
+    int bouncecount;  // [QL]
 
     // timing variables
     float wait;
     float random;
 
+    int spawnTime;  // [QL]
+
     gitem_t* item;  // for bonus items
+    int pickupCount;  // [QL]
 };
 
 typedef enum {
@@ -208,44 +215,158 @@ typedef struct {
     float lastreturnedflag;
     float flagsince;
     float lastfraggedcarrier;
+
+    int flagruntime;        // [QL] time carrying flag
+    int flagrunrelays;      // [QL] relay count
+    int lastkilltime;       // [QL] last kill timestamp
 } playerTeamState_t;
 
 // client data that stays across multiple levels or tournament restarts
 // this is achieved by writing all the data to cvar strings at game shutdown
 // time and reading them back at connection time.  Anything added here
 // MUST be dealt with in G_InitSessionData() / G_ReadSessionData() / G_WriteSessionData()
+// [QL] Expanded session data
 typedef struct {
     team_t sessionTeam;
-    int spectatorNum;  // for determining next-in-line to play
+    int spectatorTime;          // [QL] renamed from spectatorNum
     spectatorState_t spectatorState;
     int spectatorClient;  // for chasecam and follow mode
+    int weaponPrimary;    // [QL] primary weapon selection
     int wins, losses;     // tournament stats
     qboolean teamLeader;  // true when this client is a team leader
+    int privileges;        // [QL] 0=none, 1=referee, 2=admin
+    int specOnly;          // [QL] spectate-only flag
+    int playQueue;         // [QL] queue position for play
+    qboolean updatePlayQueue; // [QL]
+    int muted;             // [QL] chat mute flag
+    int prevScore;         // [QL] previous score (for round tracking)
+    int joinTime;          // [QL] time() when bot joined (duel)
 } clientSession_t;
 
 //
 #define MAX_NETNAME 36
 #define MAX_VOTE_COUNT 3
 
-// client data that stays across multiple respawns, but is cleared
-// on each level change or team change at ClientBegin()
+// [QL] Expanded persistent data (248 bytes)
 typedef struct {
     clientConnected_t connected;
     usercmd_t cmd;               // we would lose angles if not persistant
     qboolean localClient;        // true if "ip" info key is "localhost"
     qboolean initialSpawn;       // the first spawn should be at a cool location
     qboolean predictItemPickup;  // based on cg_predictItems userinfo
-    qboolean pmoveFixed;         //
-    char netname[MAX_NETNAME];
+    char netname[40];            // [QL] was MAX_NETNAME (36), now 40
+    char country[24];            // [QL] GeoIP country code
+    uint64_t steamId;            // [QL] Steam ID
     int maxHealth;                // for handicapping
+    int voteCount;                // to prevent people from constantly calling votes
+    int voteState;                // [QL] current vote state
+    int complaints;               // [QL]
+    int complaintClient;          // [QL]
+    int complaintEndTime;         // [QL]
+    int damageFromTeammates;      // [QL]
+    int damageToTeammates;        // [QL]
+    qboolean ready;               // [QL] ready-up state
+    int autoaction;               // [QL]
+    int timeouts;                 // [QL]
     int enterTime;                // level.time the client entered the game
     playerTeamState_t teamState;  // status in teamplay games
-    int voteCount;                // to prevent people from constantly calling votes
-    int teamVoteCount;            // to prevent people from constantly calling votes
+    int damageResidual;           // [QL]
+    int inactivityTime;           // [QL] moved from gclient_s
+    int inactivityWarning;        // [QL] moved from gclient_s
+    int lastUserinfoUpdate;       // [QL]
+    int userInfoFloodInfractions; // [QL]
+    int lastMapVoteTime;          // [QL]
+    int lastMapVoteIndex;         // [QL]
+    int roundDamageTaken;         // [QL]
+    int roundDamageDealt;         // [QL]
+    int roundShotsHit;            // [QL]
+    int roundKillCount;           // [QL]
+    int localPlayerSpawnTime;     // [QL]
     qboolean teamInfo;            // send team overlay updates?
 } clientPersistant_t;
 
-// this structure is cleared on each ClientSpawn(),
+// [QL] Per-player expanded statistics (812 bytes)
+typedef struct {
+    uint32_t    statId;
+    int         lastThinkTime;
+    int         teamJoinTime;
+    int         totalPlayTime;
+    int         serverRank;
+    qboolean    serverRankIsTied;
+    int         teamRank;
+    qboolean    teamRankIsTied;
+    int         numKills;
+    int         numDeaths;
+    int         numSuicides;
+    int         numTeamKills;
+    int         numTeamKilled;
+    int         numWeaponKills[16];
+    int         numWeaponDeaths[16];
+    int         shotsFired[16];
+    int         shotsHit[16];
+    int         damageDealt[16];
+    int         damageTaken[16];
+    int         powerups[16];
+    int         holdablePickups[7];
+    int         weaponPickups[16];
+    int         weaponUsageTime[16];
+    int         numCaptures;
+    int         numAssists;
+    int         numDefends;
+    int         numHolyShits;
+    int         totalDamageDealt;
+    int         totalDamageTaken;
+    int         previousHealth;
+    int         previousArmor;
+    int         numAmmoPickups;
+    int         numFirstMegaHealthPickups;
+    int         numMegaHealthPickups;
+    int         megaHealthPickupTime;
+    int         numHealthPickups;
+    int         numFirstRedArmorPickups;
+    int         numRedArmorPickups;
+    int         redArmorPickupTime;
+    int         numFirstYellowArmorPickups;
+    int         numYellowArmorPickups;
+    int         yellowArmorPickupTime;
+    int         numFirstGreenArmorPickups;
+    int         numGreenArmorPickups;
+    int         greenArmorPickupTime;
+    int         numQuadDamagePickups;
+    int         numQuadDamageKills;
+    int         numBattleSuitPickups;
+    int         numRegenerationPickups;
+    int         numHastePickups;
+    int         numInvisibilityPickups;
+    int         numRedFlagPickups;
+    int         numBlueFlagPickups;
+    int         numNeutralFlagPickups;
+    int         numMedkitPickups;
+    int         numArmorPickups;
+    int         numDenials;
+    int         killStreak;
+    int         maxKillStreak;
+    int         xp;
+    int         domThreeFlagsTime;
+    int         numMidairShotgunKills;
+    int         roundHits;
+} expandedStatObj_t;
+
+// [QL] Per-client race data (552 bytes)
+typedef struct {
+    qboolean    racingActive;
+    int         startTime;
+    int         lastTime;
+    int         best_race[64];
+    int         current_race[64];
+    int         currentCheckPoint;
+    qboolean    weaponUsed;
+    int         _pad;
+    gentity_t   *nextRacePoint;
+    gentity_t   *nextRacePoint2;
+} raceInfo_t;
+
+// [QL] this structure is cleared on each ClientSpawn(),
 // except for 'client->pers' and 'client->sess'
 struct gclient_s {
     // ps MUST be the first element, because the server expects it
@@ -255,60 +376,74 @@ struct gclient_s {
     clientPersistant_t pers;
     clientSession_t sess;
 
-    qboolean readyToExit;  // wishes to leave the intermission
-
     qboolean noclip;
 
     int lastCmdTime;  // level.time of last usercmd_t, for EF_CONNECTION
-    // we can't just use pers.lastCommand.time, because
-    // of the g_sycronousclients case
     int buttons;
     int oldbuttons;
-    int latched_buttons;
 
-    vec3_t oldOrigin;
-
-    // sum up damage over an entire frame, so
-    // shotgun blasts give a single big kick
+    // sum up damage over an entire frame
     int damage_armor;           // damage absorbed by armor
     int damage_blood;           // damage taken out of health
-    int damage_knockback;       // impact damage
     vec3_t damage_from;         // origin for vector calculation
     qboolean damage_fromWorld;  // if true, don't use the damage_from vector
 
-    int accurateCount;  // for "impressive" reward sound
+    int impressiveCount;        // [QL]
+    int accurateCount;          // for "impressive" reward sound
 
     int accuracy_shots;  // total number of shots
     int accuracy_hits;   // total number of hits
 
-    //
-    int lastkilled_client;  // last client that this client killed
-    int lasthurt_client;    // last client that damaged this client
-    int lasthurt_mod;       // type of damage the client did
+    int lastClientKilled;       // [QL]
+    int lastkilled_client;      // last client that this client killed
+    int lasthurt_client[2];     // [QL] expanded to 2-element array
+    int lasthurt_mod[2];        // [QL] expanded to 2-element array
+    int lasthurt_time[2];       // [QL]
+
+    int lastKillTime;           // for multiple kill rewards
+    int lastGibTime;            // [QL]
+    int rampageCounter;         // [QL]
+    int revengeCounter[64];     // [QL] per-client revenge tracking
 
     // timers
-    int respawnTime;             // can respawn when time > this, force after g_forcerespwan
-    int inactivityTime;          // kick players when time > this
-    qboolean inactivityWarning;  // qtrue if the five seoond warning has been given
+    int respawnTime;             // can respawn when time > this
     int rewardTime;              // clear the EF_AWARD_IMPRESSIVE, etc when time > this
-
     int airOutTime;
 
-    int lastKillTime;  // for multiple kill rewards
-
     qboolean fireHeld;  // used for hook
-    gentity_t* hook;    // grapple hook if out
+    gentity_t* hook;     // grapple hook if out
 
     int switchTeamTime;  // time the player switched teams
 
     // timeResidual is used to handle events that happen every second
-    // like health / armor countdowns and regeneration
     int timeResidual;
+    int timeResidualScout;      // [QL]
+    int timeResidualArmor;      // [QL]
+    int timeResidualHealth;     // [QL]
+    int timeResidualPingPOI;    // [QL]
+    int timeResidualSpecInfo;   // [QL]
+    qboolean healthRegenActive; // [QL]
+    qboolean armorRegenActive;  // [QL]
 
     gentity_t* persistantPowerup;
     int portalID;
     int ammoTimes[WP_NUM_WEAPONS];
     int invulnerabilityTime;
+
+    expandedStatObj_t expandedStats;  // [QL] (812 bytes)
+
+    int ignoreChatsTime;        // [QL]
+    int lastUserCmdTime;        // [QL]
+    qboolean freezePlayer;      // [QL]
+    int deferredSpawnTime;      // [QL]
+    int deferredSpawnCount;     // [QL]
+    raceInfo_t race;            // [QL] (552 bytes)
+    int shotgunDmg[64];         // [QL]
+    int round_shots;            // [QL]
+    int round_hits;             // [QL]
+    int round_damage;           // [QL]
+    qboolean queuedSpectatorFollow; // [QL]
+    int queuedSpectatorClient;  // [QL]
 
     char* areabits;
 };
@@ -319,85 +454,146 @@ struct gclient_s {
 #define MAX_SPAWN_VARS 64
 #define MAX_SPAWN_VARS_CHARS 4096
 
+// [QL] round state (36 bytes)
 typedef struct {
-    struct gclient_s* clients;  // [maxclients]
+    roundStateState_t   eCurrent;
+    roundStateState_t   eNext;
+    int                 tNext;
+    int                 startTime;
+    int                 turn;
+    int                 round;
+    team_t              prevRoundWinningTeam;
+    qboolean            touch;
+    qboolean            capture;
+} roundState_t;
 
-    struct gentity_s* gentities;
-    int gentitySize;
-    int num_entities;  // MAX_CLIENTS <= num_entities <= ENTITYNUM_MAX_NORMAL
-
-    int warmupTime;  // restart match at this time
-
-    fileHandle_t logFile;
-
-    // store latched cvars here that we want to get at often
-    int maxclients;
-
-    int framenum;
-    int time;          // in msec
-    int previousTime;  // so movers can back up when blocked
-
-    int startTime;  // level.time the map was started
-
-    int teamScores[TEAM_NUM_TEAMS];
-    int lastTeamLocationTime;  // last time of client team location update
-
-    qboolean newSession;  // don't use any old session data, because
-    // we changed gametype
-
-    qboolean restarted;  // waiting for a map_restart to fire
-
-    int numConnectedClients;
-    int numNonSpectatorClients;      // includes connecting clients
-    int numPlayingClients;           // connected, non-spectators
-    int sortedClients[MAX_CLIENTS];  // sorted by score
-    int follow1, follow2;            // clientNums for auto-follow spectators
-
-    int snd_fry;  // sound index for standing in lava
-
-    int warmupModificationCount;  // for detecting if g_warmup is changed
-
-    // voting state
-    char voteString[MAX_STRING_CHARS];
-    char voteDisplayString[MAX_STRING_CHARS];
-    int voteTime;         // level.time vote was called
-    int voteExecuteTime;  // time the vote is executed
-    int voteYes;
-    int voteNo;
-    int numVotingClients;  // set by CalculateRanks
-
-    // team voting state
-    char teamVoteString[2][MAX_STRING_CHARS];
-    int teamVoteTime[2];  // level.time vote was called
-    int teamVoteYes[2];
-    int teamVoteNo[2];
-    int numteamVotingClients[2];  // set by CalculateRanks
-
-    // spawn variables
-    qboolean spawning;  // the G_Spawn*() functions are valid
-    int numSpawnVars;
-    char* spawnVars[MAX_SPAWN_VARS][2];  // key / value pairs
-    int numSpawnVarChars;
-    char spawnVarChars[MAX_SPAWN_VARS_CHARS];
-
-    // intermission state
-    int intermissionQueued;  // intermission was qualified, but
-    // wait INTERMISSION_DELAY_TIME before
-    // actually going there so the last
-    // frag can be watched.  Disable future
-    // kills during this delay
-    int intermissiontime;  // time the intermission was started
-    char* changemap;
-    qboolean readyToExit;  // at least one client wants to exit
-    int exitTime;
-    vec3_t intermission_origin;  // also used for spectator spawns
-    vec3_t intermission_angle;
-
-    qboolean locationLinked;  // target_locations get linked
-    gentity_t* locationHead;  // head of the location list
-    int bodyQueIndex;         // dead bodies
-    gentity_t* bodyQue[BODY_QUEUE_SIZE];
-    int portalSequence;
+typedef struct {
+    gclient_t       *clients;
+    gentity_t       *gentities;
+    int             gentitySize;
+    int             num_entities;
+    int             warmupTime;
+    fileHandle_t    logFile;
+    int             maxclients;
+    int             time;
+    int             frametime;              /* [QL] */
+    int             startTime;
+    int             teamScores[4];
+    int             nextTeamInfoTime;       /* [QL] */
+    qboolean        newSession;
+    qboolean        restarted;
+    qboolean        shufflePending;         /* [QL] */
+    int             shuffleReadyTime;       /* [QL] */
+    int             numConnectedClients;
+    int             numNonSpectatorClients;
+    int             numPlayingClients;
+    int             numReadyClients;        /* [QL] */
+    int             numReadyHumans;         /* [QL] */
+    int             numStandardClients;     /* [QL] */
+    int             sortedClients[64];
+    int             follow1;
+    int             follow2;
+    int             snd_fry;
+    int             warmupModificationCount;
+    char            voteString[1024];
+    char            voteDisplayString[1024];
+    int             voteExecuteTime;
+    int             voteTime;
+    int             voteYes;
+    int             voteNo;
+    int             pendingVoteCaller;      /* [QL] */
+    qboolean        spawning;
+    int             numSpawnVars;
+    char            *spawnVars[64][2];
+    int             numSpawnVarChars;
+    char            spawnVarChars[4096];
+    int             intermissionQueued;
+    int             intermissionTime;
+    qboolean        readyToExit;
+    qboolean        votingEnded;            /* [QL] */
+    int             exitTime;
+    vec3_t          intermission_origin;
+    vec3_t          intermission_angle;
+    qboolean        locationLinked;
+    /* 4 bytes padding */
+    gentity_t       *locationHead;
+    int             timePauseBegin;         /* [QL] */
+    int             timeOvertime;           /* [QL] */
+    int             timeInitialPowerupSpawn; /* [QL] */
+    int             bodyQueIndex;
+    gentity_t       *bodyQue[BODY_QUEUE_SIZE];
+    int             portalSequence;
+    qboolean        gameStatsReported;      /* [QL] */
+    qboolean        scoringDisabled;        /* [QL] round-based: scoring off between rounds */
+    qboolean        mapIsTrainingMap;       /* [QL] */
+    int             clientNum1stPlayer;     /* [QL] */
+    int             clientNum2ndPlayer;     /* [QL] */
+    char            scoreboardArchive1[1024]; /* [QL] */
+    char            scoreboardArchive2[1024]; /* [QL] */
+    char            firstScorer[40];        /* [QL] */
+    char            lastScorer[40];         /* [QL] */
+    char            lastTeamScorer[40];     /* [QL] */
+    char            firstFrag[40];          /* [QL] */
+    vec3_t          red_flag_origin;        /* [QL] */
+    vec3_t          blue_flag_origin;       /* [QL] */
+    int             spawnCount[4];          /* [QL] */
+    int             runeSpawns[5];          /* [QL] */
+    int             itemCount[60];          /* [QL] */
+    int             suddenDeathRespawnDelay; /* [QL] */
+    int             suddenDeathRespawnDelayLastAnnounced; /* [QL] */
+    int             numRedArmorPickups[4];
+    int             numYellowArmorPickups[4];
+    int             numGreenArmorPickups[4];
+    int             numMegaHealthPickups[4];
+    int             numQuadDamagePickups[4];
+    int             numBattleSuitPickups[4];
+    int             numRegenerationPickups[4];
+    int             numHastePickups[4];
+    int             numInvisibilityPickups[4];
+    int             quadDamagePossessionTime[4];
+    int             battleSuitPossessionTime[4];
+    int             regenerationPossessionTime[4];
+    int             hastePossessionTime[4];
+    int             invisibilityPossessionTime[4];
+    int             numFlagPickups[4];
+    int             numMedkitPickups[4];
+    int             flagPossessionTime[4];
+    /* [QL] Domination */
+    gentity_t       *dominationPoints[5];
+    int             dominationPointCount;
+    int             dominationPointsTallied;
+    /* [QL] Race */
+    int             racePointCount;
+    /* [QL] Misc */
+    qboolean        disableDropWeapon;
+    qboolean        teamShuffleActive;
+    int             lastTeamScores[4];
+    int             lastTeamRoundScores[4];
+    /* [QL] Attack & Defend */
+    team_t          attackingTeam;
+    roundState_t    roundState;             /* 36 bytes */
+    int             lastTeamCountSent;
+    /* [QL] Red Rover */
+    int             infectedConscript;
+    int             lastZombieSurvivor;
+    int             zombieScoreTime;
+    int             lastInfectionTime;
+    /* [QL] Intermission map voting */
+    char            intermissionMapNames[3][1024];
+    char            intermissionMapTitles[3][1024];
+    char            intermissionMapConfigs[3][1024];
+    int             intermissionMapVotes[3];
+    /* [QL] Match state */
+    qboolean        matchForfeited;
+    int             allReadyTime;
+    qboolean        notifyCvarChange;
+    int             notifyCvarChangeTime;
+    int             lastLeadChangeTime;
+    int             lastLeadChangeClient;
+    int             lastLeadChangeElapsedTime;
+    int             rrInfectedCounters[4];  /* [QL] Red Rover infection tracking */
+    int             rrInfectedSpreadStart;  /* [QL] */
+    int             rrSurvivorScoreTimer;   /* [QL] */
 } level_locals_t;
 
 //
@@ -419,6 +615,7 @@ void StopFollowing(gentity_t* ent);
 void BroadcastTeamChange(gclient_t* client, int oldTeam);
 void SetTeam(gentity_t* ent, const char* s);
 void Cmd_FollowCycle_f(gentity_t* ent, int dir);
+void ClearVote(void);
 
 //
 // g_items.c
@@ -426,6 +623,7 @@ void Cmd_FollowCycle_f(gentity_t* ent, int dir);
 void G_CheckTeamItems(void);
 void G_RunItem(gentity_t* ent);
 void RespawnItem(gentity_t* ent);
+void G_RespawnKey(int keyTag);
 
 void UseHoldableItem(gentity_t* ent);
 void PrecacheItem(gitem_t* it);
@@ -480,7 +678,7 @@ const char* BuildShaderStateConfig(void);
 //
 qboolean CanDamage(gentity_t* targ, vec3_t origin);
 void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
-qboolean G_RadiusDamage(vec3_t origin, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int mod);
+qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int dflags, int mod);
 int G_InvulnerabilityEffect(gentity_t* targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir);
 void body_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int damage, int meansOfDeath);
 void TossClientItems(gentity_t* self);
@@ -580,10 +778,15 @@ void SetLeader(int team, int client);
 void CheckTeamLeader(int team);
 void G_RunThink(gentity_t* ent);
 void AddTournamentQueue(gclient_t* client);
+void SetWarmupState(int warmupTime);
 void QDECL G_LogPrintf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 void SendScoreboardMessageToAllClients(void);
 void QDECL G_Printf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 void QDECL G_Error(const char* fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
+void G_ShutdownGame(int restart);
+void G_InitGame(int levelTime, int randomSeed, int restart);
+void G_RunFrame(int levelTime);
+void G_RegisterCvars(void);
 
 //
 // g_client.c
@@ -593,6 +796,21 @@ void ClientUserinfoChanged(int clientNum);
 void ClientDisconnect(int clientNum);
 void ClientBegin(int clientNum);
 void ClientCommand(int clientNum);
+void ClientBegin_Race(gentity_t* ent);
+void ClientBegin_RoundBased(gentity_t* ent);
+void ClientBegin_Freeze(gentity_t* ent);
+void ClientBegin_RedRover(gentity_t* ent);
+void SelectSpawnWeapon(gentity_t* ent);
+void UpdateTeamAliveCount(void);
+int G_GetAccessLevel(const char* ip);
+void G_ReleaseGrapple(gentity_t* ent);
+void DuelScoreboardMessage(gentity_t* ent);
+void STAT_InitClient(gentity_t* ent);
+void STAT_PublishClientDisconnect(gclient_t* client, int reason);
+void STAT_SubscribeClient(gentity_t* ent);
+void STAT_LogDisconnect(int clientNum);
+void STAT_MatchEnd(void);
+qboolean G_IsTeamLocked(team_t team);
 
 //
 // g_active.c
@@ -600,6 +818,8 @@ void ClientCommand(int clientNum);
 void ClientThink(int clientNum);
 void ClientEndFrame(gentity_t* ent);
 void G_RunClient(gentity_t* ent);
+qboolean ClientIsReadyToExit(int clientNum);  // [QL] readyToExit tracking
+void ClearClientReadyToExit(void);            // [QL] reset at intermission start
 
 //
 // g_team.c
@@ -665,6 +885,8 @@ void BotTestAAS(vec3_t origin);
 
 extern level_locals_t level;
 extern gentity_t g_entities[MAX_GENTITIES];
+extern gclient_t g_clients[MAX_CLIENTS];
+extern gameImport_t *imports;  // [QL] engine syscall table
 
 #define FOFS(x) ((size_t)&(((gentity_t*)0)->x))
 
@@ -697,8 +919,16 @@ extern vmCvar_t g_synchronousClients;
 extern vmCvar_t g_motd;
 extern vmCvar_t g_warmup;
 extern vmCvar_t g_doWarmup;
+extern vmCvar_t g_gameState;
+extern vmCvar_t g_warmupReadyPercentage;
+extern vmCvar_t g_forfeit;
 extern vmCvar_t g_blood;
 extern vmCvar_t g_allowVote;
+extern vmCvar_t g_allowVoteMidGame;
+extern vmCvar_t g_allowSpecVote;
+extern vmCvar_t g_voteFlags;
+extern vmCvar_t g_voteDelay;
+extern vmCvar_t g_voteLimit;
 extern vmCvar_t g_teamAutoJoin;
 extern vmCvar_t g_teamForceBalance;
 extern vmCvar_t g_banIPs;
@@ -709,8 +939,9 @@ extern vmCvar_t g_obeliskRegenAmount;
 extern vmCvar_t g_obeliskRespawnDelay;
 extern vmCvar_t g_cubeTimeout;
 extern vmCvar_t g_smoothClients;
-extern vmCvar_t pmove_fixed;
-extern vmCvar_t pmove_msec;
+extern vmCvar_t g_knockback_z;
+extern vmCvar_t g_knockback_z_self;
+extern vmCvar_t g_knockback_cripple;
 extern vmCvar_t g_rankings;
 extern vmCvar_t g_enableDust;
 extern vmCvar_t g_enableBreath;
@@ -718,9 +949,162 @@ extern vmCvar_t g_singlePlayer;
 extern vmCvar_t g_proxMineTimeout;
 extern vmCvar_t g_localTeamPref;
 extern vmCvar_t g_infiniteAmmo;
+extern vmCvar_t g_dropFlag;
+extern vmCvar_t g_runes;
+
+// [QL] per-weapon damage cvars
+extern vmCvar_t g_damage_g;
+extern vmCvar_t g_damage_mg;
+extern vmCvar_t g_damage_sg;
+extern vmCvar_t g_damage_gl;
+extern vmCvar_t g_damage_rl;
+extern vmCvar_t g_damage_lg;
+extern vmCvar_t g_damage_rg;
+extern vmCvar_t g_damage_pg;
+extern vmCvar_t g_damage_bfg;
+extern vmCvar_t g_damage_gh;
+extern vmCvar_t g_damage_ng;
+extern vmCvar_t g_damage_cg;
+extern vmCvar_t g_damage_hmg;
+extern vmCvar_t g_damage_pl;
+
+// [QL] per-weapon knockback multiplier cvars
+extern vmCvar_t g_knockback_g;
+extern vmCvar_t g_knockback_mg;
+extern vmCvar_t g_knockback_sg;
+extern vmCvar_t g_knockback_gl;
+extern vmCvar_t g_knockback_rl;
+extern vmCvar_t g_knockback_rl_self;
+extern vmCvar_t g_knockback_lg;
+extern vmCvar_t g_knockback_rg;
+extern vmCvar_t g_knockback_pg;
+extern vmCvar_t g_knockback_pg_self;
+extern vmCvar_t g_knockback_bfg;
+extern vmCvar_t g_knockback_gh;
+extern vmCvar_t g_knockback_ng;
+extern vmCvar_t g_knockback_pl;
+extern vmCvar_t g_knockback_cg;
+extern vmCvar_t g_knockback_hmg;
+
+// [QL] weapon reload (fire interval) cvars
+extern vmCvar_t weapon_reload_mg;
+extern vmCvar_t weapon_reload_sg;
+extern vmCvar_t weapon_reload_gl;
+extern vmCvar_t weapon_reload_rl;
+extern vmCvar_t weapon_reload_lg;
+extern vmCvar_t weapon_reload_rg;
+extern vmCvar_t weapon_reload_pg;
+extern vmCvar_t weapon_reload_bfg;
+extern vmCvar_t weapon_reload_gh;
+extern vmCvar_t weapon_reload_ng;
+extern vmCvar_t weapon_reload_prox;
+extern vmCvar_t weapon_reload_cg;
+extern vmCvar_t weapon_reload_hmg;
+
+// [QL] per-weapon splash damage cvars
+extern vmCvar_t g_splashdamage_gl;
+extern vmCvar_t g_splashdamage_rl;
+extern vmCvar_t g_splashdamage_pg;
+extern vmCvar_t g_splashdamage_bfg;
+extern vmCvar_t g_splashdamage_pl;
+extern vmCvar_t g_splashdamageOffset;
+extern vmCvar_t g_rocketsplashOffset;
+
+// [QL] knockback cap cvar
+extern vmCvar_t g_max_knockback;
+
+// [QL] per-weapon splash radius cvars
+extern vmCvar_t g_splashradius_gl;
+extern vmCvar_t g_splashradius_rl;
+extern vmCvar_t g_splashradius_pg;
+extern vmCvar_t g_splashradius_bfg;
+extern vmCvar_t g_splashradius_pl;
+
+// [QL] projectile velocity cvars
+extern vmCvar_t g_velocity_gl;
+extern vmCvar_t g_velocity_rl;
+extern vmCvar_t g_velocity_pg;
+extern vmCvar_t g_velocity_bfg;
+extern vmCvar_t g_velocity_gh;
+
+// [QL] projectile acceleration cvars
+extern vmCvar_t g_accelFactor_rl;
+extern vmCvar_t g_accelFactor_pg;
+extern vmCvar_t g_accelFactor_bfg;
+extern vmCvar_t g_accelRate_rl;
+extern vmCvar_t g_accelRate_pg;
+extern vmCvar_t g_accelRate_bfg;
+
+// [QL] projectile gravity cvars
+extern vmCvar_t weapon_gravity_rl;
+extern vmCvar_t weapon_gravity_pg;
+extern vmCvar_t weapon_gravity_bfg;
+extern vmCvar_t weapon_gravity_ng;
+
+// [QL] nailgun cvars
+extern vmCvar_t g_nailspeed;
+extern vmCvar_t g_nailcount;
+extern vmCvar_t g_nailspread;
+extern vmCvar_t g_nailbounce;
+extern vmCvar_t g_nailbouncepercentage;
+
+// [QL] guided rocket cvar
+extern vmCvar_t g_guidedRocket;
+
+// [QL] pmove cvars (movement physics)
+extern vmCvar_t pmove_AirControl;
+extern vmCvar_t pmove_AutoHop;
+extern vmCvar_t pmove_CrouchSlide;
+extern vmCvar_t pmove_DoubleJump;
+
+// [QL] loadout system
+extern vmCvar_t g_loadout;
+
+// [QL] ammo system
+extern vmCvar_t g_ammoPack;
+extern vmCvar_t g_ammoRespawn;
+extern vmCvar_t g_spawnItemAmmo;
+
+// [QL] serverinfo cvars
+extern vmCvar_t g_teamsize;
+extern vmCvar_t g_teamSizeMin;
+extern vmCvar_t g_overtime;
+extern vmCvar_t g_scorelimit;
+extern vmCvar_t g_mercylimit;
+extern vmCvar_t g_mercytime;
+extern vmCvar_t g_rrAllowNegativeScores;
+extern vmCvar_t g_spawnItems;
+extern vmCvar_t sv_quitOnExitLevel;
+extern vmCvar_t g_isBotOnly;
+extern vmCvar_t g_training;
+extern vmCvar_t g_itemHeight;
+extern vmCvar_t g_itemTimers;
+extern vmCvar_t g_quadDamageFactor;
+extern vmCvar_t g_freezeRoundDelay;
+extern vmCvar_t g_timeoutCount;
+
+// [QL] starting loadout cvars
+extern vmCvar_t g_startingWeapons;
+extern vmCvar_t g_startingHealth;
+extern vmCvar_t g_startingHealthBonus;
+extern vmCvar_t g_startingArmor;
+extern vmCvar_t g_startingAmmo_g;
+extern vmCvar_t g_startingAmmo_mg;
+extern vmCvar_t g_startingAmmo_sg;
+extern vmCvar_t g_startingAmmo_gl;
+extern vmCvar_t g_startingAmmo_rl;
+extern vmCvar_t g_startingAmmo_lg;
+extern vmCvar_t g_startingAmmo_rg;
+extern vmCvar_t g_startingAmmo_pg;
+extern vmCvar_t g_startingAmmo_bfg;
+extern vmCvar_t g_startingAmmo_gh;
+extern vmCvar_t g_startingAmmo_ng;
+extern vmCvar_t g_startingAmmo_pl;
+extern vmCvar_t g_startingAmmo_cg;
+extern vmCvar_t g_startingAmmo_hmg;
 
 void trap_Print(const char* text);
-void trap_Error(const char* text) __attribute__((noreturn));
+void trap_Error(const char* fmt, ...) __attribute__((noreturn));
 int trap_Milliseconds(void);
 int trap_RealTime(qtime_t* qtime);
 int trap_Argc(void);
