@@ -30,13 +30,14 @@ typedef struct {
     char* cvarName;
     char* defaultString;
     int cvarFlags;
-    int modificationCount;  // for tracking changes
-    qboolean trackChange;   // track this variable, and announce if changed
-    qboolean teamShader;    // track and if changed, update shader state
+    int modCount;           // [QL] tracks vmCvar->modificationCount (was modificationCount)
+    void (*onChanged)(void); // [QL] callback when value changes (was trackChange/teamShader)
 } cvarTable_t;
 
 gentity_t g_entities[MAX_GENTITIES];
 gclient_t g_clients[MAX_CLIENTS];
+
+gameImport_t *imports;   // [QL] engine syscall table
 
 vmCvar_t g_gametype;
 vmCvar_t g_dmflags;
@@ -72,13 +73,19 @@ vmCvar_t g_blood;
 vmCvar_t g_podiumDist;
 vmCvar_t g_podiumDrop;
 vmCvar_t g_allowVote;
+vmCvar_t g_allowVoteMidGame;
+vmCvar_t g_allowSpecVote;
+vmCvar_t g_voteFlags;
+vmCvar_t g_voteDelay;
+vmCvar_t g_voteLimit;
 vmCvar_t g_teamAutoJoin;
 vmCvar_t g_teamForceBalance;
 vmCvar_t g_banIPs;
 vmCvar_t g_filterBan;
 vmCvar_t g_smoothClients;
-vmCvar_t pmove_fixed;
-vmCvar_t pmove_msec;
+vmCvar_t g_knockback_z;
+vmCvar_t g_knockback_z_self;
+vmCvar_t g_knockback_cripple;
 vmCvar_t g_rankings;
 vmCvar_t g_listEntity;
 vmCvar_t g_localTeamPref;
@@ -94,89 +101,542 @@ vmCvar_t g_enableDust;
 vmCvar_t g_enableBreath;
 vmCvar_t g_proxMineTimeout;
 vmCvar_t g_infiniteAmmo;
+vmCvar_t g_dropFlag;
+vmCvar_t g_runes;
+
+// [QL] per-weapon damage cvars
+vmCvar_t g_damage_g;
+vmCvar_t g_damage_mg;
+vmCvar_t g_damage_sg;
+vmCvar_t g_damage_gl;
+vmCvar_t g_damage_rl;
+vmCvar_t g_damage_lg;
+vmCvar_t g_damage_rg;
+vmCvar_t g_damage_pg;
+vmCvar_t g_damage_bfg;
+vmCvar_t g_damage_gh;
+vmCvar_t g_damage_ng;
+vmCvar_t g_damage_cg;
+vmCvar_t g_damage_hmg;
+vmCvar_t g_damage_pl;
+
+// [QL] per-weapon knockback multiplier cvars
+vmCvar_t g_knockback_g;
+vmCvar_t g_knockback_mg;
+vmCvar_t g_knockback_sg;
+vmCvar_t g_knockback_gl;
+vmCvar_t g_knockback_rl;
+vmCvar_t g_knockback_rl_self;
+vmCvar_t g_knockback_lg;
+vmCvar_t g_knockback_rg;
+vmCvar_t g_knockback_pg;
+vmCvar_t g_knockback_pg_self;
+vmCvar_t g_knockback_bfg;
+vmCvar_t g_knockback_gh;
+vmCvar_t g_knockback_ng;
+vmCvar_t g_knockback_pl;
+vmCvar_t g_knockback_cg;
+vmCvar_t g_knockback_hmg;
+
+// [QL] weapon reload (fire interval) cvars
+vmCvar_t weapon_reload_mg;
+vmCvar_t weapon_reload_sg;
+vmCvar_t weapon_reload_gl;
+vmCvar_t weapon_reload_rl;
+vmCvar_t weapon_reload_lg;
+vmCvar_t weapon_reload_rg;
+vmCvar_t weapon_reload_pg;
+vmCvar_t weapon_reload_bfg;
+vmCvar_t weapon_reload_gh;
+vmCvar_t weapon_reload_ng;
+vmCvar_t weapon_reload_prox;
+vmCvar_t weapon_reload_cg;
+vmCvar_t weapon_reload_hmg;
+
+// [QL] per-weapon splash damage cvars
+vmCvar_t g_splashdamage_gl;
+vmCvar_t g_splashdamage_rl;
+vmCvar_t g_splashdamage_pg;
+vmCvar_t g_splashdamage_bfg;
+vmCvar_t g_splashdamage_pl;
+vmCvar_t g_splashdamageOffset;
+vmCvar_t g_rocketsplashOffset;
+
+// [QL] knockback cap cvar
+vmCvar_t g_max_knockback;
+
+// [QL] per-weapon splash radius cvars
+vmCvar_t g_splashradius_gl;
+vmCvar_t g_splashradius_rl;
+vmCvar_t g_splashradius_pg;
+vmCvar_t g_splashradius_bfg;
+vmCvar_t g_splashradius_pl;
+
+// [QL] projectile velocity cvars
+vmCvar_t g_velocity_gl;
+vmCvar_t g_velocity_rl;
+vmCvar_t g_velocity_pg;
+vmCvar_t g_velocity_bfg;
+vmCvar_t g_velocity_gh;
+
+// [QL] projectile acceleration cvars
+vmCvar_t g_accelFactor_rl;
+vmCvar_t g_accelFactor_pg;
+vmCvar_t g_accelFactor_bfg;
+vmCvar_t g_accelRate_rl;
+vmCvar_t g_accelRate_pg;
+vmCvar_t g_accelRate_bfg;
+
+// [QL] projectile gravity cvars
+vmCvar_t weapon_gravity_rl;
+vmCvar_t weapon_gravity_pg;
+vmCvar_t weapon_gravity_bfg;
+vmCvar_t weapon_gravity_ng;
+
+// [QL] nailgun cvars
+vmCvar_t g_nailspeed;
+vmCvar_t g_nailcount;
+vmCvar_t g_nailspread;
+vmCvar_t g_nailbounce;
+vmCvar_t g_nailbouncepercentage;
+
+// [QL] guided rocket cvar
+vmCvar_t g_guidedRocket;
+
+// [QL] loadout system
+vmCvar_t g_loadout;
+
+// [QL] ammo system
+vmCvar_t g_ammoPack;
+vmCvar_t g_ammoRespawn;
+vmCvar_t g_spawnItemAmmo;
+
+// [QL] game state management
+vmCvar_t g_gameState;
+vmCvar_t g_warmupReadyPercentage;
+vmCvar_t g_forfeit;
+
+// [QL] serverinfo cvars read by cgame
+vmCvar_t g_teamsize;
+vmCvar_t g_teamSizeMin;
+vmCvar_t g_overtime;
+vmCvar_t g_scorelimit;
+vmCvar_t g_mercylimit;
+vmCvar_t g_mercytime;
+vmCvar_t g_rrAllowNegativeScores;
+vmCvar_t g_spawnItems;
+vmCvar_t sv_quitOnExitLevel;
+vmCvar_t g_isBotOnly;
+vmCvar_t g_training;
+vmCvar_t g_itemHeight;
+vmCvar_t g_itemTimers;
+vmCvar_t g_quadDamageFactor;
+vmCvar_t g_freezeRoundDelay;
+vmCvar_t g_timeoutCount;
+
+// [QL] starting loadout cvars
+vmCvar_t g_startingWeapons;
+vmCvar_t g_startingHealth;
+vmCvar_t g_startingHealthBonus;
+vmCvar_t g_startingArmor;
+vmCvar_t g_startingAmmo_g;
+vmCvar_t g_startingAmmo_mg;
+vmCvar_t g_startingAmmo_sg;
+vmCvar_t g_startingAmmo_gl;
+vmCvar_t g_startingAmmo_rl;
+vmCvar_t g_startingAmmo_lg;
+vmCvar_t g_startingAmmo_rg;
+vmCvar_t g_startingAmmo_pg;
+vmCvar_t g_startingAmmo_bfg;
+vmCvar_t g_startingAmmo_gh;
+vmCvar_t g_startingAmmo_ng;
+vmCvar_t g_startingAmmo_pl;
+vmCvar_t g_startingAmmo_cg;
+vmCvar_t g_startingAmmo_hmg;
+
+// [QL] pmove_* cvars - configurable movement physics
+vmCvar_t pmove_JumpVelocity;
+vmCvar_t pmove_JumpVelocityMax;
+vmCvar_t pmove_JumpVelocityScaleAdd;
+vmCvar_t pmove_JumpVelocityTimeThreshold;
+vmCvar_t pmove_JumpVelocityTimeThresholdOffset;
+vmCvar_t pmove_ChainJump;
+vmCvar_t pmove_ChainJumpVelocity;
+vmCvar_t pmove_StepJumpVelocity;
+vmCvar_t pmove_JumpTimeDeltaMin;
+vmCvar_t pmove_RampJump;
+vmCvar_t pmove_RampJumpScale;
+vmCvar_t pmove_StepJump;
+vmCvar_t pmove_CrouchStepJump;
+vmCvar_t pmove_AutoHop;
+vmCvar_t pmove_BunnyHop;
+vmCvar_t pmove_AirAccel;
+vmCvar_t pmove_AirStopAccel;
+vmCvar_t pmove_AirControl;
+vmCvar_t pmove_StrafeAccel;
+vmCvar_t pmove_WalkAccel;
+vmCvar_t pmove_WalkFriction;
+vmCvar_t pmove_CircleStrafeFriction;
+vmCvar_t pmove_CrouchSlideFriction;
+vmCvar_t pmove_CrouchSlideTime;
+vmCvar_t pmove_AirSteps;
+vmCvar_t pmove_AirStepFriction;
+vmCvar_t pmove_StepHeight;
+vmCvar_t pmove_WaterSwimScale;
+vmCvar_t pmove_WaterWadeScale;
+vmCvar_t pmove_WishSpeed;
+vmCvar_t pmove_WeaponDropTime;
+vmCvar_t pmove_WeaponRaiseTime;
+vmCvar_t pmove_NoPlayerClip;
+vmCvar_t pmove_HookPullVelocity;
+vmCvar_t pmove_DoubleJump;
+vmCvar_t pmove_CrouchSlide;
+vmCvar_t pmove_VelocityGH;
+
+// [QL] dirty flag - set when any pmove cvar changes, cleared after sending CS_PMOVEINFO
+static qboolean pmoveInfoDirty = qtrue;
+
+// [QL] starting weapons callback - publish bitmask to configstring
+static void OnChangedStartingWeapons(void) {
+    trap_SetConfigstring(CS_STARTING_WEAPONS, va("%i", g_startingWeapons.integer));
+}
+
+// [QL] pmove_* onChanged callbacks - update PM_Set* globals and mark configstring dirty
+static void OnChangedPmoveJumpVelocity(void)          { PM_SetJumpVelocity(pmove_JumpVelocity.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveJumpVelocityMax(void)        { PM_SetJumpVelocityMax(pmove_JumpVelocityMax.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveJumpVelocityScaleAdd(void)   { PM_SetJumpVelocityScaleAdd(pmove_JumpVelocityScaleAdd.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveJumpVelocityTimeThreshold(void) { PM_SetJumpVelocityTimeThreshold(pmove_JumpVelocityTimeThreshold.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveJumpVelocityTimeThresholdOffset(void) { PM_SetJumpVelocityTimeThresholdOffset(pmove_JumpVelocityTimeThresholdOffset.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveChainJump(void)              { PM_SetChainJump(pmove_ChainJump.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveChainJumpVelocity(void)      { PM_SetChainJumpVelocity(pmove_ChainJumpVelocity.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveStepJumpVelocity(void)       { PM_SetStepJumpVelocity(pmove_StepJumpVelocity.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveJumpTimeDeltaMin(void)       { PM_SetJumpTimeDeltaMin(pmove_JumpTimeDeltaMin.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveRampJump(void)               { PM_SetRampJump(pmove_RampJump.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveRampJumpScale(void)          { PM_SetRampJumpScale(pmove_RampJumpScale.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveStepJump(void)               { PM_SetStepJump(pmove_StepJump.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveCrouchStepJump(void)         { PM_SetCrouchStepJump(pmove_CrouchStepJump.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAutoHop(void)                { PM_SetAutoHop(pmove_AutoHop.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveBunnyHop(void)               { PM_SetBunnyHop(pmove_BunnyHop.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAirAccel(void)               { PM_SetAirAccel(pmove_AirAccel.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAirStopAccel(void)           { PM_SetAirStopAccel(pmove_AirStopAccel.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAirControl(void)             { PM_SetAirControl(pmove_AirControl.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveStrafeAccel(void)            { PM_SetStrafeAccel(pmove_StrafeAccel.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWalkAccel(void)              { PM_SetWalkAccel(pmove_WalkAccel.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWalkFriction(void)           { PM_SetWalkFriction(pmove_WalkFriction.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveCircleStrafeFriction(void)   { PM_SetCircleStrafeFriction(pmove_CircleStrafeFriction.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveCrouchSlideFriction(void)    { PM_SetCrouchSlideFriction(pmove_CrouchSlideFriction.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveCrouchSlideTime(void)        { PM_SetCrouchSlideTime(pmove_CrouchSlideTime.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAirSteps(void)               { PM_SetAirSteps(pmove_AirSteps.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveAirStepFriction(void)        { PM_SetAirStepFriction(pmove_AirStepFriction.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveStepHeight(void)             { PM_SetStepHeight(pmove_StepHeight.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWaterSwimScale(void)         { PM_SetWaterSwimScale(pmove_WaterSwimScale.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWaterWadeScale(void)         { PM_SetWaterWadeScale(pmove_WaterWadeScale.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWishSpeed(void)              { PM_SetWishSpeed(pmove_WishSpeed.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWeaponDropTime(void)         { PM_SetWeaponDropTime(pmove_WeaponDropTime.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveWeaponRaiseTime(void)        { PM_SetWeaponRaiseTime(pmove_WeaponRaiseTime.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveNoPlayerClip(void)           { PM_SetNoPlayerClip(pmove_NoPlayerClip.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveHookPullVelocity(void)       { PM_SetHookPullVelocity(pmove_HookPullVelocity.value); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveDoubleJump(void)             { PM_SetDoubleJump(pmove_DoubleJump.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveCrouchSlide(void)            { PM_SetCrouchSlide(pmove_CrouchSlide.integer); pmoveInfoDirty = qtrue; }
+static void OnChangedPmoveVelocityGH(void)             { PM_SetVelocityGH(pmove_VelocityGH.value); pmoveInfoDirty = qtrue; }
+
+// [QL] weapon_reload_* onChanged callbacks - update bg_weaponReloadTime[]
+static void OnChangedWeaponReloadMG(void)   { BG_SetWeaponReload(WP_MACHINEGUN, weapon_reload_mg.integer); }
+static void OnChangedWeaponReloadSG(void)   { BG_SetWeaponReload(WP_SHOTGUN, weapon_reload_sg.integer); }
+static void OnChangedWeaponReloadGL(void)   { BG_SetWeaponReload(WP_GRENADE_LAUNCHER, weapon_reload_gl.integer); }
+static void OnChangedWeaponReloadRL(void)   { BG_SetWeaponReload(WP_ROCKET_LAUNCHER, weapon_reload_rl.integer); }
+static void OnChangedWeaponReloadLG(void)   { BG_SetWeaponReload(WP_LIGHTNING, weapon_reload_lg.integer); }
+static void OnChangedWeaponReloadRG(void)   { BG_SetWeaponReload(WP_RAILGUN, weapon_reload_rg.integer); }
+static void OnChangedWeaponReloadPG(void)   { BG_SetWeaponReload(WP_PLASMAGUN, weapon_reload_pg.integer); }
+static void OnChangedWeaponReloadBFG(void)  { BG_SetWeaponReload(WP_BFG, weapon_reload_bfg.integer); }
+static void OnChangedWeaponReloadGH(void)   { BG_SetWeaponReload(WP_GAUNTLET, weapon_reload_gh.integer);
+                                              BG_SetWeaponReload(WP_GRAPPLING_HOOK, weapon_reload_gh.integer); }
+static void OnChangedWeaponReloadNG(void)   { BG_SetWeaponReload(WP_NAILGUN, weapon_reload_ng.integer); }
+static void OnChangedWeaponReloadProx(void) { BG_SetWeaponReload(WP_PROX_LAUNCHER, weapon_reload_prox.integer); }
+static void OnChangedWeaponReloadCG(void)   { BG_SetWeaponReload(WP_CHAINGUN, weapon_reload_cg.integer); }
+static void OnChangedWeaponReloadHMG(void)  { BG_SetWeaponReload(WP_HMG, weapon_reload_hmg.integer); }
 
 static cvarTable_t gameCvarTable[] = {
     // don't override the cheat state set by the system
-    {&g_cheats, "sv_cheats", "", 0, 0, qfalse},
+    {&g_cheats, "sv_cheats", "", 0, 0, NULL},
 
     // noset vars
-    {NULL, "gamename", GAMEVERSION, CVAR_SERVERINFO | CVAR_ROM, 0, qfalse},
-    {NULL, "gamedate", PRODUCT_DATE, CVAR_ROM, 0, qfalse},
-    {&g_restarted, "g_restarted", "0", CVAR_ROM, 0, qfalse},
+    {NULL, "gamename", GAMEVERSION, CVAR_SERVERINFO | CVAR_ROM, 0, NULL},
+    {NULL, "gamedate", PRODUCT_DATE, CVAR_ROM, 0, NULL},
+    {&g_restarted, "g_restarted", "0", CVAR_ROM, 0, NULL},
 
     // latched vars
-    {&g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_USERINFO | CVAR_LATCH, 0, qfalse},
+    {&g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_USERINFO | CVAR_LATCH, 0, NULL},
 
-    {&g_maxclients, "sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse},
-    {&g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, qfalse},
+    {&g_maxclients, "sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, NULL},
+    {&g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, NULL},
 
     // change anytime vars
-    {&g_dmflags, "dmflags", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue},
-    {&g_fraglimit, "fraglimit", "20", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue},
-    {&g_timelimit, "timelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue},
-    {&g_capturelimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue},
+    {&g_dmflags, "dmflags", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_fraglimit, "fraglimit", "20", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_timelimit, "timelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_capturelimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
 
-    {&g_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO, 0, qfalse},
+    {&g_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO, 0, NULL},
 
-    {&g_friendlyFire, "g_friendlyFire", "0", CVAR_ARCHIVE, 0, qtrue},
+    {&g_friendlyFire, "g_friendlyFire", "0", CVAR_ARCHIVE, 0, NULL},
 
     {&g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE},
-    {&g_teamForceBalance, "g_teamForceBalance", "0", CVAR_ARCHIVE},
+    {&g_teamForceBalance, "g_teamForceBalance", "0", CVAR_SERVERINFO | CVAR_ARCHIVE},
 
-    {&g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, qtrue},
-    {&g_doWarmup, "g_doWarmup", "0", CVAR_ARCHIVE, 0, qtrue},
-    {&g_logfile, "g_log", "games.log", CVAR_ARCHIVE, 0, qfalse},
-    {&g_logfileSync, "g_logsync", "0", CVAR_ARCHIVE, 0, qfalse},
+    {&g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, NULL},
+    {&g_doWarmup, "g_doWarmup", "1", CVAR_ARCHIVE, 0, NULL},
+    {&g_gameState, "g_gameState", "PRE_GAME", CVAR_ROM, 0, NULL},
+    {&g_warmupReadyPercentage, "g_warmupReadyPercentage", "0.51", CVAR_ARCHIVE, 0, NULL},
+    {&g_forfeit, "g_forfeit", "0", CVAR_ARCHIVE, 0, NULL},
+    {&g_logfile, "g_log", "games.log", CVAR_ARCHIVE, 0, NULL},
+    {&g_logfileSync, "g_logsync", "0", CVAR_ARCHIVE, 0, NULL},
 
-    {&g_password, "g_password", "", CVAR_USERINFO, 0, qfalse},
+    {&g_password, "g_password", "", CVAR_USERINFO, 0, NULL},
 
-    {&g_banIPs, "g_banIPs", "", CVAR_ARCHIVE, 0, qfalse},
-    {&g_filterBan, "g_filterBan", "1", CVAR_ARCHIVE, 0, qfalse},
+    {&g_banIPs, "g_banIPs", "", CVAR_ARCHIVE, 0, NULL},
+    {&g_filterBan, "g_filterBan", "1", CVAR_ARCHIVE, 0, NULL},
 
-    {&g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse},
+    {&g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, NULL},
 
-    {&g_dedicated, "dedicated", "0", 0, 0, qfalse},
+    {&g_dedicated, "dedicated", "0", 0, 0, NULL},
 
-    {&g_speed, "g_speed", "320", 0, 0, qtrue},
-    {&g_gravity, "g_gravity", "800", 0, 0, qtrue},
-    {&g_knockback, "g_knockback", "1000", 0, 0, qtrue},
-    {&g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue},
-    {&g_weaponRespawn, "g_weaponrespawn", "5", 0, 0, qtrue},
-    {&g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, qtrue},
-    {&g_forcerespawn, "g_forcerespawn", "20", 0, 0, qtrue},
-    {&g_inactivity, "g_inactivity", "0", 0, 0, qtrue},
-    {&g_debugMove, "g_debugMove", "0", 0, 0, qfalse},
-    {&g_debugDamage, "g_debugDamage", "0", 0, 0, qfalse},
-    {&g_debugAlloc, "g_debugAlloc", "0", 0, 0, qfalse},
-    {&g_motd, "g_motd", "", 0, 0, qfalse},
-    {&g_blood, "com_blood", "1", 0, 0, qfalse},
+    {&g_speed, "g_speed", "320", 0, 0, NULL},
+    {&g_gravity, "g_gravity", "800", CVAR_SERVERINFO, 0, NULL},
+    {&g_knockback, "g_knockback", "1000", 0, 0, NULL},
+    {&g_quadfactor, "g_quadfactor", "3", 0, 0, NULL},
+    {&g_weaponRespawn, "g_weaponrespawn", "5", CVAR_SERVERINFO, 0, NULL},
+    {&g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, NULL},
+    {&g_forcerespawn, "g_forcerespawn", "20", 0, 0, NULL},
+    {&g_inactivity, "g_inactivity", "0", 0, 0, NULL},
+    {&g_debugMove, "g_debugMove", "0", 0, 0, NULL},
+    {&g_debugDamage, "g_debugDamage", "0", 0, 0, NULL},
+    {&g_debugAlloc, "g_debugAlloc", "0", 0, 0, NULL},
+    {&g_motd, "g_motd", "", 0, 0, NULL},
+    {&g_blood, "com_blood", "1", 0, 0, NULL},
 
-    {&g_podiumDist, "g_podiumDist", "80", 0, 0, qfalse},
-    {&g_podiumDrop, "g_podiumDrop", "70", 0, 0, qfalse},
+    {&g_podiumDist, "g_podiumDist", "80", 0, 0, NULL},
+    {&g_podiumDrop, "g_podiumDrop", "70", 0, 0, NULL},
 
-    {&g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, qfalse},
-    {&g_listEntity, "g_listEntity", "0", 0, 0, qfalse},
+    {&g_allowVote, "g_allowVote", "1", 0, 0, NULL},
+    {&g_allowVoteMidGame, "g_allowVoteMidGame", "0", 0, 0, NULL},
+    {&g_allowSpecVote, "g_allowSpecVote", "0", 0, 0, NULL},
+    {&g_voteFlags, "g_voteFlags", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_voteDelay, "g_voteDelay", "0", 0, 0, NULL},
+    {&g_voteLimit, "g_voteLimit", "0", 0, 0, NULL},
+    {&g_listEntity, "g_listEntity", "0", 0, 0, NULL},
 
-    {&g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, qfalse},
-    {&g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, qfalse},
-    {&g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", 0, 0, qfalse},
-    {&g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO, 0, qfalse},
+    {&g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, NULL},
+    {&g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, NULL},
+    {&g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", 0, 0, NULL},
+    {&g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO, 0, NULL},
 
-    {&g_cubeTimeout, "g_cubeTimeout", "30", 0, 0, qfalse},
-    {&g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, qfalse, qfalse},
+    {&g_cubeTimeout, "g_cubeTimeout", "30", 0, 0, NULL},
+    {&g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, NULL},
 
-    {&g_enableDust, "g_enableDust", "0", CVAR_SERVERINFO, 0, qtrue, qfalse},
-    {&g_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO, 0, qtrue, qfalse},
-    {&g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, qfalse},
+    {&g_enableDust, "g_enableDust", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, NULL},
 
-    {&g_smoothClients, "g_smoothClients", "1", 0, 0, qfalse},
-    {&pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO, 0, qfalse},
-    {&pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO, 0, qfalse},
+    {&g_smoothClients, "g_smoothClients", "1", 0, 0, NULL},
 
-    {&g_rankings, "g_rankings", "0", 0, 0, qfalse},
-    {&g_localTeamPref, "g_localTeamPref", "", 0, 0, qfalse},
+    {&g_rankings, "g_rankings", "0", 0, 0, NULL},
+    {&g_localTeamPref, "g_localTeamPref", "", 0, 0, NULL},
 
-    {&g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_SYSTEMINFO, 0, qtrue}};
+    {&g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_SYSTEMINFO, 0, NULL},
+    {&g_dropFlag, "g_dropFlag", "7", 0, 0, NULL},  // [QL] bitmask: 1=flag, 2=powerup, 4=weapon
+    {&g_runes, "g_runes", "0", 0, 0, NULL},  // [QL] enable rune dropping
+
+    // [QL] per-weapon damage cvars
+    {&g_damage_g, "g_damage_g", "50", 0, 0, NULL},
+    {&g_damage_mg, "g_damage_mg", "5", 0, 0, NULL},
+    {&g_damage_sg, "g_damage_sg", "5", 0, 0, NULL},
+    {&g_damage_gl, "g_damage_gl", "100", 0, 0, NULL},
+    {&g_damage_rl, "g_damage_rl", "100", 0, 0, NULL},
+    {&g_damage_lg, "g_damage_lg", "6", 0, 0, NULL},
+    {&g_damage_rg, "g_damage_rg", "80", 0, 0, NULL},
+    {&g_damage_pg, "g_damage_pg", "20", 0, 0, NULL},
+    {&g_damage_bfg, "g_damage_bfg", "100", 0, 0, NULL},
+    {&g_damage_gh, "g_damage_gh", "10", 0, 0, NULL},
+    {&g_damage_ng, "g_damage_ng", "12", 0, 0, NULL},
+    {&g_damage_cg, "g_damage_cg", "8", 0, 0, NULL},
+    {&g_damage_hmg, "g_damage_hmg", "8", 0, 0, NULL},
+    {&g_damage_pl, "g_damage_pl", "0", 0, 0, NULL},
+
+    // [QL] per-weapon knockback multiplier cvars
+    {&g_knockback_g, "g_knockback_g", "1", 0, 0, NULL},
+    {&g_knockback_mg, "g_knockback_mg", "1", 0, 0, NULL},
+    {&g_knockback_sg, "g_knockback_sg", "1", 0, 0, NULL},
+    {&g_knockback_gl, "g_knockback_gl", "1.10", 0, 0, NULL},
+    {&g_knockback_rl, "g_knockback_rl", "0.90", 0, 0, NULL},
+    {&g_knockback_rl_self, "g_knockback_rl_self", "1.10", 0, 0, NULL},
+    {&g_knockback_lg, "g_knockback_lg", "1.75", 0, 0, NULL},
+    {&g_knockback_rg, "g_knockback_rg", "0.85", 0, 0, NULL},
+    {&g_knockback_pg, "g_knockback_pg", "1.10", 0, 0, NULL},
+    {&g_knockback_pg_self, "g_knockback_pg_self", "1.30", 0, 0, NULL},
+    {&g_knockback_bfg, "g_knockback_bfg", "1", 0, 0, NULL},
+    {&g_knockback_gh, "g_knockback_gh", "-5", 0, 0, NULL},
+    {&g_knockback_ng, "g_knockback_ng", "1", 0, 0, NULL},
+    {&g_knockback_pl, "g_knockback_pl", "1", 0, 0, NULL},
+    {&g_knockback_cg, "g_knockback_cg", "1", 0, 0, NULL},
+    {&g_knockback_hmg, "g_knockback_hmg", "1", 0, 0, NULL},
+    {&g_knockback_z, "g_knockback_z", "24", 0, 0, NULL},
+    {&g_knockback_z_self, "g_knockback_z_self", "24", 0, 0, NULL},
+    {&g_knockback_cripple, "g_knockback_cripple", "0", 0, 0, NULL},
+
+    // [QL] weapon reload (fire interval in ms) cvars - callbacks update bg_weaponReloadTime[]
+    {&weapon_reload_mg, "weapon_reload_mg", "100", 0, 0, OnChangedWeaponReloadMG},
+    {&weapon_reload_sg, "weapon_reload_sg", "1000", 0, 0, OnChangedWeaponReloadSG},
+    {&weapon_reload_gl, "weapon_reload_gl", "800", 0, 0, OnChangedWeaponReloadGL},
+    {&weapon_reload_rl, "weapon_reload_rl", "800", 0, 0, OnChangedWeaponReloadRL},
+    {&weapon_reload_lg, "weapon_reload_lg", "50", 0, 0, OnChangedWeaponReloadLG},
+    {&weapon_reload_rg, "weapon_reload_rg", "1500", 0, 0, OnChangedWeaponReloadRG},
+    {&weapon_reload_pg, "weapon_reload_pg", "100", 0, 0, OnChangedWeaponReloadPG},
+    {&weapon_reload_bfg, "weapon_reload_bfg", "300", 0, 0, OnChangedWeaponReloadBFG},
+    {&weapon_reload_gh, "weapon_reload_gh", "100", 0, 0, OnChangedWeaponReloadGH},
+    {&weapon_reload_ng, "weapon_reload_ng", "1000", 0, 0, OnChangedWeaponReloadNG},
+    {&weapon_reload_prox, "weapon_reload_prox", "800", 0, 0, OnChangedWeaponReloadProx},
+    {&weapon_reload_cg, "weapon_reload_cg", "50", 0, 0, OnChangedWeaponReloadCG},
+    {&weapon_reload_hmg, "weapon_reload_hmg", "75", 0, 0, OnChangedWeaponReloadHMG},
+
+    // [QL] per-weapon splash damage cvars
+    {&g_splashdamage_gl, "g_splashdamage_gl", "100", 0, 0, NULL},
+    {&g_splashdamage_rl, "g_splashdamage_rl", "84", 0, 0, NULL},
+    {&g_splashdamage_pg, "g_splashdamage_pg", "15", 0, 0, NULL},
+    {&g_splashdamage_bfg, "g_splashdamage_bfg", "100", 0, 0, NULL},
+    {&g_splashdamage_pl, "g_splashdamage_pl", "100", 0, 0, NULL},
+    {&g_splashdamageOffset, "g_splashdamageOffset", "0.05", 0, 0, NULL},
+    {&g_rocketsplashOffset, "g_rocketsplashOffset", "-10.0", 0, 0, NULL},
+
+    // [QL] knockback cap
+    {&g_max_knockback, "g_max_knockback", "120", 0, 0, NULL},
+
+    // [QL] per-weapon splash radius cvars
+    {&g_splashradius_gl, "g_splashradius_gl", "150", 0, 0, NULL},
+    {&g_splashradius_rl, "g_splashradius_rl", "120", 0, 0, NULL},
+    {&g_splashradius_pg, "g_splashradius_pg", "20", 0, 0, NULL},
+    {&g_splashradius_bfg, "g_splashradius_bfg", "80", 0, 0, NULL},
+    {&g_splashradius_pl, "g_splashradius_pl", "150", 0, 0, NULL},
+
+    // [QL] projectile velocity cvars
+    {&g_velocity_gl, "g_velocity_gl", "700", 0, 0, NULL},
+    {&g_velocity_rl, "g_velocity_rl", "1000", 0, 0, NULL},
+    {&g_velocity_pg, "g_velocity_pg", "2000", 0, 0, NULL},
+    {&g_velocity_bfg, "g_velocity_bfg", "1800", 0, 0, NULL},
+    {&g_velocity_gh, "g_velocity_gh", "1800", 0, 0, NULL},
+
+    // [QL] projectile acceleration cvars
+    {&g_accelFactor_rl, "g_accelFactor_rl", "1", 0, 0, NULL},
+    {&g_accelFactor_pg, "g_accelFactor_pg", "1", 0, 0, NULL},
+    {&g_accelFactor_bfg, "g_accelFactor_bfg", "1", 0, 0, NULL},
+    {&g_accelRate_rl, "g_accelRate_rl", "16", 0, 0, NULL},
+    {&g_accelRate_pg, "g_accelRate_pg", "16", 0, 0, NULL},
+    {&g_accelRate_bfg, "g_accelRate_bfg", "16", 0, 0, NULL},
+
+    // [QL] projectile gravity cvars
+    {&weapon_gravity_rl, "weapon_gravity_rl", "0", 0, 0, NULL},
+    {&weapon_gravity_pg, "weapon_gravity_pg", "0", 0, 0, NULL},
+    {&weapon_gravity_bfg, "weapon_gravity_bfg", "0", 0, 0, NULL},
+    {&weapon_gravity_ng, "weapon_gravity_ng", "0", 0, 0, NULL},
+
+    // [QL] nailgun cvars
+    {&g_nailspeed, "g_nailspeed", "1000", 0, 0, NULL},
+    {&g_nailcount, "g_nailcount", "10", 0, 0, NULL},
+    {&g_nailspread, "g_nailspread", "400", 0, 0, NULL},
+    {&g_nailbounce, "g_nailbounce", "1", 0, 0, NULL},
+    {&g_nailbouncepercentage, "g_nailbouncepercentage", "65", 0, 0, NULL},
+
+    // [QL] guided rocket cvar
+    {&g_guidedRocket, "g_guidedRocket", "0", 0, 0, NULL},
+
+    // [QL] loadout system
+    {&g_loadout, "g_loadout", "0", CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] ammo system
+    {&g_ammoPack, "g_ammoPack", "0", 0, 0, NULL},
+    {&g_ammoRespawn, "g_ammoRespawn", "40", 0, 0, NULL},
+    {&g_spawnItemAmmo, "g_spawnItemAmmo", "1", 0, 0, NULL},
+
+    // [QL] serverinfo cvars read by cgame (all verified with CVAR_SERVERINFO in binary)
+    {&g_teamsize, "teamsize", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_teamSizeMin, "g_teamSizeMin", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_overtime, "g_overtime", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_scorelimit, "scorelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_mercylimit, "mercylimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_mercytime, "g_mercytime", "0", 0, 0, NULL},
+    {&g_rrAllowNegativeScores, "g_rrAllowNegativeScores", "0", 0, 0, NULL},
+    {&g_spawnItems, "g_spawnItems", "", 0, 0, NULL},
+    {&sv_quitOnExitLevel, "sv_quitOnExitLevel", "0", 0, 0, NULL},
+    {&g_isBotOnly, "g_isBotOnly", "0", 0, 0, NULL},
+    {&g_training, "g_training", "0", 0, 0, NULL},
+    {&g_itemHeight, "g_itemHeight", "35", CVAR_SERVERINFO, 0, NULL},
+    {&g_itemTimers, "g_itemTimers", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_SERVERINFO, 0, NULL},
+    {&g_freezeRoundDelay, "g_freezeRoundDelay", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] starting loadout cvars
+    {&g_startingWeapons, "g_startingWeapons", "3", 0, 0, OnChangedStartingWeapons},
+    {&g_startingHealth, "g_startingHealth", "100", CVAR_SERVERINFO, 0, NULL},
+    {&g_startingHealthBonus, "g_startingHealthBonus", "25", 0, 0, NULL},
+    {&g_startingArmor, "g_startingArmor", "0", 0, 0, NULL},
+    {&g_startingAmmo_g, "g_startingAmmo_g", "-1", 0, 0, NULL},
+    {&g_startingAmmo_mg, "g_startingAmmo_mg", "100", 0, 0, NULL},
+    {&g_startingAmmo_sg, "g_startingAmmo_sg", "10", 0, 0, NULL},
+    {&g_startingAmmo_gl, "g_startingAmmo_gl", "10", 0, 0, NULL},
+    {&g_startingAmmo_rl, "g_startingAmmo_rl", "5", 0, 0, NULL},
+    {&g_startingAmmo_lg, "g_startingAmmo_lg", "100", 0, 0, NULL},
+    {&g_startingAmmo_rg, "g_startingAmmo_rg", "5", 0, 0, NULL},
+    {&g_startingAmmo_pg, "g_startingAmmo_pg", "50", 0, 0, NULL},
+    {&g_startingAmmo_bfg, "g_startingAmmo_bfg", "10", 0, 0, NULL},
+    {&g_startingAmmo_gh, "g_startingAmmo_gh", "-1", 0, 0, NULL},
+    {&g_startingAmmo_ng, "g_startingAmmo_ng", "10", 0, 0, NULL},
+    {&g_startingAmmo_pl, "g_startingAmmo_pl", "5", 0, 0, NULL},
+    {&g_startingAmmo_cg, "g_startingAmmo_cg", "100", 0, 0, NULL},
+    {&g_startingAmmo_hmg, "g_startingAmmo_hmg", "50", 0, 0, NULL},
+
+    // [QL] movement physics cvars - configurable via factories/rcon
+    {&pmove_JumpVelocity, "pmove_JumpVelocity", "270", 0, 0, OnChangedPmoveJumpVelocity},
+    {&pmove_JumpVelocityMax, "pmove_JumpVelocityMax", "270", 0, 0, OnChangedPmoveJumpVelocityMax},
+    {&pmove_JumpVelocityScaleAdd, "pmove_JumpVelocityScaleAdd", "0", 0, 0, OnChangedPmoveJumpVelocityScaleAdd},
+    {&pmove_JumpVelocityTimeThreshold, "pmove_JumpVelocityTimeThreshold", "0", 0, 0, OnChangedPmoveJumpVelocityTimeThreshold},
+    {&pmove_JumpVelocityTimeThresholdOffset, "pmove_JumpVelocityTimeThresholdOffset", "0", 0, 0, OnChangedPmoveJumpVelocityTimeThresholdOffset},
+    {&pmove_ChainJump, "pmove_ChainJump", "1", 0, 0, OnChangedPmoveChainJump},
+    {&pmove_ChainJumpVelocity, "pmove_ChainJumpVelocity", "0", 0, 0, OnChangedPmoveChainJumpVelocity},
+    {&pmove_StepJumpVelocity, "pmove_StepJumpVelocity", "0", 0, 0, OnChangedPmoveStepJumpVelocity},
+    {&pmove_JumpTimeDeltaMin, "pmove_JumpTimeDeltaMin", "0", 0, 0, OnChangedPmoveJumpTimeDeltaMin},
+    {&pmove_RampJump, "pmove_RampJump", "0", 0, 0, OnChangedPmoveRampJump},
+    {&pmove_RampJumpScale, "pmove_RampJumpScale", "1", 0, 0, OnChangedPmoveRampJumpScale},
+    {&pmove_StepJump, "pmove_StepJump", "0", 0, 0, OnChangedPmoveStepJump},
+    {&pmove_CrouchStepJump, "pmove_CrouchStepJump", "0", 0, 0, OnChangedPmoveCrouchStepJump},
+    {&pmove_AutoHop, "pmove_AutoHop", "0", 0, 0, OnChangedPmoveAutoHop},
+    {&pmove_BunnyHop, "pmove_BunnyHop", "0", 0, 0, OnChangedPmoveBunnyHop},
+    {&pmove_AirAccel, "pmove_AirAccel", "1", 0, 0, OnChangedPmoveAirAccel},
+    {&pmove_AirStopAccel, "pmove_AirStopAccel", "1", 0, 0, OnChangedPmoveAirStopAccel},
+    {&pmove_AirControl, "pmove_AirControl", "0", 0, 0, OnChangedPmoveAirControl},
+    {&pmove_StrafeAccel, "pmove_StrafeAccel", "1", 0, 0, OnChangedPmoveStrafeAccel},
+    {&pmove_WalkAccel, "pmove_WalkAccel", "10", 0, 0, OnChangedPmoveWalkAccel},
+    {&pmove_WalkFriction, "pmove_WalkFriction", "6", 0, 0, OnChangedPmoveWalkFriction},
+    {&pmove_CircleStrafeFriction, "pmove_CircleStrafeFriction", "6", 0, 0, OnChangedPmoveCircleStrafeFriction},
+    {&pmove_CrouchSlideFriction, "pmove_CrouchSlideFriction", "0", 0, 0, OnChangedPmoveCrouchSlideFriction},
+    {&pmove_CrouchSlideTime, "pmove_CrouchSlideTime", "0", 0, 0, OnChangedPmoveCrouchSlideTime},
+    {&pmove_AirSteps, "pmove_AirSteps", "0", 0, 0, OnChangedPmoveAirSteps},
+    {&pmove_AirStepFriction, "pmove_AirStepFriction", "0", 0, 0, OnChangedPmoveAirStepFriction},
+    {&pmove_StepHeight, "pmove_StepHeight", "18", 0, 0, OnChangedPmoveStepHeight},
+    {&pmove_WaterSwimScale, "pmove_WaterSwimScale", "0.5", 0, 0, OnChangedPmoveWaterSwimScale},
+    {&pmove_WaterWadeScale, "pmove_WaterWadeScale", "0.75", 0, 0, OnChangedPmoveWaterWadeScale},
+    {&pmove_WishSpeed, "pmove_WishSpeed", "400", 0, 0, OnChangedPmoveWishSpeed},
+    {&pmove_WeaponDropTime, "pmove_WeaponDropTime", "200", 0, 0, OnChangedPmoveWeaponDropTime},
+    {&pmove_WeaponRaiseTime, "pmove_WeaponRaiseTime", "250", 0, 0, OnChangedPmoveWeaponRaiseTime},
+    {&pmove_NoPlayerClip, "pmove_NoPlayerClip", "0", 0, 0, OnChangedPmoveNoPlayerClip},
+    {&pmove_HookPullVelocity, "pmove_HookPullVelocity", "800", 0, 0, OnChangedPmoveHookPullVelocity},
+    {&pmove_DoubleJump, "pmove_DoubleJump", "0", 0, 0, OnChangedPmoveDoubleJump},
+    {&pmove_CrouchSlide, "pmove_CrouchSlide", "0", 0, 0, OnChangedPmoveCrouchSlide},
+    {&pmove_VelocityGH, "pmove_velocity_gh", "800", 0, 0, OnChangedPmoveVelocityGH},
+
+    // NULL terminator
+    {NULL, NULL, NULL, 0, 0, NULL}
+};
 
 static int gameCvarTableSize = ARRAY_LEN(gameCvarTable);
 
@@ -185,49 +645,24 @@ void G_RunFrame(int levelTime);
 void G_ShutdownGame(int restart);
 void CheckExitRules(void);
 
-/*
-================
-vmMain
+// [QL] dllEntry - module entry point
+// The engine calls this when loading the game module.
+// QL uses a function pointer table instead of Q3's vmMain dispatcher.
+Q_EXPORT void dllEntry(void **vmMainOut, gameImport_t *syscallTable, int *apiVersion) {
+    imports = syscallTable;
 
-This is the only way control passes into the module.
-This must be the very first function compiled into the .q3vm file
-================
-*/
-Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11) {
-    switch (command) {
-        case GAME_INIT:
-            G_InitGame(arg0, arg1, arg2);
-            return 0;
-        case GAME_SHUTDOWN:
-            G_ShutdownGame(arg0);
-            return 0;
-        case GAME_CLIENT_CONNECT:
-            return (intptr_t)ClientConnect(arg0, arg1, arg2);
-        case GAME_CLIENT_THINK:
-            ClientThink(arg0);
-            return 0;
-        case GAME_CLIENT_USERINFO_CHANGED:
-            ClientUserinfoChanged(arg0);
-            return 0;
-        case GAME_CLIENT_DISCONNECT:
-            ClientDisconnect(arg0);
-            return 0;
-        case GAME_CLIENT_BEGIN:
-            ClientBegin(arg0);
-            return 0;
-        case GAME_CLIENT_COMMAND:
-            ClientCommand(arg0);
-            return 0;
-        case GAME_RUN_FRAME:
-            G_RunFrame(arg0);
-            return 0;
-        case GAME_CONSOLE_COMMAND:
-            return ConsoleCommand();
-        case BOTAI_START_FRAME:
-            return BotAIStartFrame(arg0);
-    }
+    vmMainOut[GAME_SHUTDOWN]                = (void *)G_ShutdownGame;
+    vmMainOut[GAME_RUN_FRAME]               = (void *)G_RunFrame;
+    vmMainOut[GAME_REGISTER_CVARS]          = (void *)G_RegisterCvars;
+    vmMainOut[GAME_INIT]                    = (void *)G_InitGame;
+    vmMainOut[GAME_CONSOLE_COMMAND]         = (void *)ConsoleCommand;
+    vmMainOut[GAME_CLIENT_USERINFO_CHANGED] = (void *)ClientUserinfoChanged;
+    vmMainOut[GAME_CLIENT_THINK]            = (void *)ClientThink;
+    vmMainOut[GAME_CLIENT_DISCONNECT]       = (void *)ClientDisconnect;
+    vmMainOut[GAME_CLIENT_CONNECT]          = (void *)ClientConnect;
+    vmMainOut[GAME_CLIENT_COMMAND]          = (void *)ClientCommand;
 
-    return -1;
+    *apiVersion = GAME_API_VERSION;
 }
 
 void QDECL G_Printf(const char* fmt, ...) {
@@ -326,32 +761,14 @@ G_RegisterCvars
 */
 void G_RegisterCvars(void) {
     int i;
-    cvarTable_t* cv;
-    qboolean remapped = qfalse;
+    cvarTable_t *cv;
 
-    for (i = 0, cv = gameCvarTable; i < gameCvarTableSize; i++, cv++) {
+    for (i = 0, cv = gameCvarTable; cv->cvarName != NULL; i++, cv++) {
         trap_Cvar_Register(cv->vmCvar, cv->cvarName,
                            cv->defaultString, cv->cvarFlags);
         if (cv->vmCvar)
-            cv->modificationCount = cv->vmCvar->modificationCount;
-
-        if (cv->teamShader) {
-            remapped = qtrue;
-        }
+            cv->modCount = cv->vmCvar->modificationCount;
     }
-
-    if (remapped) {
-        G_RemapTeamShaders();
-    }
-
-    // check some things
-    if (g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE) {
-        G_Printf("g_gametype %i is out of range, defaulting to 0\n", g_gametype.integer);
-        trap_Cvar_Set("g_gametype", "0");
-        trap_Cvar_Update(&g_gametype);
-    }
-
-    level.warmupModificationCount = g_warmup.modificationCount;
 }
 
 /*
@@ -361,31 +778,74 @@ G_UpdateCvars
 */
 void G_UpdateCvars(void) {
     int i;
-    cvarTable_t* cv;
-    qboolean remapped = qfalse;
+    cvarTable_t *cv;
 
-    for (i = 0, cv = gameCvarTable; i < gameCvarTableSize; i++, cv++) {
+    for (i = 0, cv = gameCvarTable; cv->cvarName != NULL; i++, cv++) {
         if (cv->vmCvar) {
             trap_Cvar_Update(cv->vmCvar);
 
-            if (cv->modificationCount != cv->vmCvar->modificationCount) {
-                cv->modificationCount = cv->vmCvar->modificationCount;
+            if (cv->modCount != cv->vmCvar->modificationCount) {
+                cv->modCount = cv->vmCvar->modificationCount;
 
-                if (cv->trackChange) {
-                    trap_SendServerCommand(-1, va("print \"Server: %s changed to %s\n\"",
-                                                  cv->cvarName, cv->vmCvar->string));
-                }
-
-                if (cv->teamShader) {
-                    remapped = qtrue;
+                if (cv->onChanged) {
+                    cv->onChanged();
                 }
             }
         }
     }
+}
 
-    if (remapped) {
-        G_RemapTeamShaders();
-    }
+/*
+=================
+G_SendPmoveInfo
+
+[QL] Build and send CS_PMOVEINFO configstring so the client can parse
+all pmove_* parameters for client-side prediction.
+=================
+*/
+static void G_SendPmoveInfo(void) {
+    char info[MAX_INFO_STRING];
+
+    info[0] = '\0';
+
+    Info_SetValueForKey(info, "pmove_AirAccel", va("%g", pmove_AirAccel.value));
+    Info_SetValueForKey(info, "pmove_AirStepFriction", va("%g", pmove_AirStepFriction.value));
+    Info_SetValueForKey(info, "pmove_AirSteps", va("%i", pmove_AirSteps.integer));
+    Info_SetValueForKey(info, "pmove_AirStopAccel", va("%g", pmove_AirStopAccel.value));
+    Info_SetValueForKey(info, "pmove_AirControl", va("%g", pmove_AirControl.value));
+    Info_SetValueForKey(info, "pmove_AutoHop", va("%i", pmove_AutoHop.integer));
+    Info_SetValueForKey(info, "pmove_BunnyHop", va("%i", pmove_BunnyHop.integer));
+    Info_SetValueForKey(info, "pmove_ChainJump", va("%i", pmove_ChainJump.integer));
+    Info_SetValueForKey(info, "pmove_ChainJumpVelocity", va("%g", pmove_ChainJumpVelocity.value));
+    Info_SetValueForKey(info, "pmove_CircleStrafeFriction", va("%g", pmove_CircleStrafeFriction.value));
+    Info_SetValueForKey(info, "pmove_CrouchSlideFriction", va("%g", pmove_CrouchSlideFriction.value));
+    Info_SetValueForKey(info, "pmove_CrouchSlideTime", va("%i", pmove_CrouchSlideTime.integer));
+    Info_SetValueForKey(info, "pmove_CrouchSlide", va("%i", pmove_CrouchSlide.integer));
+    Info_SetValueForKey(info, "pmove_CrouchStepJump", va("%i", pmove_CrouchStepJump.integer));
+    Info_SetValueForKey(info, "pmove_DoubleJump", va("%i", pmove_DoubleJump.integer));
+    Info_SetValueForKey(info, "pmove_JumpTimeDeltaMin", va("%g", pmove_JumpTimeDeltaMin.value));
+    Info_SetValueForKey(info, "pmove_JumpVelocity", va("%g", pmove_JumpVelocity.value));
+    Info_SetValueForKey(info, "pmove_JumpVelocityMax", va("%g", pmove_JumpVelocityMax.value));
+    Info_SetValueForKey(info, "pmove_JumpVelocityScaleAdd", va("%g", pmove_JumpVelocityScaleAdd.value));
+    Info_SetValueForKey(info, "pmove_JumpVelocityTimeThreshold", va("%g", pmove_JumpVelocityTimeThreshold.value));
+    Info_SetValueForKey(info, "pmove_JumpVelocityTimeThresholdOffset", va("%g", pmove_JumpVelocityTimeThresholdOffset.value));
+    Info_SetValueForKey(info, "pmove_noPlayerClip", va("%i", pmove_NoPlayerClip.integer));
+    Info_SetValueForKey(info, "pmove_RampJump", va("%i", pmove_RampJump.integer));
+    Info_SetValueForKey(info, "pmove_RampJumpScale", va("%g", pmove_RampJumpScale.value));
+    Info_SetValueForKey(info, "pmove_StepHeight", va("%g", pmove_StepHeight.value));
+    Info_SetValueForKey(info, "pmove_StepJump", va("%i", pmove_StepJump.integer));
+    Info_SetValueForKey(info, "pmove_StepJumpVelocity", va("%g", pmove_StepJumpVelocity.value));
+    Info_SetValueForKey(info, "pmove_StrafeAccel", va("%g", pmove_StrafeAccel.value));
+    Info_SetValueForKey(info, "pmove_velocity_gh", va("%g", pmove_VelocityGH.value));
+    Info_SetValueForKey(info, "pmove_WalkAccel", va("%g", pmove_WalkAccel.value));
+    Info_SetValueForKey(info, "pmove_WalkFriction", va("%g", pmove_WalkFriction.value));
+    Info_SetValueForKey(info, "pmove_WaterSwimScale", va("%g", pmove_WaterSwimScale.value));
+    Info_SetValueForKey(info, "pmove_WaterWadeScale", va("%g", pmove_WaterWadeScale.value));
+    Info_SetValueForKey(info, "pmove_WeaponRaiseTime", va("%i", pmove_WeaponRaiseTime.integer));
+    Info_SetValueForKey(info, "pmove_WeaponDropTime", va("%i", pmove_WeaponDropTime.integer));
+    Info_SetValueForKey(info, "pmove_WishSpeed", va("%g", pmove_WishSpeed.value));
+
+    trap_SetConfigstring(CS_PMOVEINFO, info);
 }
 
 /*
@@ -413,6 +873,7 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
     memset(&level, 0, sizeof(level));
     level.time = levelTime;
     level.startTime = levelTime;
+    level.warmupTime = -1;  // PRE_GAME until warmup state machine transitions
 
     level.snd_fry = G_SoundIndex("sound/player/fry.wav");  // FIXME standing in lava / slime
 
@@ -498,6 +959,12 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
     G_RemapTeamShaders();
 
     trap_SetConfigstring(CS_INTERMISSION, "");
+
+    // [QL] publish starting weapons bitmask
+    trap_SetConfigstring(CS_STARTING_WEAPONS, va("%i", g_startingWeapons.integer));
+
+    // [QL] send pmove parameters to clients for prediction
+    G_SendPmoveInfo();
 }
 
 /*
@@ -573,7 +1040,7 @@ void AddTournamentPlayer(void) {
     }
 
     // never change during intermission
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
         return;
     }
 
@@ -593,7 +1060,7 @@ void AddTournamentPlayer(void) {
             continue;
         }
 
-        if (!nextInLine || client->sess.spectatorNum > nextInLine->sess.spectatorNum)
+        if (!nextInLine || client->sess.spectatorTime < nextInLine->sess.spectatorTime)
             nextInLine = client;
     }
 
@@ -624,9 +1091,9 @@ void AddTournamentQueue(gclient_t* client) {
 
         if (curclient->pers.connected != CON_DISCONNECTED) {
             if (curclient == client)
-                curclient->sess.spectatorNum = 0;
+                curclient->sess.spectatorTime = 0;
             else if (curclient->sess.sessionTeam == TEAM_SPECTATOR)
-                curclient->sess.spectatorNum++;
+                curclient->sess.spectatorTime++;
         }
     }
 }
@@ -728,10 +1195,10 @@ int QDECL SortRanks(const void* a, const void* b) {
 
     // then spectators
     if (ca->sess.sessionTeam == TEAM_SPECTATOR && cb->sess.sessionTeam == TEAM_SPECTATOR) {
-        if (ca->sess.spectatorNum > cb->sess.spectatorNum) {
+        if (ca->sess.spectatorTime > cb->sess.spectatorTime) {
             return -1;
         }
-        if (ca->sess.spectatorNum < cb->sess.spectatorNum) {
+        if (ca->sess.spectatorTime < cb->sess.spectatorTime) {
             return 1;
         }
         return 0;
@@ -774,10 +1241,6 @@ void CalculateRanks(void) {
     level.numConnectedClients = 0;
     level.numNonSpectatorClients = 0;
     level.numPlayingClients = 0;
-    level.numVotingClients = 0;  // don't count bots
-
-    for (i = 0; i < ARRAY_LEN(level.numteamVotingClients); i++)
-        level.numteamVotingClients[i] = 0;
 
     for (i = 0; i < level.maxclients; i++) {
         if (level.clients[i].pers.connected != CON_DISCONNECTED) {
@@ -790,13 +1253,6 @@ void CalculateRanks(void) {
                 // decide if this should be auto-followed
                 if (level.clients[i].pers.connected == CON_CONNECTED) {
                     level.numPlayingClients++;
-                    if (!(g_entities[i].r.svFlags & SVF_BOT)) {
-                        level.numVotingClients++;
-                        if (level.clients[i].sess.sessionTeam == TEAM_RED)
-                            level.numteamVotingClients[0]++;
-                        else if (level.clients[i].sess.sessionTeam == TEAM_BLUE)
-                            level.numteamVotingClients[1]++;
-                    }
                     if (level.follow1 == -1) {
                         level.follow1 = i;
                     } else if (level.follow2 == -1) {
@@ -811,10 +1267,19 @@ void CalculateRanks(void) {
           sizeof(level.sortedClients[0]), SortRanks);
 
     // set the rank value for all clients that are connected and not spectators
-    if (g_gametype.integer >= GT_TEAM) {
-        // in team games, rank is just the order of the teams, 0=red, 1=blue, 2=tied
+    if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
+        // [QL] team games: rank is team order, plus serverRank/teamRank tracking
+        int teamLastIdx[4] = { -1, -1, -1, -1 };
+        int teamLastScore[4] = { 0, 0, 0, 0 };
+        int teamRankCounter[4] = { -1, -1, -1, -1 };
+        rank = -1;
+        score = 0;
+
         for (i = 0; i < level.numConnectedClients; i++) {
-            cl = &level.clients[level.sortedClients[i]];
+            int ci = level.sortedClients[i];
+            cl = &level.clients[ci];
+
+            // team rank (PERS_RANK): red=0, blue=1, tied=2
             if (level.teamScores[TEAM_RED] == level.teamScores[TEAM_BLUE]) {
                 cl->ps.persistant[PERS_RANK] = 2;
             } else if (level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE]) {
@@ -822,51 +1287,176 @@ void CalculateRanks(void) {
             } else {
                 cl->ps.persistant[PERS_RANK] = 1;
             }
+
+            if (cl->sess.sessionTeam == TEAM_SPECTATOR)
+                continue;
+
+            newScore = cl->ps.persistant[PERS_SCORE];
+
+            // [QL] serverRank: overall ranking among all non-spectator players
+            if (i == 0 || newScore != score) {
+                rank++;
+                cl->expandedStats.serverRank = rank;
+                cl->expandedStats.serverRankIsTied = qfalse;
+            } else {
+                // tied with previous
+                if (i > 0) {
+                    level.clients[level.sortedClients[i - 1]].expandedStats.serverRankIsTied = qtrue;
+                }
+                cl->expandedStats.serverRank = rank;
+                cl->expandedStats.serverRankIsTied = qtrue;
+            }
+
+            // [QL] teamRank: ranking within own team
+            {
+                int t = cl->sess.sessionTeam;
+                if (teamLastIdx[t] == -1 || newScore != teamLastScore[t]) {
+                    teamRankCounter[t]++;
+                    cl->expandedStats.teamRank = teamRankCounter[t];
+                    cl->expandedStats.teamRankIsTied = qfalse;
+                } else {
+                    level.clients[level.sortedClients[teamLastIdx[t]]].expandedStats.teamRankIsTied = qtrue;
+                    cl->expandedStats.teamRank = teamRankCounter[t];
+                    cl->expandedStats.teamRankIsTied = qtrue;
+                }
+                teamLastIdx[t] = i;
+                teamLastScore[t] = newScore;
+            }
+
+            score = newScore;
         }
     } else {
+        // [QL] FFA/Duel/Race/RR: rank by score, with race sentinel
+        int raceSentinel = (g_gametype.integer == GT_RACE) ? 0x7FFFFFFF : 0;
         rank = -1;
-        score = 0;
+        score = raceSentinel;
         for (i = 0; i < level.numPlayingClients; i++) {
-            cl = &level.clients[level.sortedClients[i]];
+            int ci = level.sortedClients[i];
+            cl = &level.clients[ci];
             newScore = cl->ps.persistant[PERS_SCORE];
             if (i == 0 || newScore != score) {
                 rank = i;
-                // assume we aren't tied until the next client is checked
-                level.clients[level.sortedClients[i]].ps.persistant[PERS_RANK] = rank;
+                cl->ps.persistant[PERS_RANK] = rank;
+                cl->expandedStats.serverRank = rank;
+                cl->expandedStats.serverRankIsTied = qfalse;
             } else {
-                // we are tied with the previous client
-                level.clients[level.sortedClients[i - 1]].ps.persistant[PERS_RANK] = rank | RANK_TIED_FLAG;
-                level.clients[level.sortedClients[i]].ps.persistant[PERS_RANK] = rank | RANK_TIED_FLAG;
+                // tied with previous
+                if (i > 0) {
+                    level.clients[level.sortedClients[i - 1]].ps.persistant[PERS_RANK] = rank | RANK_TIED_FLAG;
+                    level.clients[level.sortedClients[i - 1]].expandedStats.serverRankIsTied = qtrue;
+                }
+                cl->ps.persistant[PERS_RANK] = rank | RANK_TIED_FLAG;
+                cl->expandedStats.serverRank = rank;
+                cl->expandedStats.serverRankIsTied = qtrue;
             }
             score = newScore;
-            if (g_gametype.integer == GT_SINGLE_PLAYER && level.numPlayingClients == 1) {
-                level.clients[level.sortedClients[i]].ps.persistant[PERS_RANK] = rank | RANK_TIED_FLAG;
-            }
+        }
+    }
+
+    // [QL] lead change tracking
+    if (level.lastLeadChangeTime == 0) {
+        level.lastLeadChangeClient = -1;
+        level.lastLeadChangeTime = level.time;
+    } else if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
+        // team lead change
+        int newLead;
+        if (level.teamScores[TEAM_RED] == level.teamScores[TEAM_BLUE]) {
+            newLead = 2;  // tied
+        } else if (level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE]) {
+            newLead = 0;
+        } else {
+            newLead = 1;
+        }
+        if (level.lastLeadChangeClient != newLead && newLead != 2) {
+            level.lastLeadChangeClient = newLead;
+            level.lastLeadChangeElapsedTime = level.time - level.startTime;
+        }
+    } else {
+        // FFA/Duel lead change
+        if (level.numPlayingClients > 0
+            && level.lastLeadChangeClient != level.sortedClients[0]
+            && level.clients[level.sortedClients[0]].expandedStats.serverRankIsTied == qfalse) {
+            level.lastLeadChangeClient = level.sortedClients[0];
+            level.lastLeadChangeElapsedTime = level.time - level.startTime;
         }
     }
 
     // set the CS_SCORES1/2 configstrings, which will be visible to everyone
-    if (g_gametype.integer >= GT_TEAM) {
+    if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
         trap_SetConfigstring(CS_SCORES1, va("%i", level.teamScores[TEAM_RED]));
         trap_SetConfigstring(CS_SCORES2, va("%i", level.teamScores[TEAM_BLUE]));
+        // [QL] team name configstrings
+        trap_SetConfigstring(CS_SCORES1PLAYER, "TEAM_RED");
+        trap_SetConfigstring(CS_SCORES2PLAYER, "TEAM_BLUE");
     } else {
-        if (level.numConnectedClients == 0) {
+        // [QL] FFA/Duel: set scores + player name configstrings
+        if (level.numPlayingClients < 1) {
             trap_SetConfigstring(CS_SCORES1, va("%i", SCORE_NOT_PRESENT));
-            trap_SetConfigstring(CS_SCORES2, va("%i", SCORE_NOT_PRESENT));
-        } else if (level.numConnectedClients == 1) {
-            trap_SetConfigstring(CS_SCORES1, va("%i", level.clients[level.sortedClients[0]].ps.persistant[PERS_SCORE]));
-            trap_SetConfigstring(CS_SCORES2, va("%i", SCORE_NOT_PRESENT));
+            trap_SetConfigstring(CS_SCORES1PLAYER, "");
         } else {
             trap_SetConfigstring(CS_SCORES1, va("%i", level.clients[level.sortedClients[0]].ps.persistant[PERS_SCORE]));
+            trap_SetConfigstring(CS_SCORES1PLAYER, level.clients[level.sortedClients[0]].pers.netname);
+        }
+        if (level.numPlayingClients < 2) {
+            trap_SetConfigstring(CS_SCORES2, va("%i", SCORE_NOT_PRESENT));
+            trap_SetConfigstring(CS_SCORES2PLAYER, "");
+        } else {
             trap_SetConfigstring(CS_SCORES2, va("%i", level.clients[level.sortedClients[1]].ps.persistant[PERS_SCORE]));
+            trap_SetConfigstring(CS_SCORES2PLAYER, level.clients[level.sortedClients[1]].pers.netname);
+        }
+
+        // [QL] Duel-specific: set CS for 1st/2nd player scores + clientNums
+        if (g_gametype.integer == GT_TOURNAMENT && !level.intermissionQueued && !level.intermissionTime) {
+            int p1, p2;
+
+            if (level.numPlayingClients == 0) {
+                trap_SetConfigstring(CS_SCORE1STPLAYER, va("%i", SCORE_NOT_PRESENT));
+                trap_SetConfigstring(CS_CLIENTNUM1STPLAYER, "-1");
+                trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, "");
+                trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", SCORE_NOT_PRESENT));
+                trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, "-1");
+                trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, "");
+            } else {
+                // determine p1 (lower clientNum) and p2 (higher clientNum)
+                if (level.numPlayingClients >= 2) {
+                    if (level.sortedClients[0] < level.sortedClients[1]) {
+                        p1 = level.sortedClients[0];
+                        p2 = level.sortedClients[1];
+                    } else {
+                        p1 = level.sortedClients[1];
+                        p2 = level.sortedClients[0];
+                    }
+                } else {
+                    p1 = level.sortedClients[0];
+                    p2 = -1;
+                }
+
+                // 1st player slot
+                trap_SetConfigstring(CS_SCORE1STPLAYER, va("%i", level.clients[p1].ps.persistant[PERS_SCORE]));
+                trap_SetConfigstring(CS_CLIENTNUM1STPLAYER, va("%i", p1));
+                trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, level.clients[p1].pers.netname);
+
+                // 2nd player slot
+                if (p2 >= 0) {
+                    trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", level.clients[p2].ps.persistant[PERS_SCORE]));
+                    trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, va("%i", p2));
+                    trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, level.clients[p2].pers.netname);
+                } else {
+                    trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", SCORE_NOT_PRESENT));
+                    trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, "-1");
+                    trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, "");
+                }
+            }
         }
     }
 
-    // see if it is time to end the level
-    CheckExitRules();
-
     // if we are at the intermission, send the new info to everyone
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
+        for (i = 0; i < level.maxclients; i++) {
+            if (level.clients[i].pers.connected == CON_CONNECTED) {
+                MoveClientToIntermission(g_entities + i);
+            }
+        }
         SendScoreboardMessageToAllClients();
     }
 }
@@ -911,8 +1501,7 @@ void MoveClientToIntermission(gentity_t* ent) {
         StopFollowing(ent);
     }
 
-    FindIntermissionPoint();
-    // move to the spot
+    // move to the spot (FindIntermissionPoint called once in BeginIntermission)
     VectorCopy(level.intermission_origin, ent->s.origin);
     VectorCopy(level.intermission_origin, ent->client->ps.origin);
     VectorCopy(level.intermission_angle, ent->client->ps.viewangles);
@@ -966,32 +1555,90 @@ BeginIntermission
 */
 void BeginIntermission(void) {
     int i;
-    gentity_t* client;
+    gentity_t* ent;
+    char nextmaps[MAX_STRING_CHARS];
 
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
         return;  // already active
     }
+
+    // [QL] set CS_INTERMISSION
+    trap_SetConfigstring(CS_INTERMISSION, "1");
 
     // if in tournement mode, change the wins / losses
     if (g_gametype.integer == GT_TOURNAMENT) {
         AdjustTournamentScores();
     }
 
-    level.intermissiontime = level.time;
+    level.intermissionTime = level.time;
+
+    // [QL] find the intermission point once (not per-client)
+    FindIntermissionPoint();
+
+    // [QL] Set all connected clients to vote-eligible, clear active vote
+    for (i = 0; i < level.maxclients; i++) {
+        if (level.clients[i].pers.connected == CON_CONNECTED) {
+            level.clients[i].pers.voteState = VOTE_PENDING;
+            level.clients[i].pers.lastMapVoteTime = 0;
+            level.clients[i].pers.lastMapVoteIndex = 0;
+        }
+    }
+    ClearVote();
+
+    // [QL] Parse "nextmaps" info string for end-of-match map voting
+    trap_Cvar_VariableStringBuffer("nextmaps", nextmaps, sizeof(nextmaps));
+    if (nextmaps[0]) {
+        char mapInfo[MAX_INFO_STRING];
+
+        for (i = 0; i < 3; i++) {
+            char key[16];
+            const char *val;
+
+            Com_sprintf(key, sizeof(key), "map_%d", i);
+            val = Info_ValueForKey(nextmaps, key);
+            Q_strncpyz(level.intermissionMapNames[i], val, sizeof(level.intermissionMapNames[i]));
+
+            Com_sprintf(key, sizeof(key), "title_%d", i);
+            val = Info_ValueForKey(nextmaps, key);
+            Q_strncpyz(level.intermissionMapTitles[i], val, sizeof(level.intermissionMapTitles[i]));
+
+            Com_sprintf(key, sizeof(key), "cfg_%d", i);
+            val = Info_ValueForKey(nextmaps, key);
+            Q_strncpyz(level.intermissionMapConfigs[i], val, sizeof(level.intermissionMapConfigs[i]));
+
+            level.intermissionMapVotes[i] = 0;
+        }
+
+        // Build map info configstring for clients
+        mapInfo[0] = '\0';
+        for (i = 0; i < 3; i++) {
+            if (level.intermissionMapNames[i][0]) {
+                char k[16];
+                Com_sprintf(k, sizeof(k), "map_%d", i);
+                Info_SetValueForKey(mapInfo, k, level.intermissionMapNames[i]);
+                Com_sprintf(k, sizeof(k), "title_%d", i);
+                Info_SetValueForKey(mapInfo, k,
+                    level.intermissionMapTitles[i][0] ? level.intermissionMapTitles[i] : level.intermissionMapNames[i]);
+            }
+        }
+
+        trap_SetConfigstring(CS_ROTATIONMAPS, mapInfo);
+        trap_SetConfigstring(CS_ROTATIONVOTES, "0 0 0");
+        level.voteTime = level.time;
+        trap_SetConfigstring(CS_VOTE_TIME, va("%i", level.voteTime));
+    }
+
     // move all clients to the intermission point
     for (i = 0; i < level.maxclients; i++) {
-        client = g_entities + i;
-        if (!client->inuse)
+        ent = g_entities + i;
+        if (!ent->inuse || !ent->client) {
             continue;
-        // respawn if dead
-        if (client->health <= 0) {
-            ClientRespawn(client);
         }
-        MoveClientToIntermission(client);
-    }
-    if (g_singlePlayer.integer) {
-        trap_Cvar_Set("ui_singlePlayerActive", "0");
-        UpdateTournamentInfo();
+        // [QL] reset per-client ready state
+        if (ent->client->pers.connected == CON_CONNECTED) {
+            ClearClientReadyToExit();
+        }
+        MoveClientToIntermission(ent);
     }
 
     // send the current scoring to all clients
@@ -1010,11 +1657,27 @@ or moved to a new level based on the "nextmap" cvar
 void ExitLevel(void) {
     int i;
     gclient_t* cl;
-    char nextmap[MAX_STRING_CHARS];
-    char d1[MAX_STRING_CHARS];
+    char mapname[MAX_STRING_CHARS];
+    char serverinfo[MAX_INFO_STRING];
+    char nextmaps[MAX_STRING_CHARS];
+    int bestMap = 0;
+
+    // [QL] Bot-only server: kill on exit
+    if ( g_isBotOnly.integer ) {
+        trap_SendConsoleCommand( EXEC_APPEND, "killserver\n" );
+        return;
+    }
+    // [QL] Quit on exit level
+    if ( sv_quitOnExitLevel.integer ) {
+        trap_SendConsoleCommand( EXEC_APPEND, "quit\n" );
+        return;
+    }
 
     // bot interbreeding
     BotInterbreedEndMatch();
+
+    // [QL] clear CS_INTERMISSION
+    trap_SetConfigstring(CS_INTERMISSION, "");
 
     // if we are running a tournement map, kick the loser to spectator status,
     // which will automatically grab the next spectator and restart
@@ -1023,28 +1686,77 @@ void ExitLevel(void) {
             RemoveTournamentLoser();
             trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
             level.restarted = qtrue;
-            level.changemap = NULL;
-            level.intermissiontime = 0;
+            level.intermissionTime = 0;
         }
         return;
     }
 
-    trap_Cvar_VariableStringBuffer("nextmap", nextmap, sizeof(nextmap));
-    trap_Cvar_VariableStringBuffer("d1", d1, sizeof(d1));
+    // [QL] resolve map voting if active
+    trap_Cvar_VariableStringBuffer("nextmaps", nextmaps, sizeof(nextmaps));
+    if (nextmaps[0] && !(g_voteFlags.integer & VF_ENDMAP_VOTING)) {
+        // [QL] Random tie-breaking for map votes
+        {
+            int tiedMaps[3];
+            int numTied = 0;
+            int bestVotes = 0;
 
-    if (!Q_stricmp(nextmap, "map_restart 0") && Q_stricmp(d1, "")) {
-        trap_Cvar_Set("nextmap", "vstr d2");
-        trap_SendConsoleCommand(EXEC_APPEND, "vstr d1\n");
+            for ( i = 0; i < 3; i++ ) {
+                if ( level.intermissionMapNames[i][0] ) {
+                    if ( level.intermissionMapVotes[i] > bestVotes ) {
+                        bestVotes = level.intermissionMapVotes[i];
+                        numTied = 0;
+                    }
+                    if ( level.intermissionMapVotes[i] == bestVotes ) {
+                        tiedMaps[numTied++] = i;
+                    }
+                }
+            }
+            if ( numTied > 0 ) {
+                bestMap = tiedMaps[rand() % numTied];
+            }
+        }
+
+        // Get current map name
+        trap_GetServerinfo(serverinfo, sizeof(serverinfo));
+        Q_strncpyz(mapname, Info_ValueForKey(serverinfo, "mapname"), sizeof(mapname));
+
+        if (level.intermissionMapNames[bestMap][0]) {
+            if (Q_stricmp(mapname, level.intermissionMapNames[bestMap]) == 0) {
+                // Same map - restart
+                trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+                level.restarted = qtrue;
+            } else {
+                // Different map - set nextmap and execute
+                if (level.intermissionMapConfigs[bestMap][0]) {
+                    trap_Cvar_Set("nextmap", va("map %s %s",
+                                  level.intermissionMapNames[bestMap],
+                                  level.intermissionMapConfigs[bestMap]));
+                } else {
+                    trap_Cvar_Set("nextmap", va("map %s",
+                                  level.intermissionMapNames[bestMap]));
+                }
+                trap_SendConsoleCommand(EXEC_APPEND, "vstr nextmap\n");
+            }
+        } else {
+            trap_SendConsoleCommand(EXEC_APPEND, "vstr nextmap\n");
+        }
     } else {
         trap_SendConsoleCommand(EXEC_APPEND, "vstr nextmap\n");
     }
 
-    level.changemap = NULL;
-    level.intermissiontime = 0;
+    ClearVote();
+
+    level.intermissionTime = 0;
 
     // reset all the scores so we don't enter the intermission again
     level.teamScores[TEAM_RED] = 0;
     level.teamScores[TEAM_BLUE] = 0;
+    level.teamScores[TEAM_FREE] = 0;
+    level.lastTeamScores[TEAM_RED] = 0;
+    level.lastTeamScores[TEAM_BLUE] = 0;
+    level.lastTeamRoundScores[TEAM_RED] = 0;
+    level.lastTeamRoundScores[TEAM_BLUE] = 0;
+
     for (i = 0; i < g_maxclients.integer; i++) {
         cl = level.clients + i;
         if (cl->pers.connected != CON_CONNECTED) {
@@ -1105,21 +1817,25 @@ void QDECL G_LogPrintf(const char* fmt, ...) {
 ================
 LogExit
 
-Append information about this game to the log file
+[QL] Append information about this game to the log file.
+Binary: FUN_100575a0 in qagamex86.dll
+
+Args:
+  isShutdown: if non-zero, skip setting intermissionQueued (server shutdown path)
+  restart:    if non-zero, skip game-over events (map restart, not match end)
+  string:     exit reason text
 ================
 */
-void LogExit(const char* string) {
+void LogExit(int isShutdown, int restart, const char* string) {
     int i, numSorted;
     gclient_t* cl;
-    qboolean won = qtrue;
-    team_t team = TEAM_RED;
+
     G_LogPrintf("Exit: %s\n", string);
 
-    level.intermissionQueued = level.time;
-
-    // this will keep the clients from playing any voice sounds
-    // that will get cut off when the queued intermission starts
-    trap_SetConfigstring(CS_INTERMISSION, "1");
+    // [QL] only queue intermission on normal game exits
+    if (isShutdown == 0) {
+        level.intermissionQueued = level.time;
+    }
 
     // don't send more than 32 scores (FIXME?)
     numSorted = level.numConnectedClients;
@@ -1127,7 +1843,7 @@ void LogExit(const char* string) {
         numSorted = 32;
     }
 
-    if (g_gametype.integer >= GT_TEAM) {
+    if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
         G_LogPrintf("red:%i  blue:%i\n",
                     level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE]);
     }
@@ -1146,54 +1862,69 @@ void LogExit(const char* string) {
 
         ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
 
-        G_LogPrintf("score: %i  ping: %i  client: %i %s\n", cl->ps.persistant[PERS_SCORE], ping, level.sortedClients[i], cl->pers.netname);
-        if (g_singlePlayer.integer && !(g_entities[cl - level.clients].r.svFlags & SVF_BOT)) {
-            team = cl->sess.sessionTeam;
-        }
-        if (g_singlePlayer.integer && g_gametype.integer < GT_TEAM) {
-            if (g_entities[cl - level.clients].r.svFlags & SVF_BOT && cl->ps.persistant[PERS_RANK] == 0) {
-                won = qfalse;
-            }
+        G_LogPrintf("score: %i  ping: %i  client: %i %s\n",
+                    cl->ps.persistant[PERS_SCORE], ping,
+                    level.sortedClients[i], cl->pers.netname);
+    }
+
+    // [QL] game-over events (only on normal match end, not restart)
+    if (isShutdown == 0 && restart == 0) {
+        gentity_t *te;
+        if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
+            // team game: announce winning team
+            te = G_TempEntity(vec3_origin, EV_GLOBAL_TEAM_SOUND);
+            te->s.eventParm = (level.teamScores[TEAM_RED] <= level.teamScores[TEAM_BLUE])
+                              ? GTS_BLUETEAM_WON : GTS_REDTEAM_WON;
+            te->r.svFlags |= SVF_BROADCAST;
+        } else {
+            // FFA/duel: generic game-over event
+            te = G_TempEntity(vec3_origin, EV_GAMEOVER);
+            te->r.svFlags |= SVF_BROADCAST;
         }
     }
 
-    if (g_singlePlayer.integer) {
-        if (g_gametype.integer >= GT_TEAM) {
-            if (team == TEAM_BLUE) {
-                won = level.teamScores[TEAM_BLUE] > level.teamScores[TEAM_RED];
-            } else {
-                won = level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE];
-            }
+    // [QL] Save lastScore and mark stats as reported
+    for ( i = 0; i < level.numConnectedClients; i++ ) {
+        cl = &level.clients[level.sortedClients[i]];
+        if ( cl->sess.sessionTeam != TEAM_SPECTATOR ) {
+            cl->sess.prevScore = cl->ps.persistant[PERS_SCORE];
         }
-        trap_SendConsoleCommand(EXEC_APPEND, (won) ? "spWin\n" : "spLose\n");
     }
+    level.gameStatsReported = qtrue;
+
+    // [QL] Publish match-end stats
+    STAT_MatchEnd();
+
+    // [QL] Log stats line (binary format: "stats: %d")
+    G_LogPrintf("stats: %d\n", level.numPlayingClients);
 }
 
 /*
 =================
 CheckIntermissionExit
 
-The level will stay at the intermission for a minimum of 5 seconds
-If all players wish to continue, the level will then exit.
-If one or more players have not acknowledged the continue, the game will
-wait 10 seconds before going on.
+[QL] Binary: FUN_10057b60 in qagamex86.dll
+Uses a hard timeout model: 10s default, 20s if map voting enabled.
+After timeout + 3s minimum, unconditionally exits.
 =================
 */
 void CheckIntermissionExit(void) {
-    int ready, notReady, playerCount;
     int i;
     gclient_t* cl;
     int readyMask;
+    int timeout;
+    char nextmaps[MAX_STRING_CHARS];
 
-    if (g_gametype.integer == GT_SINGLE_PLAYER) {
-        return;
+    // [QL] Determine timeout: 20s if map voting active, 10s otherwise
+    trap_Cvar_VariableStringBuffer("nextmaps", nextmaps, sizeof(nextmaps));
+    if (nextmaps[0] && !(g_voteFlags.integer & VF_ENDMAP_VOTING)) {
+        timeout = 20000;
+    } else {
+        timeout = 10000;
     }
 
-    // see which players are ready
-    ready = 0;
-    notReady = 0;
+    // Build ready mask from per-client ready state
     readyMask = 0;
-    playerCount = 0;
     for (i = 0; i < g_maxclients.integer; i++) {
         cl = level.clients + i;
         if (cl->pers.connected != CON_CONNECTED) {
@@ -1202,20 +1933,14 @@ void CheckIntermissionExit(void) {
         if (g_entities[i].r.svFlags & SVF_BOT) {
             continue;
         }
-
-        playerCount++;
-        if (cl->readyToExit) {
-            ready++;
+        if (ClientIsReadyToExit(i)) {
             if (i < 16) {
                 readyMask |= 1 << i;
             }
-        } else {
-            notReady++;
         }
     }
 
-    // copy the readyMask to each player's stats so
-    // it can be displayed on the scoreboard
+    // Broadcast ready mask to all connected clients
     for (i = 0; i < g_maxclients.integer; i++) {
         cl = level.clients + i;
         if (cl->pers.connected != CON_CONNECTED) {
@@ -1224,39 +1949,18 @@ void CheckIntermissionExit(void) {
         cl->ps.stats[STAT_CLIENTS_READY] = readyMask;
     }
 
-    // never exit in less than five seconds
-    if (level.time < level.intermissiontime + 5000) {
-        return;
+    // [QL] Mark voting ended after timeout expires
+    if (!level.votingEnded &&
+        level.time >= level.intermissionTime + timeout) {
+        level.votingEnded = qtrue;
     }
 
-    // only test ready status when there are real players present
-    if (playerCount > 0) {
-        // if nobody wants to go, clear timer
-        if (!ready) {
-            level.readyToExit = qfalse;
-            return;
-        }
-
-        // if everyone wants to go, go now
-        if (!notReady) {
-            ExitLevel();
-            return;
-        }
-    }
-
-    // the first person to ready starts the ten second timeout
-    if (!level.readyToExit) {
+    // [QL] Hard exit after timeout + 3s minimum
+    if (level.time >= level.intermissionTime + timeout + 3000) {
         level.readyToExit = qtrue;
         level.exitTime = level.time;
+        ExitLevel();
     }
-
-    // if we have waited ten seconds since at least one player
-    // wanted to exit, go ahead
-    if (level.time < level.exitTime + 10000) {
-        return;
-    }
-
-    ExitLevel();
 }
 
 /*
@@ -1271,7 +1975,7 @@ qboolean ScoreIsTied(void) {
         return qfalse;
     }
 
-    if (g_gametype.integer >= GT_TEAM) {
+    if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
         return level.teamScores[TEAM_RED] == level.teamScores[TEAM_BLUE];
     }
 
@@ -1295,56 +1999,79 @@ void CheckExitRules(void) {
     gclient_t* cl;
     // if at the intermission, wait for all non-bots to
     // signal ready, then go to next level
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
         CheckIntermissionExit();
         return;
     }
 
     if (level.intermissionQueued) {
-        int time = (g_singlePlayer.integer) ? SP_INTERMISSION_DELAY_TIME : INTERMISSION_DELAY_TIME;
-        if (level.time - level.intermissionQueued >= time) {
-            level.intermissionQueued = 0;
-            BeginIntermission();
+        if (level.time - level.intermissionQueued < INTERMISSION_DELAY_TIME) {
+            return;
         }
+        level.intermissionQueued = 0;
+        BeginIntermission();
         return;
     }
 
-    // check for sudden death
-    if (ScoreIsTied()) {
-        // always wait for sudden death
+    // [QL] no exit checks during warmup
+    if (level.warmupTime != 0) {
         return;
     }
 
-    if (g_timelimit.integer < 0 || g_timelimit.integer > INT_MAX / 60000) {
-        G_Printf("timelimit %i is out of range, defaulting to 0\n", g_timelimit.integer);
-        trap_Cvar_Set("timelimit", "0");
-        trap_Cvar_Update(&g_timelimit);
+    // [QL] Round-based gametypes: exit rules handled by their round system
+    switch ( g_gametype.integer ) {
+    case GT_CA:
+    case GT_AD:
+    case GT_RR:
+        return;  // always handled by round logic
+    case GT_FREEZE:
+        if ( level.roundState.eCurrent != 0 ) {
+            return;  // FT: only fall through during pre-round (roundState 0)
+        }
+        break;
+    default:
+        break;
+    }
+
+    // [QL] Overtime system
+    if ( ScoreIsTied() ) {
+        if ( !g_timelimit.integer ) {
+            return;  // no timelimit = infinite sudden death
+        }
+        if ( !g_overtime.integer ) {
+            return;  // no overtime cvar = infinite sudden death
+        }
+        if ( level.time - level.startTime < g_timelimit.integer * 60000 + level.timeOvertime ) {
+            return;  // overtime not expired yet
+        }
+        // Overtime expired while still tied - add another overtime period
+        {
+            gentity_t *te = G_TempEntity( vec3_origin, EV_OVERTIME );
+            te->r.svFlags |= SVF_BROADCAST;
+        }
+        level.timeOvertime += g_overtime.integer * 1000;
+        return;
     }
 
     if (g_timelimit.integer && !level.warmupTime) {
-        if (level.time - level.startTime >= g_timelimit.integer * 60000) {
+        if (level.time - level.startTime >= g_timelimit.integer * 60000 + level.timeOvertime) {
             trap_SendServerCommand(-1, "print \"Timelimit hit.\n\"");
-            LogExit("Timelimit hit.");
+            LogExit(0, 0, "Timelimit hit.");
             return;
         }
     }
 
-    if (g_fraglimit.integer < 0) {
-        G_Printf("fraglimit %i is out of range, defaulting to 0\n", g_fraglimit.integer);
-        trap_Cvar_Set("fraglimit", "0");
-        trap_Cvar_Update(&g_fraglimit);
-    }
-
-    if (g_gametype.integer < GT_CTF && g_fraglimit.integer) {
+    if (g_fraglimit.integer &&
+        (g_gametype.integer == GT_FFA || g_gametype.integer == GT_TOURNAMENT || g_gametype.integer == GT_TEAM)) {
         if (level.teamScores[TEAM_RED] >= g_fraglimit.integer) {
             trap_SendServerCommand(-1, "print \"Red hit the fraglimit.\n\"");
-            LogExit("Fraglimit hit.");
+            LogExit(0, 0, "Fraglimit hit.");
             return;
         }
 
         if (level.teamScores[TEAM_BLUE] >= g_fraglimit.integer) {
             trap_SendServerCommand(-1, "print \"Blue hit the fraglimit.\n\"");
-            LogExit("Fraglimit hit.");
+            LogExit(0, 0, "Fraglimit hit.");
             return;
         }
 
@@ -1358,7 +2085,7 @@ void CheckExitRules(void) {
             }
 
             if (cl->ps.persistant[PERS_SCORE] >= g_fraglimit.integer) {
-                LogExit("Fraglimit hit.");
+                LogExit(0, 0, "Fraglimit hit.");
                 trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " hit the fraglimit.\n\"",
                                               cl->pers.netname));
                 return;
@@ -1366,25 +2093,53 @@ void CheckExitRules(void) {
         }
     }
 
-    if (g_capturelimit.integer < 0) {
-        G_Printf("capturelimit %i is out of range, defaulting to 0\n", g_capturelimit.integer);
-        trap_Cvar_Set("capturelimit", "0");
-        trap_Cvar_Update(&g_capturelimit);
-    }
-
-    if (g_gametype.integer >= GT_CTF && g_capturelimit.integer) {
+    if (g_capturelimit.integer &&
+        g_gametype.integer >= GT_CTF && g_gametype.integer <= GT_HARVESTER) {
         if (level.teamScores[TEAM_RED] >= g_capturelimit.integer) {
             trap_SendServerCommand(-1, "print \"Red hit the capturelimit.\n\"");
-            LogExit("Capturelimit hit.");
+            LogExit(0, 0, "Capturelimit hit.");
             return;
         }
 
         if (level.teamScores[TEAM_BLUE] >= g_capturelimit.integer) {
             trap_SendServerCommand(-1, "print \"Blue hit the capturelimit.\n\"");
-            LogExit("Capturelimit hit.");
+            LogExit(0, 0, "Capturelimit hit.");
             return;
         }
     }
+
+    // [QL] Scorelimit for Domination
+    if ( g_scorelimit.integer && g_gametype.integer == GT_DOMINATION ) {
+        if ( level.teamScores[TEAM_RED] >= g_scorelimit.integer ) {
+            trap_SendServerCommand( -1, "print \"Red hit the scorelimit.\n\"" );
+            LogExit( 0, 0, "Scorelimit hit." );
+            return;
+        }
+        if ( level.teamScores[TEAM_BLUE] >= g_scorelimit.integer ) {
+            trap_SendServerCommand( -1, "print \"Blue hit the scorelimit.\n\"" );
+            LogExit( 0, 0, "Scorelimit hit." );
+            return;
+        }
+    }
+
+    // [QL] Mercylimit for team modes
+    if ( g_mercylimit.integer && g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR ) {
+        int mercyTime = g_mercytime.integer * 60000 + level.timeOvertime;
+        if ( level.time - level.startTime >= mercyTime ) {
+            int diff = level.teamScores[TEAM_RED] - level.teamScores[TEAM_BLUE];
+            if ( diff >= g_mercylimit.integer ) {
+                trap_SendServerCommand( -1, "print \"Red hit the mercylimit.\n\"" );
+                LogExit( 0, 0, "Mercylimit hit." );
+                return;
+            }
+            if ( -diff >= g_mercylimit.integer ) {
+                trap_SendServerCommand( -1, "print \"Blue hit the mercylimit.\n\"" );
+                LogExit( 0, 0, "Mercylimit hit." );
+                return;
+            }
+        }
+    }
+
 }
 
 /*
@@ -1397,123 +2152,472 @@ FUNCTIONS CALLED EVERY FRAME
 
 /*
 =============
-CheckTournament
+SetWarmupState
 
-Once a frame, check for changes in tournement player state
+[QL] Sets level.warmupTime, CS_WARMUP configstring, and g_gameState cvar.
+Binary: FUN_10059c80 in qagamex86.dll
 =============
 */
-void CheckTournament(void) {
-    // check because we run 3 game frames before calling Connect and/or ClientBegin
-    // for clients on a map_restart
+void SetWarmupState(int warmupTime) {
+    const char *gameState;
+
+    level.warmupTime = warmupTime;
+    trap_SetConfigstring(CS_WARMUP, va("\\time\\%i", warmupTime));
+
+    if (warmupTime < 0) {
+        gameState = "PRE_GAME";
+    } else if (warmupTime == 0) {
+        gameState = "IN_PROGRESS";
+    } else {
+        gameState = "COUNT_DOWN";
+    }
+    trap_Cvar_Set("g_gameState", gameState);
+}
+
+/*
+=============
+CheckWarmupMinPlayers
+
+[QL] Returns qtrue if enough players are present/ready for warmup to proceed.
+Checks g_doWarmup, ready percentage, team sizes, team balance.
+Binary: FUN_10057830 in qagamex86.dll
+=============
+*/
+static qboolean CheckWarmupMinPlayers(void) {
+    int i;
+    int numPlaying = 0;
+    int numReady = 0;
+    int redCount, blueCount;
+    gclient_t *cl;
+
+    // [QL] Grace period: non-duel gametypes wait g_warmup seconds from map start
+    // before allowing countdown (but only during PRE_GAME with warmup enabled)
+    if (g_doWarmup.integer != 0 && g_gametype.integer != GT_TOURNAMENT &&
+        level.time - level.startTime < g_warmup.integer * 1000) {
+        return qfalse;
+    }
+
+    // During PRE_GAME: count playing and ready clients
+    if (level.warmupTime < 0) {
+        for (i = 0; i < level.maxclients; i++) {
+            cl = level.clients + i;
+            if (cl->pers.connected != CON_CONNECTED) {
+                continue;
+            }
+            if (cl->sess.sessionTeam == TEAM_SPECTATOR) {
+                continue;
+            }
+
+            if (cl->pers.ready) {
+                numReady++;
+            }
+            numPlaying++;
+        }
+        level.numReadyClients = numPlaying;
+        level.numReadyHumans = numReady;
+    }
+
+    // Check g_teamSizeMin (team games need minimum players per team)
+    if (g_teamSizeMin.integer != 0) {
+        blueCount = TeamCount(-1, TEAM_BLUE);
+        redCount = TeamCount(-1, TEAM_RED);
+
+        // If team force balance is off, or teams are below minimum
+        if (g_teamForceBalance.integer == 0 ||
+            (blueCount < g_teamSizeMin.integer && level.numPlayingClients < g_teamSizeMin.integer)) {
+            if (g_gametype.integer < GT_TEAM) {
+                if (level.numPlayingClients < 2) {
+                    return qfalse;
+                }
+            } else {
+                if (redCount < g_teamSizeMin.integer) {
+                    return qfalse;
+                }
+                if (blueCount < g_teamSizeMin.integer) {
+                    return qfalse;
+                }
+            }
+        }
+    }
+
+    // Check g_teamForceBalance (teams can't differ by more than 1)
+    if (g_teamForceBalance.integer != 0) {
+        blueCount = TeamCount(-1, TEAM_BLUE);
+        redCount = TeamCount(-1, TEAM_RED);
+        if (blueCount + 1 < redCount || redCount + 1 < blueCount) {
+            return qfalse;
+        }
+    }
+
+    // Check ready requirements during PRE_GAME
+    if (level.warmupTime < 0) {
+        if (g_gametype.integer == GT_TOURNAMENT) {
+            // Duel: need exactly 2 playing clients
+            if (level.numPlayingClients == 2 && numPlaying == 2) {
+                return qtrue;
+            }
+        } else {
+            // g_doWarmup 0: treat all players as ready (skip ready-up phase)
+            // Team games still require at least 1 player per team
+            if (g_doWarmup.integer == 0 && level.numPlayingClients > 0) {
+                if (g_gametype.integer >= GT_TEAM) {
+                    redCount = TeamCount(-1, TEAM_RED);
+                    blueCount = TeamCount(-1, TEAM_BLUE);
+                    if (redCount < 1 || blueCount < 1) {
+                        return qfalse;
+                    }
+                }
+                return qtrue;
+            }
+            // Team/FFA: check ready percentage
+            if ((numReady != 0 &&
+                 (float)numReady / (float)level.numPlayingClients >= g_warmupReadyPercentage.value) ||
+                g_warmupReadyPercentage.value == 0.0f) {
+                return qtrue;
+            }
+        }
+    } else {
+        // During countdown: set PMF_FROZEN on all playing clients
+        if (level.warmupTime != 0) {
+            for (i = 0; i < level.maxclients; i++) {
+                cl = level.clients + i;
+                if (cl->pers.connected == CON_CONNECTED &&
+                    cl->sess.sessionTeam != TEAM_SPECTATOR) {
+                    cl->ps.pm_flags |= PMF_FROZEN;
+                }
+            }
+        }
+        return qtrue;
+    }
+
+    return qfalse;
+}
+
+/*
+=============
+CheckForfeit
+
+[QL] Returns qtrue if the match should be forfeited (not enough players).
+Binary: FUN_10057d60 in qagamex86.dll (param_1=0 for auto-check)
+=============
+*/
+static qboolean CheckForfeit(void) {
+    int elapsed;
+    int redCount, blueCount;
+
+    // Not during timeout
+    // (level.timePauseBegin != 0 means timeout active)
+
+    elapsed = level.time - level.startTime;
+
+    // Need at least 1 second of play time
+    if (elapsed / 1000 <= 1) {
+        return qfalse;
+    }
+
+    // Not during warmup
+    if (level.warmupTime != 0) {
+        return qfalse;
+    }
+
+    if (g_gametype.integer < GT_TEAM || g_gametype.integer == GT_RR) {
+        // FFA/Duel/RR: forfeit if less than 2 playing clients
+        if (level.numPlayingClients < 2) {
+            return qtrue;
+        }
+    } else {
+        // Team games: forfeit if either team is empty
+        redCount = TeamCount(-1, TEAM_RED);
+        blueCount = TeamCount(-1, TEAM_BLUE);
+        if (redCount < 1 || blueCount < 1) {
+            return qtrue;
+        }
+    }
+
+    return qfalse;
+}
+
+/*
+=============
+HandleForfeit
+
+[QL] Ends the match due to forfeit.
+Binary: FUN_10057f90 in qagamex86.dll
+=============
+*/
+static void HandleForfeit(void) {
+    int redCount, blueCount;
+
+    if (g_gametype.integer == GT_TOURNAMENT) {
+        // Duel: set losing score on disconnected/spectating players
+        int i;
+        for (i = 0; i < 2; i++) {
+            int idx = (i == 0) ? level.clientNum1stPlayer : level.clientNum2ndPlayer;
+            if (idx >= 0) {
+                gclient_t *cl = level.clients + idx;
+                if (cl->pers.connected == CON_DISCONNECTED ||
+                    cl->sess.sessionTeam == TEAM_SPECTATOR) {
+                    cl->ps.persistant[PERS_SCORE] = -999;
+                }
+            }
+        }
+    } else if (g_gametype.integer >= GT_TEAM && g_gametype.integer != GT_RR) {
+        // Team games: set losing score on empty teams
+        redCount = TeamCount(-1, TEAM_RED);
+        blueCount = TeamCount(-1, TEAM_BLUE);
+        if (blueCount < 1) {
+            level.teamScores[TEAM_BLUE] = -999;
+            trap_SetConfigstring(CS_SCORES2, va("%i", -999));
+        }
+        if (redCount < 1) {
+            level.teamScores[TEAM_RED] = -999;
+            trap_SetConfigstring(CS_SCORES1, va("%i", -999));
+        }
+    }
+
+    level.matchForfeited = qtrue;
+    trap_SendServerCommand(-1, "print \"Game has been forfeited.\n\"");
+    LogExit(0, 0, "Players have forfeited.");
+}
+
+/*
+=============
+CheckWarmup
+
+[QL] Warmup state machine for ALL gametypes (separate from CheckTournament).
+Binary: FUN_10058760 in qagamex86.dll
+
+States:
+  warmupTime == 0  → match in progress (check forfeit)
+  warmupTime == -1 → PRE_GAME (waiting for players)
+  warmupTime > 0   → COUNT_DOWN (countdown to match start)
+=============
+*/
+static void CheckWarmup(void) {
+    int i;
+    gclient_t *cl;
+
     if (level.numPlayingClients == 0) {
         return;
     }
 
-    if (g_gametype.integer == GT_TOURNAMENT) {
-        // pull in a spectator if needed
-        if (level.numPlayingClients < 2) {
-            AddTournamentPlayer();
+    if (level.warmupTime == 0) {
+        // Match in progress - check for forfeit
+        if (CheckForfeit()) {
+            HandleForfeit();
         }
+        return;
+    }
 
-        // if we don't have two players, go back to "waiting for players"
-        if (level.numPlayingClients != 2) {
-            if (level.warmupTime != -1) {
-                level.warmupTime = -1;
-                trap_SetConfigstring(CS_WARMUP, va("%i", level.warmupTime));
-                G_LogPrintf("Warmup:\n");
-            }
+    // Warmup active (PRE_GAME or COUNT_DOWN)
+    if (!CheckWarmupMinPlayers()) {
+        // Not enough players
+        if (level.warmupTime == -1) {
+            // Already in PRE_GAME, nothing to do
             return;
         }
 
-        if (level.warmupTime == 0) {
-            return;
-        }
+        // Was in COUNT_DOWN, revert to PRE_GAME
+        SetWarmupState(-1);
+        G_LogPrintf("Warmup:\n");
 
-        // if the warmup is changed at the console, restart it
-        if (g_warmup.modificationCount != level.warmupModificationCount) {
-            level.warmupModificationCount = g_warmup.modificationCount;
-            level.warmupTime = -1;
-        }
-
-        // if all players have arrived, start the countdown
-        if (level.warmupTime < 0) {
-            if (level.numPlayingClients == 2) {
-                // fudge by -1 to account for extra delays
-                if (g_warmup.integer > 1) {
-                    level.warmupTime = level.time + (g_warmup.integer - 1) * 1000;
-                } else {
-                    level.warmupTime = 0;
+        // Clear PMF_FROZEN on all playing clients (countdown cancelled)
+        for (i = 0; i < level.maxclients; i++) {
+            cl = level.clients + i;
+            if (cl->pers.connected == CON_CONNECTED &&
+                cl->sess.sessionTeam != TEAM_SPECTATOR) {
+                if (cl->ps.pm_flags & PMF_FROZEN) {
+                    cl->ps.pm_flags &= ~PMF_FROZEN;
                 }
-
-                trap_SetConfigstring(CS_WARMUP, va("%i", level.warmupTime));
+                // Reset specOnly if it was set during countdown
+                if (cl->sess.specOnly == 1) {
+                    cl->sess.specOnly = 0;
+                    ClientUserinfoChanged(cl->ps.clientNum);
+                }
             }
-            return;
         }
+        return;
+    }
 
-        // if the warmup time has counted down, restart
-        if (level.time > level.warmupTime) {
-            level.warmupTime += 10000;
-            trap_Cvar_Set("g_restarted", "1");
-            trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
-            level.restarted = qtrue;
-            return;
+    // Enough players - check if g_warmup cvar changed (force restart countdown)
+    if (g_warmup.modificationCount != level.warmupModificationCount) {
+        level.warmupModificationCount = g_warmup.modificationCount;
+        SetWarmupState(-1);
+    }
+
+    // Start countdown if in PRE_GAME
+    if (level.warmupTime < 0) {
+        if (g_warmup.integer > 1) {
+            SetWarmupState(level.time + (g_warmup.integer - 1) * 1000);
+        } else {
+            SetWarmupState(0);
         }
-    } else if (g_gametype.integer != GT_SINGLE_PLAYER && level.warmupTime != 0) {
-        int counts[TEAM_NUM_TEAMS];
-        qboolean notEnough = qfalse;
+        return;
+    }
 
-        if (g_gametype.integer >= GT_TEAM) {
-            counts[TEAM_BLUE] = TeamCount(-1, TEAM_BLUE);
-            counts[TEAM_RED] = TeamCount(-1, TEAM_RED);
+    // Countdown expired - start match
+    if (level.time > level.warmupTime) {
+        level.warmupTime += 10000;
+        trap_Cvar_Set("g_restarted", "1");
+        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+        level.restarted = qtrue;
+        return;
+    }
+}
 
-            if (counts[TEAM_RED] < 1 || counts[TEAM_BLUE] < 1) {
-                notEnough = qtrue;
-            }
-        } else if (level.numPlayingClients < 2) {
-            notEnough = qtrue;
-        }
+/*
+=============
+CheckTournament
 
-        if (notEnough) {
-            if (level.warmupTime != -1) {
-                level.warmupTime = -1;
-                trap_SetConfigstring(CS_WARMUP, va("%i", level.warmupTime));
-                G_LogPrintf("Warmup:\n");
-            }
-            return;  // still waiting for team members
-        }
+[QL] Duel-only: pull in spectators from the queue when a slot opens.
+Binary: FUN_100557f0 in qagamex86.dll - only runs for GT_TOURNAMENT.
+Warmup state machine is now in CheckWarmup() (separate function).
+=============
+*/
+void CheckTournament(void) {
+    int i;
+    int numNonSpec;
+    gclient_t *cl;
 
-        if (level.warmupTime == 0) {
-            return;
-        }
+    if (g_gametype.integer != GT_TOURNAMENT) {
+        return;
+    }
 
-        // if the warmup is changed at the console, restart it
-        if (g_warmup.modificationCount != level.warmupModificationCount) {
-            level.warmupModificationCount = g_warmup.modificationCount;
-            level.warmupTime = -1;
-        }
-
-        // if all players have arrived, start the countdown
-        if (level.warmupTime < 0) {
-            // fudge by -1 to account for extra delays
-            if (g_warmup.integer > 1) {
-                level.warmupTime = level.time + (g_warmup.integer - 1) * 1000;
-            } else {
-                level.warmupTime = 0;
-            }
-
-            trap_SetConfigstring(CS_WARMUP, va("%i", level.warmupTime));
-            return;
-        }
-
-        // if the warmup time has counted down, restart
-        if (level.time > level.warmupTime) {
-            level.warmupTime += 10000;
-            trap_Cvar_Set("g_restarted", "1");
-            trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
-            level.restarted = qtrue;
-            return;
+    // Count non-spectator connected clients
+    numNonSpec = 0;
+    for (i = 0; i < level.maxclients; i++) {
+        cl = level.clients + i;
+        if (cl->pers.connected != CON_DISCONNECTED &&
+            cl->sess.sessionTeam != TEAM_SPECTATOR) {
+            numNonSpec++;
         }
     }
+
+    // If we already have 2 players, nothing to do
+    if (numNonSpec >= 2) {
+        return;
+    }
+
+    // Pull in next spectator from the queue
+    AddTournamentPlayer();
+
+    if (level.warmupTime != -1) {
+        SetWarmupState(-1);
+
+        // Clear allReadyTime countdown if active
+        if (level.allReadyTime != 0) {
+            level.allReadyTime = 0;
+        }
+    }
+
+    // Reset specOnly on connected playing clients
+    for (i = 0; i < level.maxclients; i++) {
+        cl = level.clients + i;
+        if (cl->pers.connected != CON_DISCONNECTED &&
+            cl->sess.sessionTeam != TEAM_SPECTATOR) {
+            if (cl->sess.specOnly == 1) {
+                cl->sess.specOnly = 0;
+            }
+            ClientUserinfoChanged(i);
+        }
+    }
+}
+
+/*
+==================
+ExecuteVoteCommand
+[QL] Execute special vote types that need server-side handling
+rather than direct console command execution (binary: 0x10058b20).
+Returns qtrue if handled, qfalse if caller should execute via console.
+==================
+*/
+static qboolean ExecuteVoteCommand(const char *voteCmd) {
+    char arg0[MAX_STRING_TOKENS];
+    char arg1[MAX_STRING_TOKENS];
+    char *p;
+
+    Q_strncpyz(arg0, voteCmd, sizeof(arg0));
+    p = strchr(arg0, ' ');
+    if (p) {
+        *p = '\0';
+        Q_strncpyz(arg1, p + 1, sizeof(arg1));
+        // strip quotes
+        if (arg1[0] == '"') {
+            int len = strlen(arg1);
+            if (len > 1 && arg1[len-1] == '"') {
+                arg1[len-1] = '\0';
+            }
+            memmove(arg1, arg1 + 1, strlen(arg1));
+        }
+    } else {
+        arg1[0] = '\0';
+    }
+
+    if (!Q_stricmp(arg0, "cointoss")) {
+        if (rand() & 1) {
+            trap_SendServerCommand(-1, "print \"^3The coin is: ^5HEADS^7\n\"");
+        } else {
+            trap_SendServerCommand(-1, "print \"^3The coin is: ^5TAILS^7\n\"");
+        }
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "random")) {
+        int val = atoi(arg1);
+        if (val == 2) {
+            if (rand() & 1) {
+                trap_SendServerCommand(-1, "print \"^3The coin is: ^5HEADS^7\n\"");
+            } else {
+                trap_SendServerCommand(-1, "print \"^3The coin is: ^5TAILS^7\n\"");
+            }
+        } else if (val >= 3 && val <= 100) {
+            trap_SendServerCommand(-1,
+                va("print \"^3Random number is: ^5%d^7\n\"", (rand() % val) + 1));
+        }
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "loadouts")) {
+        if (!Q_stricmp(arg1, "ON")) {
+            trap_Cvar_Set("g_loadout", "1");
+        } else {
+            trap_Cvar_Set("g_loadout", "0");
+        }
+        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "ammo")) {
+        if (!Q_stricmp(arg1, "GLOBAL")) {
+            trap_Cvar_Set("g_ammoPack", "1");
+        } else {
+            trap_Cvar_Set("g_ammoPack", "0");
+        }
+        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "timers")) {
+        if (!Q_stricmp(arg1, "ON")) {
+            trap_Cvar_Set("g_itemTimers", "1");
+        } else {
+            trap_Cvar_Set("g_itemTimers", "0");
+        }
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "shuffle")) {
+        // shuffle teams by randomly reassigning all playing clients
+        level.shufflePending = qtrue;
+        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "teamsize")) {
+        trap_Cvar_Set("teamsize", arg1);
+        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
+        return qtrue;
+    }
+    if (!Q_stricmp(arg0, "weaprespawn")) {
+        trap_Cvar_Set("g_weaponRespawn", arg1);
+        return qtrue;
+    }
+
+    return qfalse;
 }
 
 /*
@@ -1522,31 +2626,93 @@ CheckVote
 ==================
 */
 void CheckVote(void) {
+    int i;
+    int voteYes, voteNo, voteEligible;
+    gentity_t *ent;
+
+    // [QL] Don't process votes during intermission (map voting uses separate path)
+    if (level.intermissionTime) {
+        return;
+    }
+
+    // Execute pending vote command
     if (level.voteExecuteTime && level.voteExecuteTime < level.time) {
         level.voteExecuteTime = 0;
-        trap_SendConsoleCommand(EXEC_APPEND, va("%s\n", level.voteString));
+        if (!ExecuteVoteCommand(level.voteString)) {
+            trap_SendConsoleCommand(EXEC_APPEND, va("%s\n", level.voteString));
+        }
     }
+
     if (!level.voteTime) {
         return;
     }
-    if (level.time - level.voteTime >= VOTE_TIME) {
-        trap_SendServerCommand(-1, "print \"Vote failed.\n\"");
-    } else {
-        // ATVI Q3 1.32 Patch #9, WNF
-        if (level.voteYes > level.numVotingClients / 2) {
-            // execute the command, then remove the vote
-            trap_SendServerCommand(-1, "print \"Vote passed.\n\"");
-            level.voteExecuteTime = level.time + 3000;
-        } else if (level.voteNo >= level.numVotingClients / 2) {
-            // same behavior as a timeout
-            trap_SendServerCommand(-1, "print \"Vote failed.\n\"");
-        } else {
-            // still waiting for a majority
-            return;
+
+    // [QL] Recount votes each frame from per-client voteState
+    voteYes = 0;
+    voteNo = 0;
+    voteEligible = 0;
+
+    for (i = 0; i < level.maxclients; i++) {
+        ent = &g_entities[i];
+        if (!ent->inuse || ent->client->pers.connected != CON_CONNECTED) {
+            continue;
+        }
+        if (ent->client->sess.sessionTeam == TEAM_SPECTATOR) {
+            continue;
+        }
+
+        switch (ent->client->pers.voteState) {
+            case VOTE_YES:
+                voteYes++;
+                voteEligible++;
+                break;
+            case VOTE_NO:
+                voteNo++;
+                // fall through
+            case VOTE_PENDING:
+                voteEligible++;
+                break;
+            case VOTE_PASSED:
+                // [QL] Admin override - force pass
+                trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " passed the vote.\n\"",
+                    ent->client->pers.netname));
+                goto vote_passed;
+            case VOTE_VETOED:
+                // [QL] Admin override - force veto
+                trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " vetoed the vote.\n\"",
+                    ent->client->pers.netname));
+                goto vote_failed;
+            default:
+                break;
         }
     }
-    level.voteTime = 0;
-    trap_SetConfigstring(CS_VOTE_TIME, "");
+
+    // Check vote outcome
+    if ((float)voteYes > (float)voteEligible * 0.5f) {
+vote_passed:
+        trap_SendServerCommand(-1, "print \"Vote passed.\n\"");
+        ClearVote();
+        level.voteExecuteTime = level.time + 3000;
+    } else if ((float)voteNo >= (float)voteEligible * 0.5f) {
+vote_failed:
+        trap_SendServerCommand(-1, "print \"Vote failed.\n\"");
+        ClearVote();
+    } else {
+        // Update vote configstrings only when counts change
+        if (level.voteYes != voteYes) {
+            level.voteYes = voteYes;
+            trap_SetConfigstring(CS_VOTE_YES, va("%i", voteYes));
+        }
+        if (level.voteNo != voteNo) {
+            level.voteNo = voteNo;
+            trap_SetConfigstring(CS_VOTE_NO, va("%i", voteNo));
+        }
+        // Vote timeout (30 seconds)
+        if (level.time - level.voteTime > 29999) {
+            trap_SendServerCommand(-1, "print \"Vote failed.\n\"");
+            ClearVote();
+        }
+    }
 }
 
 /*
@@ -1687,12 +2853,28 @@ void G_RunFrame(int levelTime) {
         return;
     }
 
-    level.framenum++;
-    level.previousTime = level.time;
+    level.frametime = levelTime - level.time;
     level.time = levelTime;
 
     // get any cvar changes
     G_UpdateCvars();
+
+    // [QL] update pmove configstring for client prediction (only when dirty)
+    if (pmoveInfoDirty) {
+        G_SendPmoveInfo();
+        pmoveInfoDirty = qfalse;
+    }
+
+    // [QL listen server] Auto-begin connecting clients.
+    // Real QL dedicated servers rely on the "team" command from UI to trigger
+    // ClientBegin.  Q3 had GAME_CLIENT_BEGIN in vmMain which the engine called
+    // from SV_ClientEnterWorld - QL removed it.  For listen servers we need to
+    // auto-begin clients so they get a valid player state and receive snapshots.
+    for (i = 0; i < level.maxclients; i++) {
+        if (level.clients[i].pers.connected == CON_CONNECTING) {
+            ClientBegin(i);
+        }
+    }
 
     //
     // go through all allocated objects
@@ -1765,8 +2947,11 @@ void G_RunFrame(int levelTime) {
         }
     }
 
-    // see if it is time to do a tournement restart
+    // [QL] duel queue rotation (pull in spectators)
     CheckTournament();
+
+    // [QL] warmup state machine (all gametypes)
+    CheckWarmup();
 
     // see if it is time to end the level
     CheckExitRules();
@@ -1779,6 +2964,12 @@ void G_RunFrame(int levelTime) {
 
     // for tracking changes
     CheckCvars();
+
+    // [QL] run bot AI - QL removed BOTAI_START_FRAME from vmMain,
+    // so the game module drives bot AI from G_RunFrame instead.
+    if (trap_Cvar_VariableIntegerValue("bot_enable")) {
+        BotAIStartFrame(level.time);
+    }
 
     if (g_listEntity.integer) {
         for (i = 0; i < MAX_GENTITIES; i++) {
