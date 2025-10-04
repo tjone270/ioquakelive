@@ -236,18 +236,39 @@ qboolean PM_SlideMove(qboolean gravity) {
 
 /*
 ==================
+PM_CanCrouchStepJump - [QL] pure predicate: can we do a crouch-step-jump?
+Matches binary's PM_CheckDoubleJump used in step-slide context (does NOT call PM_DoJump).
+==================
+*/
+static qboolean PM_CanCrouchStepJump(void) {
+    if (!(pm->ps->pm_flags & PMF_DUCKED)) {
+        return qfalse;
+    }
+    if (pml.groundPlane) {
+        return qfalse;
+    }
+    if (pm->ps->velocity[2] < 0.0f) {
+        return qfalse;
+    }
+    if ((float)(pm->cmd.serverTime - pm->ps->jumpTime) < pm_jumpVelocityTimeThreshold) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+/*
+==================
 PM_StepSlideMove
 
 ==================
 */
 void PM_StepSlideMove(qboolean gravity) {
     vec3_t start_o, start_v;
-    //	vec3_t		down_o, down_v;
+    vec3_t pred;
     trace_t trace;
-    //	float		down_dist, up_dist;
-    //	vec3_t		delta, delta2;
     vec3_t up, down;
     float stepSize;
+    float actualStepHeight = pm_stepHeight;  // [QL] configurable step height
 
     VectorCopy(pm->ps->origin, start_o);
     VectorCopy(pm->ps->velocity, start_v);
@@ -256,21 +277,30 @@ void PM_StepSlideMove(qboolean gravity) {
         return;  // we got exactly where we wanted to go first try
     }
 
-    VectorCopy(start_o, down);
-    down[2] -= STEPSIZE;
-    pm->trace(&trace, start_o, pm->mins, pm->maxs, down, pm->ps->clientNum, pm->tracemask);
-    VectorSet(up, 0, 0, 1);
-    // never step up when you still have up velocity
-    if (pm->ps->velocity[2] > 0 && (trace.fraction == 1.0 ||
-                                    DotProduct(trace.plane.normal, up) < 0.7)) {
-        return;
+    // [QL] predict position after one frame (used for ground checks and step-jump validation)
+    VectorMA(start_o, pml.frametime, start_v, pred);
+
+    // [QL] upward-velocity rejection: only check when airborne (binary skips this when grounded)
+    if (!pml.groundPlane) {
+        vec3_t predDown;
+
+        // trace from start to predicted position
+        pm->trace(&trace, start_o, pm->mins, pm->maxs, pred, pm->ps->clientNum, pm->tracemask);
+
+        // from trace endpoint, trace down by stepHeight to find ground
+        VectorCopy(trace.endpos, predDown);
+        predDown[2] -= actualStepHeight;
+        pm->trace(&trace, trace.endpos, pm->mins, pm->maxs, predDown, pm->ps->clientNum, pm->tracemask);
+
+        // if moving upward and no walkable ground at predicted position, skip step-up
+        if (start_v[2] > 0 && (trace.fraction == 1.0 ||
+                               trace.plane.normal[2] < 0.7)) {
+            return;
+        }
     }
 
-    // VectorCopy (pm->ps->origin, down_o);
-    // VectorCopy (pm->ps->velocity, down_v);
-
     VectorCopy(start_o, up);
-    up[2] += STEPSIZE;
+    up[2] += actualStepHeight;
 
     // test the player position if they were a stepheight higher
     pm->trace(&trace, start_o, pm->mins, pm->maxs, up, pm->ps->clientNum, pm->tracemask);
@@ -278,11 +308,10 @@ void PM_StepSlideMove(qboolean gravity) {
         if (pm->debugLevel) {
             Com_Printf("%i:bend can't step\n", c_pmove);
         }
-        return;  // can't step up
+        return;
     }
 
     stepSize = trace.endpos[2] - start_o[2];
-    // try slidemove from this position
     VectorCopy(trace.endpos, pm->ps->origin);
     VectorCopy(start_v, pm->ps->velocity);
 
@@ -295,40 +324,83 @@ void PM_StepSlideMove(qboolean gravity) {
     if (!trace.allsolid) {
         VectorCopy(trace.endpos, pm->ps->origin);
     }
+
+    // [QL] only clip velocity if moving INTO the surface (dot < 0 or nearly parallel)
+    // Binary does NOT unconditionally clip - preserves speed when velocity is away from surface
     if (trace.fraction < 1.0) {
-        PM_ClipVelocity(pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP);
+        float dot = DotProduct(pm->ps->velocity, trace.plane.normal);
+        if (dot < 0.0f || (dot >= 0.0f && dot < 0.001f)) {
+            PM_ClipVelocity(pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP);
+        }
     }
 
-#if 0
-	// if the down trace can trace back to the original position directly, don't step
-	pm->trace( &trace, pm->ps->origin, pm->mins, pm->maxs, start_o, pm->ps->clientNum, pm->tracemask);
-	if ( trace.fraction == 1.0 ) {
-		// use the original move
-		VectorCopy (down_o, pm->ps->origin);
-		VectorCopy (down_v, pm->ps->velocity);
-		if ( pm->debugLevel ) {
-			Com_Printf("%i:bend\n", c_pmove);
-		}
-	} else
-#endif
-    {
-        // use the step move
-        float delta;
+    // [QL] validate step by tracing from start to current position
+    pm->trace(&trace, start_o, pm->mins, pm->maxs, pm->ps->origin, pm->ps->clientNum, pm->tracemask);
 
-        delta = pm->ps->origin[2] - start_o[2];
+    if (trace.fraction < 1.0) {
+        float delta = pm->ps->origin[2] - start_o[2];
+
+        // step smoothing: store step height for cgame view smoothing
         if (delta > 2) {
-            if (delta < 7) {
-                PM_AddEvent(EV_STEP_4);
-            } else if (delta < 11) {
-                PM_AddEvent(EV_STEP_8);
-            } else if (delta < 15) {
-                PM_AddEvent(EV_STEP_12);
-            } else {
-                PM_AddEvent(EV_STEP_16);
+            pm->stepHeight = delta;
+            pm->stepTime = pm->cmd.serverTime;
+        }
+
+        // air step friction: dampen X/Y velocity when stepping up while airborne
+        if (!pml.groundPlane && delta > 0 && start_v[2] > 0) {
+            float dampen = 1.0f - pm_airStepFriction;
+            pm->ps->velocity[0] *= dampen;
+            pm->ps->velocity[1] *= dampen;
+        }
+
+        // [QL] step-jump: auto-jump off stairs when holding jump
+        if (pm_stepJump && pm->ps->pm_type == PM_NORMAL
+            && delta > 0 && pm->waterlevel < 2) {
+            if (PM_WouldJump() || (pm_doubleJump && PM_CanCrouchStepJump())) {
+                // verify walkable ground at predicted position
+                vec3_t sjUp, sjDown;
+                trace_t sjTrace;
+
+                VectorCopy(pred, sjUp);
+                sjUp[2] += actualStepHeight;
+                VectorCopy(pred, sjDown);
+                sjDown[2] -= actualStepHeight;
+                pm->trace(&sjTrace, sjUp, pm->mins, pm->maxs, sjDown,
+                          pm->ps->clientNum, pm->tracemask);
+
+                if (!sjTrace.startsolid && !sjTrace.allsolid
+                    && sjTrace.plane.normal[2] >= 0.7) {
+                    if (PM_WouldJump()) {
+                        pml.stepJumpFlag = 1;
+                        PM_DoJump();
+                        pml.stepJumpFlag = 0;
+                    } else if (pm_doubleJump && PM_CanCrouchStepJump()) {
+                        // crouch step jump: verify clearance with shrunk bounding box
+                        vec3_t sjMins, sjMaxs, crouchDown;
+                        trace_t crouchTrace;
+
+                        sjMins[0] = pm->mins[0] + 1;
+                        sjMins[1] = pm->mins[1] + 1;
+                        sjMins[2] = pm->mins[2];
+                        sjMaxs[0] = pm->maxs[0] - 1;
+                        sjMaxs[1] = pm->maxs[1] - 1;
+                        sjMaxs[2] = pm->maxs[2];
+                        VectorCopy(pm->ps->origin, crouchDown);
+                        crouchDown[2] -= 64;
+                        pm->trace(&crouchTrace, pm->ps->origin, sjMins, sjMaxs,
+                                  crouchDown, pm->ps->clientNum, pm->tracemask);
+                        if (crouchTrace.fraction == 1.0) {
+                            pml.crouchStepJumpFlag = 1;
+                            PM_DoJump();
+                            pml.crouchStepJumpFlag = 0;
+                        }
+                    }
+                }
             }
         }
+
         if (pm->debugLevel) {
-            Com_Printf("%i:stepped\n", c_pmove);
+            Com_Printf("%i:stepped %f\n", c_pmove, (double)delta);
         }
     }
 }
