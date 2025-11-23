@@ -427,8 +427,8 @@ void G_MoverTeam(gentity_t* ent) {
     if (part) {
         // go back to the previous position
         for (part = ent; part; part = part->teamchain) {
-            part->s.pos.trTime += level.time - level.previousTime;
-            part->s.apos.trTime += level.time - level.previousTime;
+            part->s.pos.trTime += level.time - ( level.time - level.frametime );
+            part->s.apos.trTime += level.time - ( level.time - level.frametime );
             BG_EvaluateTrajectory(&part->s.pos, level.time, part->r.currentOrigin);
             BG_EvaluateTrajectory(&part->s.apos, level.time, part->r.currentAngles);
             trap_LinkEntity(part);
@@ -844,6 +844,100 @@ void Touch_DoorTrigger(gentity_t* ent, gentity_t* other, trace_t* trace) {
 }
 
 /*
+================
+Touch_DoorTrigger_Keyed
+[QL] Touch handler for doors that require a key (silver/gold/master)
+================
+*/
+static void Touch_DoorTrigger_Keyed(gentity_t* ent, gentity_t* other, trace_t* trace) {
+    gentity_t* door;
+    gclient_t* client;
+
+    if (!other->client)
+        return;
+
+    door = ent->parent;
+    client = other->client;
+
+    // door already open or opening - ignore
+    if (door->moverState == MOVER_POS2)
+        return;
+
+    if (client->sess.sessionTeam == TEAM_SPECTATOR ||
+        client->ps.pm_type == PM_SPECTATOR) {
+        // spectators get pushed back (with cooldown)
+        if (door->moverState != MOVER_1TO2 &&
+            other->pain_debounce_time < level.time) {
+            other->pain_debounce_time = level.time + 1000;
+            Touch_DoorTriggerSpectator(ent, other, trace);
+        }
+        return;
+    }
+
+    // check key requirements
+    if ((door->spawnflags & 0x10) &&
+        (client->ps.stats[STAT_KEY] & (KEY_SILVER | KEY_MASTER))) {
+        Use_BinaryMover(door, ent, other);
+    } else if ((door->spawnflags & 0x20) &&
+               (client->ps.stats[STAT_KEY] & (KEY_GOLD | KEY_MASTER))) {
+        Use_BinaryMover(door, ent, other);
+    }
+    // else: player doesn't have the right key - silently blocked
+}
+
+/*
+======================
+Think_SpawnKeyDoorTrigger
+[QL] Like Think_SpawnNewDoorTrigger but for key-requiring doors
+======================
+*/
+static void Think_SpawnKeyDoorTrigger(gentity_t* ent) {
+    gentity_t* other;
+    vec3_t mins, maxs;
+    int i, best;
+
+    if (!ent)
+        return;
+
+    // key doors are not shootable
+    for (other = ent; other; other = other->teamchain) {
+        other->takedamage = qfalse;
+    }
+
+    // find the bounds of everything on the team
+    VectorCopy(ent->r.absmin, mins);
+    VectorCopy(ent->r.absmax, maxs);
+
+    for (other = ent->teamchain; other; other = other->teamchain) {
+        AddPointToBounds(other->r.absmin, mins, maxs);
+        AddPointToBounds(other->r.absmax, mins, maxs);
+    }
+
+    // find the thinnest axis, which will be the one we expand
+    best = 0;
+    for (i = 1; i < 3; i++) {
+        if (maxs[i] - mins[i] < maxs[best] - mins[best]) {
+            best = i;
+        }
+    }
+    maxs[best] += 120;
+    mins[best] -= 120;
+
+    // create a trigger with this size
+    other = G_Spawn();
+    other->classname = "door_trigger";
+    VectorCopy(mins, other->r.mins);
+    VectorCopy(maxs, other->r.maxs);
+    other->parent = ent;
+    other->r.contents = CONTENTS_TRIGGER;
+    other->touch = Touch_DoorTrigger_Keyed;
+    other->count = best;
+    trap_LinkEntity(other);
+
+    MatchTeam(ent, ent->moverState, level.time);
+}
+
+/*
 ======================
 Think_SpawnNewDoorTrigger
 
@@ -903,10 +997,12 @@ void Think_MatchTeam(gentity_t* ent) {
     MatchTeam(ent, ent->moverState, level.time);
 }
 
-/*QUAKED func_door (0 .5 .8) ? START_OPEN x CRUSHER
+/*QUAKED func_door (0 .5 .8) ? START_OPEN x CRUSHER x SILVER_KEY GOLD_KEY
 TOGGLE		wait in both the start and end states for a trigger event.
 START_OPEN	the door to moves to its destination when spawned, and operate in reverse.  It is used to temporarily or permanently close off an area when triggered (not useful for touch or takedamage doors).
 NOMONSTER	monsters will not trigger this door
+SILVER_KEY	requires silver key (or master key) to open
+GOLD_KEY	requires gold key (or master key) to open
 
 "model2"	.md3 model to also draw
 "angle"		determines the opening direction
@@ -978,7 +1074,10 @@ void SP_func_door(gentity_t* ent) {
         if (health) {
             ent->takedamage = qtrue;
         }
-        if (ent->targetname || health) {
+        // [QL] key doors take priority over targetname/health
+        if (ent->spawnflags & 0x30) {
+            ent->think = Think_SpawnKeyDoorTrigger;
+        } else if (ent->targetname || health) {
             // non touch/shoot doors
             ent->think = Think_MatchTeam;
         } else {

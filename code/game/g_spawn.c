@@ -176,6 +176,35 @@ void SP_team_neutralobelisk(gentity_t* ent);
 
 void SP_item_botroam(gentity_t* ent) {}
 
+// [QL] QL-specific entity types
+void SP_advertisement(gentity_t *ent) {
+    // [QL] In real QL, the engine's ADVERT subsystem handles ad rendering.
+    // We render the brush model as a static mover entity instead.
+    trap_SetBrushModel(ent, ent->model);
+    if (!ent->s.modelindex) {
+        G_FreeEntity(ent);
+        return;
+    }
+    ent->s.eType = ET_MOVER;
+    ent->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+    ent->s.pos.trType = TR_STATIONARY;
+    VectorCopy(ent->s.origin, ent->s.pos.trBase);
+    VectorCopy(ent->s.origin, ent->r.currentOrigin);
+    trap_LinkEntity(ent);
+}
+
+void SP_team_dom_point(gentity_t *ent) {
+    // [QL] domination point - only functional in GT_DOM (10)
+    // point entity, no brush model
+    G_FreeEntity(ent);
+}
+
+void SP_race_point(gentity_t *ent) {
+    // [QL] race checkpoint - only functional in GT_RACE (2)
+    // point entity, no brush model
+    G_FreeEntity(ent);
+}
+
 spawn_t spawns[] = {
     // info entities don't do anything at all, but provide positional
     // information for things controlled by other processes
@@ -247,6 +276,11 @@ spawn_t spawns[] = {
     {"team_neutralobelisk", SP_team_neutralobelisk},
 
     {"item_botroam", SP_item_botroam},
+
+    // [QL] QL-specific entity types
+    {"advertisement", SP_advertisement},
+    {"team_dom_point", SP_team_dom_point},
+    {"race_point", SP_race_point},
 
     {NULL, 0}};
 
@@ -387,7 +421,7 @@ void G_SpawnGEntityFromSpawnVars(void) {
     int i;
     gentity_t* ent;
     char *s, *value, *gametypeName;
-    static char* gametypeNames[] = {"ffa", "tournament", "single", "team", "ctf", "oneflag", "obelisk", "harvester"};
+    // [QL] use shared gametype short names from bg_misc.c
 
     // get the next free entity
     ent = G_Spawn();
@@ -431,7 +465,7 @@ void G_SpawnGEntityFromSpawnVars(void) {
 
     if (G_SpawnString("gametype", NULL, &value)) {
         if (g_gametype.integer >= GT_FFA && g_gametype.integer < GT_MAX_GAME_TYPE) {
-            gametypeName = gametypeNames[g_gametype.integer];
+            gametypeName = (char *)gametypeShortNames[g_gametype.integer];
 
             s = strstr(value, gametypeName);
             if (!s) {
@@ -556,6 +590,13 @@ void SP_worldspawn(void) {
     G_SpawnString("message", "", &s);
     trap_SetConfigstring(CS_MESSAGE, s);  // map specific message
 
+    // [QL] author configstrings read from worldspawn entity
+    G_SpawnString("author", "", &s);
+    trap_SetConfigstring(CS_AUTHOR, s);
+
+    G_SpawnString("author2", "", &s);
+    trap_SetConfigstring(CS_AUTHOR2, s);
+
     trap_SetConfigstring(CS_MOTD, g_motd.string);  // message of the day
 
     G_SpawnString("gravity", "800", &s);
@@ -576,14 +617,14 @@ void SP_worldspawn(void) {
     g_entities[ENTITYNUM_NONE].classname = "nothing";
 
     // see if we want a warmup time
-    trap_SetConfigstring(CS_WARMUP, "");
     if (g_restarted.integer) {
         trap_Cvar_Set("g_restarted", "0");
-        level.warmupTime = 0;
-    } else if (g_doWarmup.integer) {  // Turn it on
-        level.warmupTime = -1;
-        trap_SetConfigstring(CS_WARMUP, va("%i", level.warmupTime));
+        SetWarmupState(0);  // [QL] match in progress
+    } else if (g_doWarmup.integer) {
+        SetWarmupState(-1);  // [QL] PRE_GAME
         G_LogPrintf("Warmup:\n");
+    } else {
+        SetWarmupState(0);  // [QL] no warmup, go straight to IN_PROGRESS
     }
 }
 

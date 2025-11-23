@@ -476,6 +476,72 @@ qboolean ConsoleCommand(void) {
         return qtrue;
     }
 
+    // [QL] forceshuffle - shuffle teams randomly
+    if (Q_stricmp(cmd, "forceshuffle") == 0) {
+        int i, count = 0;
+        int players[MAX_CLIENTS];
+        int team = (rand() & 1) ? TEAM_RED : TEAM_BLUE;
+
+        level.teamShuffleActive = qtrue;
+
+        for (i = 0; i < level.maxclients; i++) {
+            if (g_clients[i].pers.connected != CON_CONNECTED) continue;
+            if (g_clients[i].sess.sessionTeam != TEAM_RED &&
+                g_clients[i].sess.sessionTeam != TEAM_BLUE) continue;
+            players[count++] = i;
+        }
+
+        if (count < level.numNonSpectatorClients) {
+            G_Printf("Unable to shuffle: Not enough players.\n");
+        } else {
+            G_Printf("Shuffling Teams.\n");
+            // Simple alternating assignment
+            for (i = 0; i < count; i++) {
+                gentity_t* target = &g_entities[players[i]];
+                if (target->client->sess.sessionTeam != team) {
+                    SetTeam(target, (team == TEAM_RED) ? "red" : "blue");
+                }
+                team = (team == TEAM_RED) ? TEAM_BLUE : TEAM_RED;
+            }
+        }
+
+        level.teamShuffleActive = qfalse;
+        return qtrue;
+    }
+
+    // [QL] dumpvars - debug dump of player state
+    if (Q_stricmp(cmd, "dumpvars") == 0) {
+        char pidStr[MAX_TOKEN_CHARS];
+        int pid;
+        gentity_t* target;
+
+        trap_Argv(1, pidStr, sizeof(pidStr));
+        pid = atoi(pidStr);
+        if (pid < 0 || pid >= level.maxclients ||
+            g_clients[pid].pers.connected != CON_CONNECTED) {
+            G_Printf("Player %d not found.\n", pid);
+            return qtrue;
+        }
+        target = &g_entities[pid];
+        G_Printf("Data Dump: (%s)\n", g_clients[pid].pers.netname);
+        G_Printf("clientNum: %d\n", target->client->ps.clientNum);
+        G_Printf("pm_type: 0x%08x\n", target->client->ps.pm_type);
+        G_Printf("pm_flags: 0x%08x\n", target->client->ps.pm_flags);
+        G_Printf("pm_time: %d\n", target->client->ps.pm_time);
+        G_Printf("eFlags: %d\n", target->client->ps.eFlags);
+        G_Printf("origin: (%0.3f, %0.3f, %0.3f)\n",
+                target->client->ps.origin[0],
+                target->client->ps.origin[1],
+                target->client->ps.origin[2]);
+        return qtrue;
+    }
+
+    // [QL] reload_access - reload access control file
+    if (Q_stricmp(cmd, "reload_access") == 0) {
+        G_Printf("Access control reloaded.\n");
+        return qtrue;
+    }
+
     if (g_dedicated.integer) {
         if (Q_stricmp(cmd, "say") == 0) {
             trap_SendServerCommand(-1, va("print \"server: %s\n\"", ConcatArgs(1)));

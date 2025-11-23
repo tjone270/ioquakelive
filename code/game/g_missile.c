@@ -36,7 +36,7 @@ void G_BounceMissile(gentity_t* ent, trace_t* trace) {
     int hitTime;
 
     // reflect the velocity on the trace plane
-    hitTime = level.previousTime + (level.time - level.previousTime) * trace->fraction;
+    hitTime = ( level.time - level.frametime ) + (level.time - ( level.time - level.frametime )) * trace->fraction;
     BG_EvaluateTrajectoryDelta(&ent->s.pos, hitTime, velocity);
     dot = DotProduct(velocity, trace->plane.normal);
     VectorMA(velocity, -2 * dot, trace->plane.normal, ent->s.pos.trDelta);
@@ -81,9 +81,13 @@ void G_ExplodeMissile(gentity_t* ent) {
     ent->freeAfterEvent = qtrue;
 
     // splash damage
+    // [QL] binary-verified: time-expired missiles pass NULL inflictor (no splash offset)
     if (ent->splashDamage) {
-        if (G_RadiusDamage(ent->r.currentOrigin, ent->parent, ent->splashDamage, ent->splashRadius, ent, ent->splashMethodOfDeath)) {
+        if (G_RadiusDamage(ent->r.currentOrigin, NULL, ent->parent, ent->splashDamage, ent->splashRadius, ent, 0, ent->splashMethodOfDeath)) {
             g_entities[ent->r.ownerNum].client->accuracy_hits++;
+            if (ent->s.weapon < 16) {
+                g_entities[ent->r.ownerNum].client->expandedStats.shotsHit[ent->s.weapon]++;
+            }
         }
     }
 
@@ -301,6 +305,9 @@ void G_MissileImpact(gentity_t* ent, trace_t* trace) {
 
             if (LogAccuracyHit(other, &g_entities[ent->r.ownerNum])) {
                 g_entities[ent->r.ownerNum].client->accuracy_hits++;
+                if (ent->s.weapon < 16) {
+                    g_entities[ent->r.ownerNum].client->expandedStats.shotsHit[ent->s.weapon]++;
+                }
                 hitClient = qtrue;
             }
             BG_EvaluateTrajectoryDelta(&ent->s.pos, level.time, velocity);
@@ -381,7 +388,7 @@ void G_MissileImpact(gentity_t* ent, trace_t* trace) {
         G_SetOrigin(nent, v);
 
         ent->think = Weapon_HookThink;
-        ent->nextthink = level.time + FRAMETIME;
+        ent->nextthink = level.time - MISSILE_PRESTEP_TIME;  // [QL] think immediately
 
         ent->parent->client->ps.pm_flags |= PMF_GRAPPLE_PULL;
         VectorCopy(ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);
@@ -415,10 +422,13 @@ void G_MissileImpact(gentity_t* ent, trace_t* trace) {
 
     // splash damage (doesn't apply to person directly hit)
     if (ent->splashDamage) {
-        if (G_RadiusDamage(trace->endpos, ent->parent, ent->splashDamage, ent->splashRadius,
-                           other, ent->splashMethodOfDeath)) {
+        if (G_RadiusDamage(trace->endpos, ent, ent->parent, ent->splashDamage, ent->splashRadius,
+                           other, 0, ent->splashMethodOfDeath)) {
             if (!hitClient) {
                 g_entities[ent->r.ownerNum].client->accuracy_hits++;
+                if (ent->s.weapon < 16) {
+                    g_entities[ent->r.ownerNum].client->expandedStats.shotsHit[ent->s.weapon]++;
+                }
             }
         }
     }
@@ -517,18 +527,18 @@ gentity_t* fire_plasma(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.weapon = WP_PLASMAGUN;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 20;
-    bolt->splashDamage = 15;
-    bolt->splashRadius = 20;
+    bolt->damage = g_damage_pg.integer;
+    bolt->splashDamage = g_splashdamage_pg.integer;
+    bolt->splashRadius = g_splashradius_pg.integer;
     bolt->methodOfDeath = MOD_PLASMA;
     bolt->splashMethodOfDeath = MOD_PLASMA_SPLASH;
     bolt->clipmask = MASK_SHOT;
     bolt->target_ent = NULL;
-    bolt->s.pos.trType = TR_LINEAR;
+    bolt->s.pos.trType = weapon_gravity_pg.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
 
     VectorCopy(start, bolt->s.pos.trBase);
-    VectorScale(dir, 2000, bolt->s.pos.trDelta);
+    VectorScale(dir, g_velocity_pg.integer, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);  // save net bandwidth
 
     VectorCopy(start, bolt->r.currentOrigin);
@@ -558,9 +568,9 @@ gentity_t* fire_grenade(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.eFlags = EF_BOUNCE_HALF;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 100;
-    bolt->splashDamage = 100;
-    bolt->splashRadius = 150;
+    bolt->damage = g_damage_gl.integer;
+    bolt->splashDamage = g_splashdamage_gl.integer;
+    bolt->splashRadius = g_splashradius_gl.integer;
     bolt->methodOfDeath = MOD_GRENADE;
     bolt->splashMethodOfDeath = MOD_GRENADE_SPLASH;
     bolt->clipmask = MASK_SHOT;
@@ -569,7 +579,7 @@ gentity_t* fire_grenade(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.pos.trType = TR_GRAVITY;
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
     VectorCopy(start, bolt->s.pos.trBase);
-    VectorScale(dir, 700, bolt->s.pos.trDelta);
+    VectorScale(dir, g_velocity_gl.integer, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);  // save net bandwidth
 
     VectorCopy(start, bolt->r.currentOrigin);
@@ -598,22 +608,36 @@ gentity_t* fire_bfg(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.weapon = WP_BFG;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 100;
-    bolt->splashDamage = 100;
-    bolt->splashRadius = 120;
+    bolt->damage = g_damage_bfg.integer;
+    bolt->splashDamage = g_splashdamage_bfg.integer;
+    bolt->splashRadius = g_splashradius_bfg.integer;
     bolt->methodOfDeath = MOD_BFG;
     bolt->splashMethodOfDeath = MOD_BFG_SPLASH;
     bolt->clipmask = MASK_SHOT;
     bolt->target_ent = NULL;
 
-    bolt->s.pos.trType = TR_LINEAR;
+    bolt->s.pos.trType = weapon_gravity_bfg.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
     VectorCopy(start, bolt->s.pos.trBase);
-    VectorScale(dir, 2000, bolt->s.pos.trDelta);
+    VectorScale(dir, g_velocity_bfg.integer, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);  // save net bandwidth
     VectorCopy(start, bolt->r.currentOrigin);
 
     return bolt;
+}
+
+// [QL] guided rocket - steers toward shooter's view direction each frame
+static void G_GuidedRocketThink(gentity_t *ent) {
+    gclient_t *cl = ent->parent->client;
+    if (cl) {
+        vec3_t forward;
+        AngleVectors(cl->ps.viewangles, forward, NULL, NULL);
+        VectorCopy(ent->r.currentOrigin, ent->s.pos.trBase);
+        VectorCopy(forward, ent->movedir);
+        VectorScale(forward, g_velocity_rl.integer, ent->s.pos.trDelta);
+        ent->s.pos.trTime = level.time;
+    }
+    ent->nextthink = level.time + 25;
 }
 
 //=============================================================================
@@ -637,20 +661,26 @@ gentity_t* fire_rocket(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.weapon = WP_ROCKET_LAUNCHER;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 100;
-    bolt->splashDamage = 100;
-    bolt->splashRadius = 120;
+    bolt->damage = g_damage_rl.integer;
+    bolt->splashDamage = g_splashdamage_rl.integer;
+    bolt->splashRadius = g_splashradius_rl.integer;
     bolt->methodOfDeath = MOD_ROCKET;
     bolt->splashMethodOfDeath = MOD_ROCKET_SPLASH;
     bolt->clipmask = MASK_SHOT;
     bolt->target_ent = NULL;
 
-    bolt->s.pos.trType = TR_LINEAR;
+    bolt->s.pos.trType = weapon_gravity_rl.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
     VectorCopy(start, bolt->s.pos.trBase);
-    VectorScale(dir, 900, bolt->s.pos.trDelta);
+    VectorScale(dir, g_velocity_rl.integer, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);  // save net bandwidth
     VectorCopy(start, bolt->r.currentOrigin);
+
+    // [QL] guided rocket mode
+    if (g_guidedRocket.integer) {
+        bolt->think = G_GuidedRocketThink;
+        bolt->nextthink = level.time + MISSILE_PRESTEP_TIME;
+    }
 
     return bolt;
 }
@@ -682,7 +712,7 @@ gentity_t* fire_grapple(gentity_t* self, vec3_t start, vec3_t dir) {
     hook->s.otherEntityNum = self->s.number;                 // use to match beam in client
 
     VectorCopy(start, hook->s.pos.trBase);
-    VectorScale(dir, 800, hook->s.pos.trDelta);
+    VectorScale(dir, g_velocity_gh.integer, hook->s.pos.trDelta);
     SnapVector(hook->s.pos.trDelta);  // save net bandwidth
     VectorCopy(start, hook->r.currentOrigin);
 
@@ -696,8 +726,6 @@ gentity_t* fire_grapple(gentity_t* self, vec3_t start, vec3_t dir) {
 fire_nail
 =================
 */
-#define NAILGUN_SPREAD 500
-
 gentity_t* fire_nail(gentity_t* self, vec3_t start, vec3_t forward, vec3_t right, vec3_t up) {
     gentity_t* bolt;
     vec3_t dir;
@@ -706,32 +734,40 @@ gentity_t* fire_nail(gentity_t* self, vec3_t start, vec3_t forward, vec3_t right
 
     bolt = G_Spawn();
     bolt->classname = "nail";
-    bolt->nextthink = level.time + 10000;
+    bolt->nextthink = level.time + 4500;  // [QL] 0x1194 = 4500
     bolt->think = G_ExplodeMissile;
     bolt->s.eType = ET_MISSILE;
     bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
     bolt->s.weapon = WP_NAILGUN;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 20;
+    bolt->damage = g_damage_ng.integer;
     bolt->methodOfDeath = MOD_NAIL;
     bolt->clipmask = MASK_SHOT;
     bolt->target_ent = NULL;
+    bolt->s.otherEntityNum = self->s.number;  // [QL]
 
-    bolt->s.pos.trType = TR_LINEAR;
+    bolt->s.pos.trType = weapon_gravity_ng.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
     bolt->s.pos.trTime = level.time;
     VectorCopy(start, bolt->s.pos.trBase);
 
+    // [QL] nail bounce
+    if (g_nailbounce.integer) {
+        if ((rand() % 100) >= (100 - g_nailbouncepercentage.integer)) {
+            bolt->s.eFlags = EF_BOUNCE;
+        }
+    }
+
     r = random() * M_PI * 2.0f;
-    u = sin(r) * crandom() * NAILGUN_SPREAD * 16;
-    r = cos(r) * crandom() * NAILGUN_SPREAD * 16;
+    u = sin(r) * crandom() * g_nailspread.integer * 16;
+    r = cos(r) * crandom() * g_nailspread.integer * 16;
     VectorMA(start, 8192 * 16, forward, end);
     VectorMA(end, r, right, end);
     VectorMA(end, u, up, end);
     VectorSubtract(end, start, dir);
     VectorNormalize(dir);
 
-    scale = 555 + random() * 1800;
+    scale = g_nailspeed.integer + random() * 1800;
     VectorScale(dir, scale, bolt->s.pos.trDelta);
     SnapVector(bolt->s.pos.trDelta);
 
@@ -760,9 +796,9 @@ gentity_t* fire_prox(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->s.eFlags = 0;
     bolt->r.ownerNum = self->s.number;
     bolt->parent = self;
-    bolt->damage = 0;
-    bolt->splashDamage = 100;
-    bolt->splashRadius = 150;
+    bolt->damage = g_damage_pl.integer;
+    bolt->splashDamage = g_splashdamage_pl.integer;
+    bolt->splashRadius = g_splashradius_pl.integer;
     bolt->methodOfDeath = MOD_PROXIMITY_MINE;
     bolt->splashMethodOfDeath = MOD_PROXIMITY_MINE;
     bolt->clipmask = MASK_SHOT;

@@ -731,14 +731,9 @@ void ClientUserinfoChanged(int clientNum) {
 
     client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 
-    // set model
-    if (g_gametype.integer >= GT_TEAM) {
-        Q_strncpyz(model, Info_ValueForKey(userinfo, "team_model"), sizeof(model));
-        Q_strncpyz(headModel, Info_ValueForKey(userinfo, "team_headmodel"), sizeof(headModel));
-    } else {
-        Q_strncpyz(model, Info_ValueForKey(userinfo, "model"), sizeof(model));
-        Q_strncpyz(headModel, Info_ValueForKey(userinfo, "headmodel"), sizeof(headModel));
-    }
+    // [QL] set model - QL uses "model" for all gametypes (no team_model)
+    Q_strncpyz(model, Info_ValueForKey(userinfo, "model"), sizeof(model));
+    Q_strncpyz(headModel, Info_ValueForKey(userinfo, "headmodel"), sizeof(headModel));
 
     /*	NOTE: all client side now
 
@@ -835,7 +830,6 @@ restarts.
 */
 char* ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
     char* value;
-    //	char		*areabits;
     gclient_t* client;
     char userinfo[MAX_INFO_STRING];
     gentity_t* ent;
@@ -844,37 +838,29 @@ char* ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
 
     trap_GetUserinfo(clientNum, userinfo, sizeof(userinfo));
 
-    // IP filtering
-    // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=500
-    // recommanding PB based IP / GUID banning, the builtin system is pretty limited
-    // check to see if they are on the banned IP list
+    // [QL] Access level check (replaces IP banning and password)
     value = Info_ValueForKey(userinfo, "ip");
-    if (G_FilterPacket(value)) {
-        return "You are banned from this server.";
-    }
-
-    // we don't check password for bots and local client
-    // NOTE: local client <-> "ip" "localhost"
-    //   this means this client is not running in our current process
-    if (!isBot && (strcmp(value, "localhost") != 0)) {
-        // check for a password
-        value = Info_ValueForKey(userinfo, "password");
-        if (g_password.string[0] && Q_stricmp(g_password.string, "none") &&
-            strcmp(g_password.string, value) != 0) {
-            return "Invalid password";
+    if (!isBot) {
+        int accessLevel = G_GetAccessLevel(value);
+        if (accessLevel == -1) {
+            return "You are banned from this server.";
+        }
+        // check for localhost
+        if (strcmp(value, "localhost") != 0) {
+            // store privilege level
+            // (will be set after client struct is zeroed)
         }
     }
-    // if a player reconnects quickly after a disconnect, the client disconnect may never be called, thus flag can get lost in the ether
+
+    // if a player reconnects quickly after a disconnect, the client disconnect may never be called
     if (ent->inuse) {
         G_LogPrintf("Forcing disconnect on active client: %i\n", clientNum);
-        // so lets just fix up anything that should happen on a disconnect
         ClientDisconnect(clientNum);
     }
+
     // they can connect
     ent->client = level.clients + clientNum;
     client = ent->client;
-
-    //	areabits = client->areabits;
 
     memset(client, 0, sizeof(*client));
 
@@ -886,6 +872,21 @@ char* ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
         client->pers.localClient = qtrue;
     }
 
+    // [QL] initialize session data - always called on firstTime or newSession
+    if (firstTime || level.newSession) {
+        G_InitSessionData(client, userinfo);
+        // [QL] initialize expanded stats timing
+        {
+            int r;
+            memset(&client->expandedStats, 0, sizeof(client->expandedStats));
+            client->expandedStats.teamJoinTime = level.time;
+            client->expandedStats.lastThinkTime = level.time - level.startTime;
+            r = rand();
+            client->expandedStats.statId = level.time + r + 636 + (int)(intptr_t)client;
+        }
+    }
+    G_ReadSessionData(client);
+
     if (isBot) {
         ent->r.svFlags |= SVF_BOT;
         ent->inuse = qtrue;
@@ -894,33 +895,39 @@ char* ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
         }
     }
 
-    // read or initialize the session data
-    if (firstTime || level.newSession) {
-        G_InitSessionData(client, userinfo);
-    }
-    G_ReadSessionData(client);
-
     // get and distribute relevant parameters
     G_LogPrintf("ClientConnect: %i\n", clientNum);
     ClientUserinfoChanged(clientNum);
 
-    // don't do the "xxx connected" messages if they were caried over from previous level
-    if (firstTime) {
-        trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " connected\n\"", client->pers.netname));
-    }
+    // [QL] firstTime, non-bot: send privilege level, connected message, init stats
+    if (firstTime && !g_isBotOnly.integer) {
+        // send privilege level to client
+        trap_SendServerCommand(clientNum, va("priv %i", client->sess.privileges));
 
-    if (g_gametype.integer >= GT_TEAM &&
-        client->sess.sessionTeam != TEAM_SPECTATOR) {
-        BroadcastTeamChange(client, -1);
+        // [QL] gate "connected" message behind level.time > 5000
+        if (level.time > 5000) {
+            trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " connected\n\"", client->pers.netname));
+        }
+
+        STAT_InitClient(ent);
+
+        if (g_gametype.integer > GT_RACE &&
+            client->sess.sessionTeam != TEAM_SPECTATOR) {
+            BroadcastTeamChange(client, -1);
+        }
+
+        if (!isBot) {
+            STAT_SubscribeClient(ent);
+        }
     }
 
     // count current clients and rank for scoreboard
     CalculateRanks();
 
-    // for statistics
-    //	client->areabits = areabits;
-    //	if ( !client->areabits )
-    //		client->areabits = G_Alloc( (trap_AAS_PointReachabilityAreaIndex( NULL ) + 7) / 8 );
+    // [QL] Set EF_VOTED for spectators on map change (non-firstTime)
+    if (!firstTime && client->sess.sessionTeam == TEAM_SPECTATOR) {
+        ent->client->ps.eFlags |= EF_VOTED;
+    }
 
     return NULL;
 }
@@ -964,14 +971,48 @@ void ClientBegin(int clientNum) {
     memset(&client->ps, 0, sizeof(client->ps));
     client->ps.eFlags = flags;
 
-    // locate ent at a spawn point
-    ClientSpawn(ent);
+    // [QL] initialize kill tracking fields
+    client->lastkilled_client = -1;
+    client->lastClientKilled = -1;
+    client->lasthurt_client[0] = -1;
+    client->lasthurt_client[1] = -1;
 
+    // [QL] set pm_type based on team: spectators get PM_SPECTATOR
     if (client->sess.sessionTeam != TEAM_SPECTATOR) {
-        if (g_gametype.integer != GT_TOURNAMENT) {
-            trap_SendServerCommand(-1, va("print \"%s" S_COLOR_WHITE " entered the game\n\"", client->pers.netname));
-        }
+        client->ps.pm_type = PM_NORMAL;
+    } else {
+        client->ps.pm_type = PM_SPECTATOR;
     }
+
+    // [QL] gametype-specific begin dispatch
+    switch (g_gametype.integer) {
+    case GT_RACE:
+        ClientBegin_Race(ent);
+        break;
+    case GT_CA:
+    case GT_AD:
+        ClientBegin_RoundBased(ent);
+        break;
+    case GT_FREEZE:
+        ClientBegin_Freeze(ent);
+        break;
+    case GT_RR:
+        ClientBegin_RedRover(ent);
+        break;
+    default:
+        ClientSpawn(ent);
+        break;
+    }
+
+    // [QL] Duel bots: clear losses, set join time
+    if (g_gametype.integer == GT_TOURNAMENT && (ent->r.svFlags & SVF_BOT)) {
+        client->sess.losses = 0;
+        if (client->sess.joinTime == 0) {
+            client->sess.joinTime = (int)time(NULL);
+        }
+        ClientUserinfoChanged(clientNum);
+    }
+
     G_LogPrintf("ClientBegin: %i\n", clientNum);
 
     // count current clients and rank for scoreboard
@@ -996,7 +1037,6 @@ void ClientSpawn(gentity_t* ent) {
     clientSession_t savedSess;
     int persistant[MAX_PERSISTANT];
     gentity_t* spawnPoint;
-    gentity_t* tent;
     int flags;
     int savedPing;
     //	char	*savedAreaBits;
@@ -1009,30 +1049,20 @@ void ClientSpawn(gentity_t* ent) {
 
     VectorClear(spawn_origin);
 
-    // find a spawn point
-    // do it before setting health back up, so farthest
-    // ranging doesn't count this client
+    // [QL] find a spawn point - unified SelectSpawnPoint for all gametypes
     if (client->sess.sessionTeam == TEAM_SPECTATOR) {
         spawnPoint = SelectSpectatorSpawnPoint(
             spawn_origin, spawn_angles);
-    } else if (g_gametype.integer >= GT_CTF) {
-        // all base oriented team games use the CTF spawn points
-        spawnPoint = SelectCTFSpawnPoint(
-            client->sess.sessionTeam,
-            client->pers.teamState.state,
-            spawn_origin, spawn_angles,
-            !!(ent->r.svFlags & SVF_BOT));
     } else {
-        // the first spawn should be at a good looking spot
-        if (!client->pers.initialSpawn && client->pers.localClient) {
-            client->pers.initialSpawn = qtrue;
-            spawnPoint = SelectInitialSpawnPoint(spawn_origin, spawn_angles,
-                                                 !!(ent->r.svFlags & SVF_BOT));
-        } else {
-            // don't spawn near existing origin if possible
-            spawnPoint = SelectSpawnPoint(
-                client->ps.origin,
-                spawn_origin, spawn_angles, !!(ent->r.svFlags & SVF_BOT));
+        spawnPoint = SelectSpawnPoint(
+            client->ps.origin,
+            spawn_origin, spawn_angles, !!(ent->r.svFlags & SVF_BOT));
+        // [QL] if no spawn point found, put player in spectator mode
+        if (!spawnPoint) {
+            client->respawnTime = level.time + 600;
+            client->ps.pm_type = PM_SPECTATOR;
+            client->pers.teamState.state = TEAM_ACTIVE;
+            return;
         }
     }
     client->pers.teamState.state = TEAM_ACTIVE;
@@ -1080,10 +1110,19 @@ void ClientSpawn(gentity_t* ent) {
     client->airOutTime = level.time + 12000;
 
     trap_GetUserinfo(index, userinfo, sizeof(userinfo));
-    // set max health
-    client->pers.maxHealth = atoi(Info_ValueForKey(userinfo, "handicap"));
-    if (client->pers.maxHealth < 1 || client->pers.maxHealth > 100) {
-        client->pers.maxHealth = 100;
+    // [QL] set max health: g_startingHealth * handicap factor
+    {
+        int handicap = atoi(Info_ValueForKey(userinfo, "handicap"));
+        float hcFactor = 1.0f;
+        int maxHealth;
+        if (handicap >= 1 && handicap <= 100) {
+            hcFactor = (float)handicap / 100.0f;
+        }
+        maxHealth = (int)(g_startingHealth.integer * hcFactor);
+        if (maxHealth < 1 || maxHealth > g_startingHealth.integer) {
+            maxHealth = g_startingHealth.integer;
+        }
+        client->pers.maxHealth = maxHealth;
     }
     // clear entity values
     client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
@@ -1094,8 +1133,13 @@ void ClientSpawn(gentity_t* ent) {
     ent->takedamage = qtrue;
     ent->inuse = qtrue;
     ent->classname = "player";
-    ent->r.contents = CONTENTS_BODY;
-    ent->clipmask = MASK_PLAYERSOLID;
+    if (client->sess.sessionTeam == TEAM_SPECTATOR) {
+        ent->r.contents = 0;
+        ent->clipmask = 0;
+    } else {
+        ent->r.contents = CONTENTS_BODY;
+        ent->clipmask = MASK_PLAYERSOLID;
+    }
     ent->die = player_die;
     ent->waterlevel = 0;
     ent->watertype = 0;
@@ -1106,19 +1150,64 @@ void ClientSpawn(gentity_t* ent) {
 
     client->ps.clientNum = index;
 
-    client->ps.stats[STAT_WEAPONS] = (1 << WP_MACHINEGUN);
-    if (g_gametype.integer == GT_TEAM) {
-        client->ps.ammo[WP_MACHINEGUN] = 50;
-    } else {
-        client->ps.ammo[WP_MACHINEGUN] = 100;
+    // [QL] Starting weapons from g_startingWeapons bitmask + g_startingAmmo_* cvars
+    {
+        static vmCvar_t *startingAmmoCvars[WP_NUM_WEAPONS] = {
+            NULL,                   // WP_NONE = 0
+            &g_startingAmmo_g,      // WP_GAUNTLET = 1
+            &g_startingAmmo_mg,     // WP_MACHINEGUN = 2
+            &g_startingAmmo_sg,     // WP_SHOTGUN = 3
+            &g_startingAmmo_gl,     // WP_GRENADE_LAUNCHER = 4
+            &g_startingAmmo_rl,     // WP_ROCKET_LAUNCHER = 5
+            &g_startingAmmo_lg,     // WP_LIGHTNING = 6
+            &g_startingAmmo_rg,     // WP_RAILGUN = 7
+            &g_startingAmmo_pg,     // WP_PLASMAGUN = 8
+            &g_startingAmmo_bfg,    // WP_BFG = 9
+            &g_startingAmmo_gh,     // WP_GRAPPLING_HOOK = 10
+            &g_startingAmmo_ng,     // WP_NAILGUN = 11
+            &g_startingAmmo_pl,     // WP_PROX_LAUNCHER = 12
+            &g_startingAmmo_cg,     // WP_CHAINGUN = 13
+            &g_startingAmmo_hmg,    // WP_HMG = 14
+        };
+        int w;
+
+        // Binary uses bit (w-1) for weapon w: bit 0=gauntlet, bit 1=MG, etc.
+        for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
+            if (g_startingWeapons.integer & (1 << (w - 1))) {
+                client->ps.stats[STAT_WEAPONS] |= (1 << w);
+                client->ps.ammo[w] = startingAmmoCvars[w]->integer;
+            }
+        }
+
+        // Gauntlet and grapple always have infinite ammo when present
+        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GAUNTLET)) {
+            client->ps.ammo[WP_GAUNTLET] = -1;
+        }
+        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GRAPPLING_HOOK)) {
+            client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+        }
+
+        // g_infiniteAmmo override: set all weapon ammo to -1
+        if (g_infiniteAmmo.integer) {
+            for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
+                client->ps.ammo[w] = -1;
+            }
+        }
     }
 
-    client->ps.stats[STAT_WEAPONS] |= (1 << WP_GAUNTLET);
-    client->ps.ammo[WP_GAUNTLET] = -1;
-    client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
+    // [QL] starting health: g_startingHealth + g_startingHealthBonus (default 100+25=125)
+    {
+        int startHealth = g_startingHealth.integer + g_startingHealthBonus.integer;
+        if (startHealth < 1) {
+            startHealth = client->pers.maxHealth;
+        } else if (startHealth > 999) {
+            startHealth = 999;
+        }
+        ent->health = client->ps.stats[STAT_HEALTH] = startHealth;
+    }
 
-    // health will count down towards max_health
-    ent->health = client->ps.stats[STAT_HEALTH] = client->ps.stats[STAT_MAX_HEALTH] + 25;
+    // [QL] starting armor from cvar
+    client->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
 
     G_SetOrigin(ent, spawn_origin);
     VectorCopy(spawn_origin, client->ps.origin);
@@ -1132,52 +1221,122 @@ void ClientSpawn(gentity_t* ent) {
     client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
     client->ps.pm_time = 100;
 
+    // [QL] set movement mode flags from server cvars
+    if (pmove_AirControl.integer) {
+        client->ps.pm_flags |= PMF_PROMODE;
+    }
+    if (pmove_DoubleJump.integer) {
+        client->ps.pm_flags |= PMF_DOUBLE_JUMPED;
+    }
+    if (pmove_CrouchSlide.integer) {
+        client->ps.pm_flags |= PMF_CROUCH_SLIDE;
+    }
+    if (pmove_AutoHop.integer && g_gametype.integer != GT_CA) {
+        // autoHop is opt-in per-client via userinfo "cg_autoHop"
+        // [QL] binary skips this for GT_CA
+        char *s = Info_ValueForKey(userinfo, "cg_autoHop");
+        if (*s && atoi(s)) {
+            client->ps.pm_flags &= ~PMF_NO_AUTOHOP;
+        } else {
+            client->ps.pm_flags |= PMF_NO_AUTOHOP;
+        }
+    }
+
     client->respawnTime = level.time;
-    client->inactivityTime = level.time + g_inactivity.integer * 1000;
-    client->latched_buttons = 0;
+    client->pers.inactivityTime = level.time + g_inactivity.integer * 1000;
 
     // set default animations
     client->ps.torsoAnim = TORSO_STAND;
     client->ps.legsAnim = LEGS_IDLE;
 
-    if (!level.intermissiontime) {
+    // [QL] gametype-specific spawn logic (freeze during warmup/countdown)
+    switch (g_gametype.integer) {
+    case GT_RACE:
+        // restore race info from saved data (preserved across respawn)
+        break;
+    case GT_CA:
+    case GT_AD:
+        // freeze during warmup or countdown (roundState 1)
+        if (level.warmupTime > 0 || level.roundState.eCurrent == 1) {
+            client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+        }
+        break;
+    case GT_FREEZE:
+        // freeze during warmup/countdown, but only if roundState != 0
+        if ((level.warmupTime > 0 || level.roundState.eCurrent == 1)
+            && level.roundState.eCurrent != 0) {
+            client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (!level.intermissionTime) {
         if (ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
-            G_KillBox(ent);
-            // force the base weapon up
-            client->ps.weapon = WP_MACHINEGUN;
-            client->ps.weaponstate = WEAPON_READY;
             // fire the targets of the spawn point
             G_UseTargets(spawnPoint, ent);
-            // select the highest weapon number available, after any spawn given items have fired
-            client->ps.weapon = 1;
 
-            for (i = WP_NUM_WEAPONS - 1; i > 0; i--) {
-                if (client->ps.stats[STAT_WEAPONS] & (1 << i)) {
-                    client->ps.weapon = i;
-                    break;
-                }
-            }
             // positively link the client, even if the command times are weird
             VectorCopy(ent->client->ps.origin, ent->r.currentOrigin);
 
-            tent = G_TempEntity(ent->client->ps.origin, EV_PLAYER_TELEPORT_IN);
-            tent->s.clientNum = ent->s.clientNum;
-
+            // [QL] G_KillBox after SetClientViewAngle (binary order)
+            G_KillBox(ent);
             trap_LinkEntity(ent);
         }
     } else {
         // move players to intermission
         MoveClientToIntermission(ent);
     }
+
     // run a client frame to drop exactly to the floor,
     // initialize animations and other things
     client->ps.commandTime = level.time - 100;
     ent->client->pers.cmd.serverTime = level.time;
+    trap_GetUsercmd(client - level.clients, &ent->client->pers.cmd);
+    ent->client->pers.cmd.serverTime = level.time;
     ClientThink(ent - g_entities);
+
     // run the presend to set anything else, follow spectators wait
     // until all clients have been reconnected after map_restart
-    if (ent->client->sess.spectatorState != SPECTATOR_FOLLOW) {
+    if (!(ent->r.svFlags & SVF_BOT)) {
         ClientEndFrame(ent);
+    }
+
+    // [QL] g_spawnItems processing: give items listed in semicolon-delimited string
+    if (ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
+        if (g_spawnItems.string[0]) {
+            char spawnItemsBuf[1024];
+            char *tok;
+            Q_strncpyz(spawnItemsBuf, g_spawnItems.string, sizeof(spawnItemsBuf));
+            tok = strtok(spawnItemsBuf, ";");
+            while (tok) {
+                // GiveItem would parse "item count" pairs - stub for now
+                tok = strtok(NULL, ";");
+            }
+        }
+
+        // update origin after ClientThink
+        VectorCopy(ent->client->ps.origin, ent->r.currentOrigin);
+        trap_LinkEntity(ent);
+    }
+
+    // [QL] spectator auto-follow: if spawned as spectator in follow mode, attach to target
+    if (client->sess.sessionTeam == TEAM_SPECTATOR
+        && client->sess.spectatorState == SPECTATOR_FOLLOW
+        && client->sess.spectatorClient >= 0) {
+        client->ps.clientNum = client->sess.spectatorClient;
+        client->ps.pm_flags |= PMF_FOLLOW;
+    }
+
+    // [QL] select best weapon after spawn (binary does this inside GiveDefaultWeapons)
+    if (!level.intermissionTime && client->sess.sessionTeam != TEAM_SPECTATOR) {
+        SelectSpawnWeapon(ent);
+    }
+
+    // [QL] team alive counting for team gametypes
+    if (g_gametype.integer > GT_RACE) {
+        UpdateTeamAliveCount();
     }
 
     // clear entity state values
@@ -1200,53 +1359,99 @@ void ClientDisconnect(int clientNum) {
     gentity_t* ent;
     gentity_t* tent;
     int i;
-
-    // cleanup if we are kicking a bot that
-    // hasn't spawned yet
-    G_RemoveQueuedBotBegin(clientNum);
+    gclient_t* cl;
 
     ent = g_entities + clientNum;
+
+    // [QL] publish disconnect stats before anything else (unless intermission)
+    if (ent->client && ent->client->ps.pm_type != PM_INTERMISSION) {
+        STAT_PublishClientDisconnect(ent->client, 1);
+    }
+
+    // cleanup if we are kicking a bot that hasn't spawned yet
+    G_RemoveQueuedBotBegin(clientNum);
+
     if (!ent->client || ent->client->pers.connected == CON_DISCONNECTED) {
         return;
     }
 
-    // stop any following clients
+    // [QL] duel: send scoreboard on disconnect
+    if (g_gametype.integer == GT_TOURNAMENT) {
+        DuelScoreboardMessage(ent);
+    }
+
+    // [QL] update alive counts immediately
+    UpdateTeamAliveCount();
+
+    // [QL] complex follow cleanup: stop followers, release grapple, clear complaint/damage tracking
     for (i = 0; i < level.maxclients; i++) {
-        if (level.clients[i].sess.sessionTeam == TEAM_SPECTATOR && level.clients[i].sess.spectatorState == SPECTATOR_FOLLOW && level.clients[i].sess.spectatorClient == clientNum) {
-            StopFollowing(&g_entities[i]);
+        cl = &level.clients[i];
+
+        // stop following disconnecting client
+        if (cl->sess.sessionTeam == TEAM_SPECTATOR
+            && cl->sess.spectatorState == SPECTATOR_FOLLOW
+            && cl->sess.spectatorClient == clientNum) {
+            // if disconnecting client is spectator, or warmup, or no players alive: full stop
+            if (ent->client->sess.sessionTeam == TEAM_SPECTATOR
+                || level.warmupTime
+                || level.numPlayingClients < 1) {
+                StopFollowing(&g_entities[i]);
+            } else {
+                // try to follow next player
+                Cmd_FollowCycle_f(&g_entities[i], 1);
+            }
         }
+
+        // [QL] release grapple if target is disconnecting player
+        if (level.clients[i].hook
+            && level.clients[i].hook->enemy == ent) {
+            G_ReleaseGrapple(&g_entities[i]);
+        }
+
+        // [QL] clear complaint tracking for this client
+        if (cl->pers.complaintClient == clientNum) {
+            cl->pers.complaintClient = -1;
+            cl->pers.complaintEndTime = 0;
+            trap_SendServerCommand(level.sortedClients[i], "complaint -2");
+        }
+
+        // [QL] clear per-client damage tracking
+        cl->pers.damageFromTeammates = 0;
     }
 
     // send effect if they were completely connected
-    if (ent->client->pers.connected == CON_CONNECTED && ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
+    if (ent->client->pers.connected == CON_CONNECTED
+        && ent->client->sess.sessionTeam != TEAM_SPECTATOR
+        && !level.intermissionQueued && !level.intermissionTime) {
         tent = G_TempEntity(ent->client->ps.origin, EV_PLAYER_TELEPORT_OUT);
         tent->s.clientNum = ent->s.clientNum;
 
         // They don't get to take powerups with them!
-        // Especially important for stuff like CTF flags
         TossClientItems(ent);
-        TossClientPersistantPowerups(ent);
-        if (g_gametype.integer == GT_HARVESTER) {
-            TossClientCubes(ent);
+
+        // [QL] release own grapple
+        if (ent->client->hook) {
+            G_ReleaseGrapple(ent);
+        }
+
+        // [QL] respawn any held keys back into the world
+        if (ent->client->ps.stats[STAT_KEY]) {
+            if (ent->client->ps.stats[STAT_KEY] & KEY_SILVER) G_RespawnKey(KEY_SILVER);
+            if (ent->client->ps.stats[STAT_KEY] & KEY_GOLD)   G_RespawnKey(KEY_GOLD);
+            if (ent->client->ps.stats[STAT_KEY] & KEY_MASTER) G_RespawnKey(KEY_MASTER);
+            ent->client->ps.stats[STAT_KEY] = 0;
         }
     }
 
     G_LogPrintf("ClientDisconnect: %i\n", clientNum);
 
     // if we are playing in tourney mode and losing, give a win to the other player
-    if ((g_gametype.integer == GT_TOURNAMENT) && !level.intermissiontime && !level.warmupTime && level.sortedClients[1] == clientNum) {
+    if ((g_gametype.integer == GT_TOURNAMENT) && !level.intermissionTime && !level.warmupTime && level.sortedClients[1] == clientNum) {
         level.clients[level.sortedClients[0]].sess.wins++;
         ClientUserinfoChanged(level.sortedClients[0]);
     }
 
-    if (g_gametype.integer == GT_TOURNAMENT &&
-        ent->client->sess.sessionTeam == TEAM_FREE &&
-        level.intermissiontime) {
-        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
-        level.restarted = qtrue;
-        level.changemap = NULL;
-        level.intermissiontime = 0;
-    }
+    STAT_LogDisconnect(clientNum);
 
     trap_UnlinkEntity(ent);
     ent->s.modelindex = 0;
@@ -1255,6 +1460,8 @@ void ClientDisconnect(int clientNum) {
     ent->client->pers.connected = CON_DISCONNECTED;
     ent->client->ps.persistant[PERS_TEAM] = TEAM_FREE;
     ent->client->sess.sessionTeam = TEAM_FREE;
+    // [QL] clear privilege level
+    ent->client->sess.privileges = 0;
 
     trap_SetConfigstring(CS_PLAYERS + clientNum, "");
 
@@ -1263,4 +1470,263 @@ void ClientDisconnect(int clientNum) {
     if (ent->r.svFlags & SVF_BOT) {
         BotAIShutdownClient(clientNum, qfalse);
     }
+
+    // [QL] round-based gametypes: recount alive players after disconnect
+    switch (g_gametype.integer) {
+    case GT_CA:
+    case GT_FREEZE:
+    case GT_AD:
+    case GT_RR:
+        UpdateTeamAliveCount();
+        break;
+    }
+}
+
+/*
+============
+ClientBegin_Race
+
+[QL] Race gametype begin - clear race timing data, send race_init
+============
+*/
+void ClientBegin_Race(gentity_t* ent) {
+    gclient_t* client = ent->client;
+
+    // clear race info (timing, checkpoints)
+    memset(&client->race, 0, sizeof(client->race));
+    // sentinel value: no best time yet
+    client->ps.persistant[PERS_SCORE] = 0x7FFFFFFF;
+
+    // send race_init to the client
+    trap_SendServerCommand(ent - g_entities, "race_init");
+    ClientSpawn(ent);
+}
+
+/*
+============
+ClientBegin_RoundBased
+
+[QL] CA/AD begin - spawn behavior depends on round state:
+  roundState 0 (pre-round): normal spawn + weapon select
+  roundState 1 (countdown): spawn + freeze (PMF_TIME_KNOCKBACK)
+  roundState 2+ (active round): spectator mode until next round
+============
+*/
+void ClientBegin_RoundBased(gentity_t* ent) {
+    gclient_t* client = ent->client;
+
+    if (level.roundState.eCurrent == 0) {
+        // pre-round: normal spawn
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+    } else if (level.roundState.eCurrent == 1) {
+        // countdown: spawn but freeze
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+        client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+    } else {
+        // round active: force to spectator, wait for next round
+        client->ps.pm_type = PM_SPECTATOR;
+        ClientSpawn(ent);
+        UpdateTeamAliveCount();
+        // auto-follow if warmup is off, not spectator team, and both teams have players
+        if (!level.warmupTime
+            && client->sess.sessionTeam != TEAM_SPECTATOR
+            && level.numPlayingClients > 0) {
+            Cmd_FollowCycle_f(ent, 1);
+        }
+    }
+}
+
+/*
+============
+ClientBegin_Freeze
+
+[QL] Freeze Tag begin - like RoundBased but clears freeze/dead pm_type first
+============
+*/
+void ClientBegin_Freeze(gentity_t* ent) {
+    gclient_t* client = ent->client;
+
+    if (level.roundState.eCurrent == 0) {
+        // pre-round: unfreeze if needed
+        if (client->ps.pm_type == PM_FREEZE || client->ps.pm_type == PM_DEAD) {
+            client->ps.pm_type = PM_NORMAL;
+        }
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+    } else if (level.roundState.eCurrent == 1) {
+        // countdown
+        if (client->ps.pm_type == PM_FREEZE || client->ps.pm_type == PM_DEAD) {
+            client->ps.pm_type = PM_NORMAL;
+        }
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+        if (level.roundState.eCurrent != 0) {
+            client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+        }
+    } else {
+        // round active: spectator mode
+        client->ps.pm_type = PM_SPECTATOR;
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+        UpdateTeamAliveCount();
+        if (!level.warmupTime
+            && client->sess.sessionTeam != TEAM_SPECTATOR
+            && level.numPlayingClients > 0) {
+            Cmd_FollowCycle_f(ent, 1);
+        }
+    }
+}
+
+/*
+============
+ClientBegin_RedRover
+
+[QL] Red Rover begin - spawn normally, freeze during countdown
+============
+*/
+void ClientBegin_RedRover(gentity_t* ent) {
+    gclient_t* client = ent->client;
+
+    if (level.roundState.eCurrent != 1) {
+        // not in countdown: normal spawn
+        ClientSpawn(ent);
+        SelectSpawnWeapon(ent);
+        return;
+    }
+    // countdown: spawn + freeze
+    ClientSpawn(ent);
+    SelectSpawnWeapon(ent);
+    client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+}
+
+/*
+============
+SelectSpawnWeapon
+
+[QL] Select best weapon after spawn. Checks:
+1. If frozen (PMF_FREEZE flag 0x80000), force gauntlet
+2. If loadout enabled and weaponPrimary is available, select it
+3. Otherwise, select highest available weapon
+============
+*/
+void SelectSpawnWeapon(gentity_t* ent) {
+    gclient_t* client = ent->client;
+    int i;
+
+    // frozen players get gauntlet only
+    if (client->ps.pm_flags & 0x80000) {
+        client->ps.weapon = WP_GAUNTLET;
+        return;
+    }
+
+    // loadout: prefer weaponPrimary if available
+    if (g_loadout.integer && client->sess.weaponPrimary > 0
+        && client->sess.weaponPrimary < WP_NUM_WEAPONS) {
+        if (client->ps.stats[STAT_WEAPONS] & (1 << client->sess.weaponPrimary)) {
+            client->ps.weapon = client->sess.weaponPrimary;
+            return;
+        }
+    }
+
+    // fallback: select highest weapon
+    for (i = WP_NUM_WEAPONS - 1; i > 0; i--) {
+        if (client->ps.stats[STAT_WEAPONS] & (1 << i)) {
+            client->ps.weapon = i;
+            return;
+        }
+    }
+    client->ps.weapon = WP_GAUNTLET;
+}
+
+/*
+============
+UpdateTeamAliveCount
+
+[QL] Count alive (non-spectator, non-dead, connected) players per team.
+Sets configstring for each team's alive count.
+============
+*/
+void UpdateTeamAliveCount(void) {
+    int i;
+    int aliveRed = 0, aliveBlue = 0;
+
+    for (i = 0; i < level.maxclients; i++) {
+        gclient_t* cl = &level.clients[i];
+        if (cl->pers.connected != CON_CONNECTED) continue;
+        if (cl->sess.sessionTeam == TEAM_SPECTATOR) continue;
+        if (cl->ps.pm_type == PM_SPECTATOR) continue;
+        if (cl->ps.stats[STAT_HEALTH] <= 0) continue;
+        if (cl->sess.sessionTeam == TEAM_RED) aliveRed++;
+        else if (cl->sess.sessionTeam == TEAM_BLUE) aliveBlue++;
+    }
+
+    trap_SetConfigstring(CS_TEAMCOUNT_RED, va("%i", aliveRed));
+    trap_SetConfigstring(CS_TEAMCOUNT_BLUE, va("%i", aliveBlue));
+}
+
+/*
+============
+G_GetAccessLevel
+
+[QL] Stub - Steam-based access level check.
+Returns 0 (regular), 1 (mod), 2 (admin), -1 (banned).
+Without Steam auth, always returns 0.
+============
+*/
+int G_GetAccessLevel(const char* ip) {
+    return 0;
+}
+
+/*
+============
+G_ReleaseGrapple
+
+[QL] Release grapple hook if the entity has one active
+============
+*/
+void G_ReleaseGrapple(gentity_t* ent) {
+    if (!ent || !ent->client) return;
+    if (ent->client->hook) {
+        Weapon_HookFree(ent->client->hook);
+    }
+}
+
+/*
+============
+DuelScoreboardMessage
+
+[QL] Send duel-specific scoreboard to all clients
+============
+*/
+void DuelScoreboardMessage(gentity_t* ent) {
+    // In duel, the regular DeathmatchScoreboardMessage handles this
+    DeathmatchScoreboardMessage(ent);
+}
+
+/*
+============
+STAT_* stubs
+
+[QL] Stats reporting functions - stubs for now (original uses C++ jsoncpp)
+============
+*/
+void STAT_InitClient(gentity_t* ent) { }
+void STAT_PublishClientDisconnect(gclient_t* client, int reason) { }
+void STAT_SubscribeClient(gentity_t* ent) { }
+void STAT_LogDisconnect(int clientNum) { }
+void STAT_MatchEnd(void) { }
+
+/*
+============
+G_IsTeamLocked
+
+[QL] Check if a team is locked (via /lock command by admin/referee)
+Currently returns qfalse (unlocked) - lock state would need
+a level-scope variable to track per-team lock status.
+============
+*/
+qboolean G_IsTeamLocked(team_t team) {
+    return qfalse;
 }

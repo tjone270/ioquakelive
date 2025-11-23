@@ -48,12 +48,7 @@ extern gentity_t* podium1;
 extern gentity_t* podium2;
 extern gentity_t* podium3;
 
-float trap_Cvar_VariableValue(const char* var_name) {
-    char buf[128];
-
-    trap_Cvar_VariableStringBuffer(var_name, buf, sizeof(buf));
-    return atof(buf);
-}
+// [QL] trap_Cvar_VariableValue is now provided by g_syscalls.c via imports->
 
 /*
 ===============
@@ -411,7 +406,7 @@ void G_CheckMinimumPlayers(void) {
     int humanplayers, botplayers;
     static int checkminimumplayers_time;
 
-    if (level.intermissiontime)
+    if (level.intermissionTime)
         return;
     // only check once each 10 seconds
     if (checkminimumplayers_time > level.time - 10000) {
@@ -647,16 +642,17 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
     }
     Info_SetValueForKey(userinfo, "name", botname);
     Info_SetValueForKey(userinfo, "rate", "25000");
-    Info_SetValueForKey(userinfo, "snaps", "20");
-    Info_SetValueForKey(userinfo, "skill", va("%.2f", skill));
-    Info_SetValueForKey(userinfo, "teampref", team);
+    Info_SetValueForKey(userinfo, "skill", va("%1.2f", skill));
 
+    // [QL] handicap based on skill level
     if (skill >= 1 && skill < 2) {
         Info_SetValueForKey(userinfo, "handicap", "50");
     } else if (skill >= 2 && skill < 3) {
         Info_SetValueForKey(userinfo, "handicap", "70");
     } else if (skill >= 3 && skill < 4) {
         Info_SetValueForKey(userinfo, "handicap", "90");
+    } else if (skill >= 4) {
+        Info_SetValueForKey(userinfo, "handicap", "0");
     }
 
     key = "model";
@@ -665,16 +661,12 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
         model = "visor/default";
     }
     Info_SetValueForKey(userinfo, key, model);
-    key = "team_model";
-    Info_SetValueForKey(userinfo, key, model);
 
     key = "headmodel";
     headmodel = Info_ValueForKey(botinfo, key);
     if (!*headmodel) {
         headmodel = model;
     }
-    Info_SetValueForKey(userinfo, key, headmodel);
-    key = "team_headmodel";
     Info_SetValueForKey(userinfo, key, headmodel);
 
     key = "gender";
@@ -687,14 +679,14 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
     key = "color1";
     s = Info_ValueForKey(botinfo, key);
     if (!*s) {
-        s = "4";
+        s = va("%i", 7);  // [QL] default color1 = 7
     }
     Info_SetValueForKey(userinfo, key, s);
 
     key = "color2";
     s = Info_ValueForKey(botinfo, key);
     if (!*s) {
-        s = "5";
+        s = va("%i", 25);  // [QL] default color2 = 25
     }
     Info_SetValueForKey(userinfo, key, s);
 
@@ -708,6 +700,10 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
 
     // don't send tinfo to bots, they don't parse it
     Info_SetValueForKey(userinfo, "teamoverlay", "0");
+
+    // [QL] mark entity as bot before ClientConnect
+    g_entities[clientNum].r.svFlags |= SVF_BOT;
+    g_entities[clientNum].inuse = qtrue;
 
     // register the userinfo
     trap_SetUserinfo(clientNum, userinfo);

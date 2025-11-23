@@ -29,7 +29,6 @@ static float s_quadFactor;
 static vec3_t forward, right, up;
 static vec3_t muzzle;
 
-#define NUM_NAILSHOTS 15
 
 /*
 ================
@@ -112,7 +111,7 @@ qboolean CheckGauntletAttack(gentity_t* ent) {
         s_quadFactor *= 2;
     }
 
-    damage = 50 * s_quadFactor;
+    damage = g_damage_g.integer * s_quadFactor;
     G_Damage(traceEnt, ent, ent, forward, tr.endpos,
              damage, 0, MOD_GAUNTLET);
 
@@ -151,6 +150,10 @@ void SnapVectorTowards(vec3_t v, vec3_t to) {
 
 #define CHAINGUN_SPREAD 600
 #define CHAINGUN_DAMAGE 7
+
+// [QL] Heavy Machine Gun
+#define HMG_SPREAD  350
+#define HMG_DAMAGE  8
 
 #define MACHINEGUN_SPREAD 200
 #define MACHINEGUN_DAMAGE 7
@@ -193,6 +196,9 @@ void Bullet_Fire(gentity_t* ent, float spread, int damage, int mod) {
             tent->s.eventParm = traceEnt->s.number;
             if (LogAccuracyHit(traceEnt, ent)) {
                 ent->client->accuracy_hits++;
+                if (ent->s.weapon < 16) {
+                    ent->client->expandedStats.shotsHit[ent->s.weapon]++;
+                }
             }
         } else {
             tent = G_TempEntity(tr.endpos, EV_BULLET_HIT_WALL);
@@ -272,7 +278,7 @@ qboolean ShotgunPellet(vec3_t start, vec3_t end, gentity_t* ent) {
         }
 
         if (traceEnt->takedamage) {
-            damage = DEFAULT_SHOTGUN_DAMAGE * s_quadFactor;
+            damage = g_damage_sg.integer * s_quadFactor;
             if (traceEnt->client && traceEnt->client->invulnerabilityTime > level.time) {
                 if (G_InvulnerabilityEffect(traceEnt, forward, tr.endpos, impactpoint, bouncedir)) {
                     G_BounceProjectile(tr_start, impactpoint, bouncedir, tr_end);
@@ -320,6 +326,7 @@ void ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, gentity_t* ent) {
         if (ShotgunPellet(origin, end, ent) && !hitClient) {
             hitClient = qtrue;
             ent->client->accuracy_hits++;
+            ent->client->expandedStats.shotsHit[WP_SHOTGUN]++;
         }
     }
 }
@@ -422,7 +429,7 @@ void Weapon_Railgun_Fire(gentity_t* ent) {
     int passent;
     gentity_t* unlinkedEntities[MAX_RAIL_HITS];
 
-    damage = 100 * s_quadFactor;
+    damage = g_damage_rg.integer * s_quadFactor;
 
     VectorMA(muzzle, 8192, forward, end);
 
@@ -517,6 +524,7 @@ void Weapon_Railgun_Fire(gentity_t* ent) {
             ent->client->rewardTime = level.time + REWARD_SPRITE_TIME;
         }
         ent->client->accuracy_hits++;
+        ent->client->expandedStats.shotsHit[WP_RAILGUN]++;
     }
 }
 
@@ -536,25 +544,61 @@ void Weapon_GrapplingHook_Fire(gentity_t* ent) {
 }
 
 void Weapon_HookFree(gentity_t* ent) {
-    ent->parent->client->hook = NULL;
-    ent->parent->client->ps.pm_flags &= ~PMF_GRAPPLE_PULL;
+    if (ent->parent && ent->parent->client) {
+        ent->parent->client->hook = NULL;
+        VectorClear(ent->parent->client->ps.grapplePoint);
+        ent->parent->client->ps.pm_flags &= ~PMF_GRAPPLE_PULL;
+        ent->parent->client->ps.pm_flags |= PMF_TIME_GRAPPLE;
+        ent->parent->client->ps.eFlags &= ~EF_FIRING;
+    }
     G_FreeEntity(ent);
 }
 
 void Weapon_HookThink(gentity_t* ent) {
+    if (!ent->parent || !ent->parent->client) {
+        Weapon_HookFree(ent);
+        return;
+    }
+
+    // [QL] check if owner switched away from grapple or is raising a new weapon
+    if (ent->parent->client->ps.weapon != WP_GRAPPLING_HOOK ||
+        ent->parent->client->ps.weaponstate == WEAPON_RAISING) {
+        Weapon_HookFree(ent);
+        return;
+    }
+
     if (ent->enemy) {
         vec3_t v, oldorigin;
 
+        // [QL] check if enemy is still valid (alive and not spectator)
+        if (!ent->enemy->client ||
+            ent->enemy->client->ps.stats[STAT_HEALTH] <= 0 ||
+            ent->enemy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+            Weapon_HookFree(ent);
+            return;
+        }
+
+        // track enemy center position
         VectorCopy(ent->r.currentOrigin, oldorigin);
         v[0] = ent->enemy->r.currentOrigin[0] + (ent->enemy->r.mins[0] + ent->enemy->r.maxs[0]) * 0.5;
         v[1] = ent->enemy->r.currentOrigin[1] + (ent->enemy->r.mins[1] + ent->enemy->r.maxs[1]) * 0.5;
         v[2] = ent->enemy->r.currentOrigin[2] + (ent->enemy->r.mins[2] + ent->enemy->r.maxs[2]) * 0.5;
-        SnapVectorTowards(v, oldorigin);  // save net bandwidth
+        SnapVectorTowards(v, oldorigin);
 
         G_SetOrigin(ent, v);
+
+        // [QL] periodic damage to hooked enemy
+        if (ent->count < level.time) {
+            vec3_t dir;
+            VectorSubtract(ent->parent->r.currentOrigin, ent->enemy->r.currentOrigin, dir);
+            VectorNormalize(dir);
+            G_Damage(ent->enemy, ent, ent->parent, dir, NULL, g_damage_gh.integer, 0, MOD_GRAPPLE);
+            ent->count = level.time + weapon_reload_gh.integer;
+        }
     }
 
     VectorCopy(ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);
+    ent->nextthink = level.time + FRAMETIME;
 }
 
 /*
@@ -572,7 +616,7 @@ void Weapon_Lightning_Fire(gentity_t* ent) {
     gentity_t *traceEnt, *tent;
     int damage, i, passent;
 
-    damage = 8 * s_quadFactor;
+    damage = g_damage_lg.integer * s_quadFactor;
 
     passent = ent->s.number;
     for (i = 0; i < 10; i++) {
@@ -614,6 +658,7 @@ void Weapon_Lightning_Fire(gentity_t* ent) {
             }
             if (LogAccuracyHit(traceEnt, ent)) {
                 ent->client->accuracy_hits++;
+                ent->client->expandedStats.shotsHit[WP_LIGHTNING]++;
             }
             G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_LIGHTNING);
         }
@@ -644,7 +689,7 @@ void Weapon_Nailgun_Fire(gentity_t* ent) {
     gentity_t* m;
     int count;
 
-    for (count = 0; count < NUM_NAILSHOTS; count++) {
+    for (count = 0; count < g_nailcount.integer; count++) {
         m = fire_nail(ent, muzzle, forward, right, up);
         m->damage *= s_quadFactor;
         m->splashDamage *= s_quadFactor;
@@ -759,16 +804,20 @@ void FireWeapon(gentity_t* ent) {
     // track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
     if (ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET) {
         if (ent->s.weapon == WP_NAILGUN) {
-            ent->client->accuracy_shots += NUM_NAILSHOTS;
+            ent->client->accuracy_shots += g_nailcount.integer;
         } else {
             ent->client->accuracy_shots++;
+        }
+        // [QL] per-weapon shot tracking
+        if (ent->s.weapon < 16) {
+            ent->client->expandedStats.shotsFired[ent->s.weapon]++;
         }
     }
 
     // set aiming directions
     AngleVectors(ent->client->ps.viewangles, forward, right, up);
 
-    CalcMuzzlePointOrigin(ent, ent->client->oldOrigin, forward, right, up, muzzle);
+    CalcMuzzlePointOrigin(ent, ent->client->ps.origin, forward, right, up, muzzle);
 
     // fire the specific weapon
     switch (ent->s.weapon) {
@@ -782,11 +831,7 @@ void FireWeapon(gentity_t* ent) {
             Weapon_Shotgun_Fire(ent);
             break;
         case WP_MACHINEGUN:
-            if (g_gametype.integer != GT_TEAM) {
-                Bullet_Fire(ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_MACHINEGUN);
-            } else {
-                Bullet_Fire(ent, MACHINEGUN_SPREAD, MACHINEGUN_TEAM_DAMAGE, MOD_MACHINEGUN);
-            }
+            Bullet_Fire(ent, MACHINEGUN_SPREAD, g_damage_mg.integer, MOD_MACHINEGUN);
             break;
         case WP_GRENADE_LAUNCHER:
             Weapon_GrenadeLauncher_Fire(ent);
@@ -813,7 +858,10 @@ void FireWeapon(gentity_t* ent) {
             Weapon_ProxLauncher_Fire(ent);
             break;
         case WP_CHAINGUN:
-            Bullet_Fire(ent, CHAINGUN_SPREAD, CHAINGUN_DAMAGE, MOD_CHAINGUN);
+            Bullet_Fire(ent, CHAINGUN_SPREAD, g_damage_cg.integer, MOD_CHAINGUN);
+            break;
+        case WP_HMG:
+            Bullet_Fire(ent, HMG_SPREAD, g_damage_hmg.integer, MOD_HMG);
             break;
         default:
             // FIXME		G_Error( "Bad ent->s.weapon" );
