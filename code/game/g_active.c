@@ -82,7 +82,6 @@ void P_DamageFeedback(gentity_t* player) {
     //
     client->damage_blood = 0;
     client->damage_armor = 0;
-    client->damage_knockback = 0;
 }
 
 /*
@@ -357,21 +356,21 @@ qboolean ClientInactivityTimer(gclient_t* client) {
     if (!g_inactivity.integer) {
         // give everyone some time, so if the operator sets g_inactivity during
         // gameplay, everyone isn't kicked
-        client->inactivityTime = level.time + 60 * 1000;
-        client->inactivityWarning = qfalse;
+        client->pers.inactivityTime = level.time + 60 * 1000;
+        client->pers.inactivityWarning = qfalse;
     } else if (client->pers.cmd.forwardmove ||
                client->pers.cmd.rightmove ||
                client->pers.cmd.upmove ||
                (client->pers.cmd.buttons & BUTTON_ATTACK)) {
-        client->inactivityTime = level.time + g_inactivity.integer * 1000;
-        client->inactivityWarning = qfalse;
+        client->pers.inactivityTime = level.time + g_inactivity.integer * 1000;
+        client->pers.inactivityWarning = qfalse;
     } else if (!client->pers.localClient) {
-        if (level.time > client->inactivityTime) {
+        if (level.time > client->pers.inactivityTime) {
             trap_DropClient(client - level.clients, "Dropped due to inactivity");
             return qfalse;
         }
-        if (level.time > client->inactivityTime - 10000 && !client->inactivityWarning) {
-            client->inactivityWarning = qtrue;
+        if (level.time > client->pers.inactivityTime - 10000 && !client->pers.inactivityWarning) {
+            client->pers.inactivityWarning = qtrue;
             trap_SendServerCommand(client - level.clients, "cp \"Ten seconds until inactivity drop!\n\"");
         }
     }
@@ -521,6 +520,9 @@ void ClientTimerActions(gentity_t* ent, int msec) {
 ClientIntermissionThink
 ====================
 */
+// [QL] readyToExit removed from gclient_s, tracked here instead
+static qboolean clientReadyToExit[MAX_CLIENTS];
+
 void ClientIntermissionThink(gclient_t* client) {
     client->ps.eFlags &= ~EF_TALK;
     client->ps.eFlags &= ~EF_FIRING;
@@ -532,8 +534,16 @@ void ClientIntermissionThink(gclient_t* client) {
     client->buttons = client->pers.cmd.buttons;
     if (client->buttons & (BUTTON_ATTACK | BUTTON_USE_HOLDABLE) & (client->oldbuttons ^ client->buttons)) {
         // this used to be an ^1 but once a player says ready, it should stick
-        client->readyToExit = 1;
+        clientReadyToExit[client - level.clients] = qtrue;
     }
+}
+
+qboolean ClientIsReadyToExit(int clientNum) {
+    return clientReadyToExit[clientNum];
+}
+
+void ClearClientReadyToExit(void) {
+    memset(clientReadyToExit, 0, sizeof(clientReadyToExit));
 }
 
 /*
@@ -568,7 +578,7 @@ void ClientEvents(gentity_t* ent, int oldEventSequence) {
                 if (ent->s.eType != ET_PLAYER) {
                     break;  // not in the player model
                 }
-                if (g_dmflags.integer & DF_NO_FALLING) {
+                if (g_dmflags.integer & DF_NO_FALLING_DAMAGE) {
                     break;
                 }
                 if (event == EV_FALL_FAR) {
@@ -794,22 +804,10 @@ void ClientThink_real(gentity_t* ent) {
         msec = 200;
     }
 
-    if (pmove_msec.integer < 8) {
-        trap_Cvar_Set("pmove_msec", "8");
-        trap_Cvar_Update(&pmove_msec);
-    } else if (pmove_msec.integer > 33) {
-        trap_Cvar_Set("pmove_msec", "33");
-        trap_Cvar_Update(&pmove_msec);
-    }
-
-    if (pmove_fixed.integer || client->pers.pmoveFixed) {
-        ucmd->serverTime = ((ucmd->serverTime + pmove_msec.integer - 1) / pmove_msec.integer) * pmove_msec.integer;
-    }
-
     //
     // check for exiting intermission
     //
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
         ClientIntermissionThink(client);
         return;
     }
@@ -934,11 +932,9 @@ void ClientThink_real(gentity_t* ent) {
     pm.pointcontents = trap_PointContents;
     pm.debugLevel = g_debugMove.integer;
     pm.noFootsteps = (g_dmflags.integer & DF_NO_FOOTSTEPS) > 0;
+    pm.hookEnemy = (client->hook && client->hook->enemy && client->hook->enemy->client != NULL);
 
-    pm.pmove_fixed = pmove_fixed.integer | client->pers.pmoveFixed;
-    pm.pmove_msec = pmove_msec.integer;
-
-    VectorCopy(client->ps.origin, client->oldOrigin);
+    // [QL] pmove_fixed/pmove_msec removed from pmove_t; pmoveFixed removed from clientPersistant_t
 
     if (level.intermissionQueued != 0 && g_singlePlayer.integer) {
         if (level.time - level.intermissionQueued >= 1000) {
@@ -949,7 +945,7 @@ void ClientThink_real(gentity_t* ent) {
             if (level.time - level.intermissionQueued >= 2000 && level.time - level.intermissionQueued <= 2500) {
                 trap_SendConsoleCommand(EXEC_APPEND, "centerview\n");
             }
-            ent->client->ps.pm_type = PM_SPINTERMISSION;
+            ent->client->ps.pm_type = PM_INTERMISSION;
         }
     }
     Pmove(&pm);
@@ -1004,7 +1000,6 @@ void ClientThink_real(gentity_t* ent) {
     // swap and latch button actions
     client->oldbuttons = client->buttons;
     client->buttons = ucmd->buttons;
-    client->latched_buttons |= client->buttons & ~client->oldbuttons;
 
     // check for respawning
     if (client->ps.stats[STAT_HEALTH] <= 0) {
@@ -1153,7 +1148,7 @@ void ClientEndFrame(gentity_t* ent) {
     // If the end of unit layout is displayed, don't give
     // the player any normal movement attributes
     //
-    if (level.intermissiontime) {
+    if (level.intermissionTime) {
         return;
     }
 

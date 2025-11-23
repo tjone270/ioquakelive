@@ -200,13 +200,138 @@ int Pickup_Holdable(gentity_t* ent, gentity_t* other) {
 
 //======================================================================
 
+// [QL] Per-weapon ammo data from binary weapon table (qagamex86.dll 0x1008ff00)
+// Short names used for g_startingAmmo_<name> cvars (DOM gametype max ammo)
+static const char *weaponShortName[WP_NUM_WEAPONS] = {
+    "",     // WP_NONE
+    "g",    // WP_GAUNTLET
+    "mg",   // WP_MACHINEGUN
+    "sg",   // WP_SHOTGUN
+    "gl",   // WP_GRENADE_LAUNCHER
+    "rl",   // WP_ROCKET_LAUNCHER
+    "lg",   // WP_LIGHTNING
+    "rg",   // WP_RAILGUN
+    "pg",   // WP_PLASMAGUN
+    "bfg",  // WP_BFG
+    "gh",   // WP_GRAPPLING_HOOK
+    "ng",   // WP_NAILGUN
+    "pl",   // WP_PROX_LAUNCHER
+    "cg",   // WP_CHAINGUN
+    "hmg",  // WP_HMG
+};
+
+// Ammo quantity given by ammo_pack per weapon (binary offset +0x14 in weapon table)
+static const int ammoPackQuantity[WP_NUM_WEAPONS] = {
+    0,    // WP_NONE
+    0,    // WP_GAUNTLET
+    50,   // WP_MACHINEGUN
+    5,    // WP_SHOTGUN
+    5,    // WP_GRENADE_LAUNCHER
+    5,    // WP_ROCKET_LAUNCHER
+    50,   // WP_LIGHTNING
+    5,    // WP_RAILGUN
+    50,   // WP_PLASMAGUN
+    2,    // WP_BFG
+    0,    // WP_GRAPPLING_HOOK
+    5,    // WP_NAILGUN
+    5,    // WP_PROX_LAUNCHER
+    100,  // WP_CHAINGUN
+    50,   // WP_HMG
+};
+
+// Maximum ammo per weapon for standard gametypes (binary offset +0x18 in weapon table)
+static const int maxAmmoStandard[WP_NUM_WEAPONS] = {
+    0,    // WP_NONE
+    -1,   // WP_GAUNTLET (unlimited)
+    150,  // WP_MACHINEGUN
+    25,   // WP_SHOTGUN
+    25,   // WP_GRENADE_LAUNCHER
+    25,   // WP_ROCKET_LAUNCHER
+    150,  // WP_LIGHTNING
+    25,   // WP_RAILGUN
+    150,  // WP_PLASMAGUN
+    25,   // WP_BFG
+    -1,   // WP_GRAPPLING_HOOK (unlimited)
+    25,   // WP_NAILGUN
+    5,    // WP_PROX_LAUNCHER
+    200,  // WP_CHAINGUN
+    150,  // WP_HMG
+};
+
+/*
+===============
+Add_Ammo
+
+[QL] Binary-matched from qagamex86.dll FUN_1004db30.
+Handles g_infiniteAmmo/g_loadout interaction, ammo_pack (weapon==WP_NUM_WEAPONS)
+iteration over owned weapons, and per-gametype max ammo clamping.
+===============
+*/
 void Add_Ammo(gentity_t* ent, int weapon, int count) {
-    ent->client->ps.ammo[weapon] += count;
-    if (ent->client->ps.ammo[weapon] > 200) {
-        ent->client->ps.ammo[weapon] = 200;
+    int i;
+
+    // g_infiniteAmmo + g_loadout interaction
+    if (g_infiniteAmmo.integer) {
+        if (!g_loadout.integer) {
+            goto addAmmo;  // infinite ammo without loadout: add normally
+        }
+        if (weapon == WP_LIGHTNING) {
+            // LG gets unlimited ammo in infinite+loadout mode
+            ent->client->ps.ammo[WP_LIGHTNING] = -1;
+            return;
+        }
+        // infinite+loadout with non-LG: fall through to loadout check
+    }
+    if (g_loadout.integer) {
+        return;  // loadout mode: don't add ammo from pickups
+    }
+
+addAmmo:
+    // don't add to weapons with unlimited ammo
+    if (ent->client->ps.ammo[weapon] == -1) {
+        return;
+    }
+
+    if (weapon == WP_NUM_WEAPONS) {
+        // ammo_pack: add pack quantity to each owned weapon
+        for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
+            if (ent->client->ps.stats[STAT_WEAPONS] & (1 << i)) {
+                ent->client->ps.ammo[i] += ammoPackQuantity[i];
+            }
+        }
+    } else {
+        // single weapon ammo pickup
+        ent->client->ps.ammo[weapon] += count;
+    }
+
+    // clamp ammo to max per weapon
+    if (g_gametype.integer == GT_DOMINATION) {
+        // DOM: max ammo = g_startingAmmo_<weapon> cvar value
+        for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
+            int max = trap_Cvar_VariableIntegerValue(
+                va("g_startingAmmo_%s", weaponShortName[i]));
+            if (ent->client->ps.ammo[i] > max) {
+                ent->client->ps.ammo[i] = max;
+            }
+        }
+    } else {
+        // all other gametypes: use fixed max ammo table
+        for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
+            if (maxAmmoStandard[i] > 0 &&
+                ent->client->ps.ammo[i] > maxAmmoStandard[i]) {
+                ent->client->ps.ammo[i] = maxAmmoStandard[i];
+            }
+        }
     }
 }
 
+/*
+===============
+Pickup_Ammo
+
+[QL] Binary-matched from qagamex86.dll FUN_1004e580.
+===============
+*/
 int Pickup_Ammo(gentity_t* ent, gentity_t* other) {
     int quantity;
 
@@ -218,7 +343,7 @@ int Pickup_Ammo(gentity_t* ent, gentity_t* other) {
 
     Add_Ammo(other, ent->item->giTag, quantity);
 
-    return RESPAWN_AMMO;
+    return g_ammoRespawn.integer;
 }
 
 //======================================================================
@@ -395,6 +520,29 @@ void RespawnItem(gentity_t* ent) {
 
 /*
 ===============
+G_RespawnKey
+[QL] When a player dies or disconnects, respawn any keys they were holding
+===============
+*/
+void G_RespawnKey(int keyTag) {
+    const char* classname;
+    gentity_t* ent;
+
+    switch (keyTag) {
+        case KEY_SILVER: classname = "item_key_silver"; break;
+        case KEY_GOLD:   classname = "item_key_gold";   break;
+        case KEY_MASTER: classname = "item_key_master"; break;
+        default: return;
+    }
+
+    ent = NULL;
+    while ((ent = G_Find(ent, FOFS(classname), classname)) != NULL) {
+        RespawnItem(ent);
+    }
+}
+
+/*
+===============
 Touch_Item
 ===============
 */
@@ -444,6 +592,14 @@ void Touch_Item(gentity_t* ent, gentity_t* other, trace_t* trace) {
             break;
         case IT_HOLDABLE:
             respawn = Pickup_Holdable(ent, other);
+            break;
+        case IT_KEY:
+            // [QL] keys are stored as bitmask in stats[STAT_KEY]
+            if (ent->item->giTag) {
+                other->client->ps.stats[STAT_KEY] |= ent->item->giTag;
+            }
+            respawn = -1;  // keys don't auto-respawn
+            predict = qfalse;
             break;
         default:
             return;
@@ -847,6 +1003,27 @@ void G_SpawnItem(gentity_t* ent, gitem_t* item) {
     G_SpawnFloat("random", "0", &ent->random);
     G_SpawnFloat("wait", "0", &ent->wait);
 
+    // [QL] Ammo spawn filtering (binary-matched from qagamex86.dll)
+    if (item->giType == IT_AMMO) {
+        if (!g_spawnItemAmmo.integer) {
+            return;  // ammo spawning disabled
+        }
+        if (g_loadout.integer) {
+            return;  // loadout mode: no ammo pickups
+        }
+        if (g_ammoPack.integer) {
+            // g_ammoPack=1: only ammo_pack entities spawn, individual ammo suppressed
+            if (item->giTag != WP_NUM_WEAPONS) {
+                return;
+            }
+        } else {
+            // g_ammoPack=0: individual ammo spawns, ammo_pack entities suppressed
+            if (item->giTag == WP_NUM_WEAPONS) {
+                return;
+            }
+        }
+    }
+
     RegisterItem(item);
     if (G_ItemDisabled(item))
         return;
@@ -881,7 +1058,7 @@ void G_BounceItem(gentity_t* ent, trace_t* trace) {
     int hitTime;
 
     // reflect the velocity on the trace plane
-    hitTime = level.previousTime + (level.time - level.previousTime) * trace->fraction;
+    hitTime = ( level.time - level.frametime ) + (level.time - ( level.time - level.frametime )) * trace->fraction;
     BG_EvaluateTrajectoryDelta(&ent->s.pos, hitTime, velocity);
     dot = DotProduct(velocity, trace->plane.normal);
     VectorMA(velocity, -2 * dot, trace->plane.normal, ent->s.pos.trDelta);

@@ -568,7 +568,7 @@ void G_AddEvent(gentity_t* ent, int event, int eventParm) {
         bits = (bits + EV_EVENT_BIT1) & EV_EVENT_BITS;
         ent->client->ps.externalEvent = event | bits;
         ent->client->ps.externalEventParm = eventParm;
-        ent->client->ps.externalEventTime = level.time;
+        // [QL] externalEventTime removed from playerState_t
     } else {
         bits = ent->s.event & EV_EVENT_BITS;
         bits = (bits + EV_EVENT_BIT1) & EV_EVENT_BITS;

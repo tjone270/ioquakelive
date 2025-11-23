@@ -43,14 +43,19 @@ void G_WriteClientSessionData(gclient_t* client) {
     const char* s;
     const char* var;
 
-    s = va("%i %i %i %i %i %i %i",
+    s = va("%i %i %i %i %i %i %i %i %i %i %i %i",
            client->sess.sessionTeam,
-           client->sess.spectatorNum,
+           client->sess.spectatorTime,
            client->sess.spectatorState,
            client->sess.spectatorClient,
            client->sess.wins,
            client->sess.losses,
-           client->sess.teamLeader);
+           client->sess.teamLeader,
+           client->sess.weaponPrimary,
+           client->sess.privileges,
+           client->sess.specOnly,
+           client->sess.playQueue,
+           client->sess.muted);
 
     var = va("session%i", (int)(client - level.clients));
 
@@ -74,14 +79,24 @@ void G_ReadSessionData(gclient_t* client) {
     var = va("session%i", (int)(client - level.clients));
     trap_Cvar_VariableStringBuffer(var, s, sizeof(s));
 
-    sscanf(s, "%i %i %i %i %i %i %i",
+    sscanf(s, "%i %i %i %i %i %i %i %i %i %i %i %i",
            &sessionTeam,
-           &client->sess.spectatorNum,
+           &client->sess.spectatorTime,
            &spectatorState,
            &client->sess.spectatorClient,
            &client->sess.wins,
            &client->sess.losses,
-           &teamLeader);
+           &teamLeader,
+           &client->sess.weaponPrimary,
+           &client->sess.privileges,
+           &client->sess.specOnly,
+           &client->sess.playQueue,
+           &client->sess.muted);
+
+    // if the gametype changed to a team game, force spectator
+    if (g_gametype.integer >= GT_TEAM && level.newSession) {
+        sessionTeam = TEAM_SPECTATOR;
+    }
 
     client->sess.sessionTeam = (team_t)sessionTeam;
     client->sess.spectatorState = (spectatorState_t)spectatorState;
@@ -97,59 +112,29 @@ Called on a first-time connect
 */
 void G_InitSessionData(gclient_t* client, char* userinfo) {
     clientSession_t* sess;
-    const char* value;
 
     sess = &client->sess;
 
-    // check for team preference, mainly for bots
-    value = Info_ValueForKey(userinfo, "teampref");
-
-    // check for human's team preference set by start server menu
-    if (!value[0] && g_localTeamPref.string[0] && client->pers.localClient) {
-        value = g_localTeamPref.string;
-
-        // clear team so it's only used once
-        trap_Cvar_Set("g_localTeamPref", "");
-    }
-
     // initial team determination
     if (g_gametype.integer >= GT_TEAM) {
-        // always spawn as spectator in team games
-        sess->sessionTeam = TEAM_SPECTATOR;
-        sess->spectatorState = SPECTATOR_FREE;
-
-        if (value[0] || g_teamAutoJoin.integer) {
-            SetTeam(&g_entities[client - level.clients], value);
+        if (g_teamAutoJoin.integer) {
+            sess->sessionTeam = PickTeam(-1);
+            BroadcastTeamChange(client, -1);
+        } else {
+            sess->sessionTeam = TEAM_SPECTATOR;
         }
     } else {
-        if (value[0] == 's') {
-            // a willing spectator, not a waiting-in-line
-            sess->sessionTeam = TEAM_SPECTATOR;
-        } else {
-            switch (g_gametype.integer) {
-                default:
-                case GT_FFA:
-                case GT_SINGLE_PLAYER:
-                    if (g_maxGameClients.integer > 0 &&
-                        level.numNonSpectatorClients >= g_maxGameClients.integer) {
-                        sess->sessionTeam = TEAM_SPECTATOR;
-                    } else {
-                        sess->sessionTeam = TEAM_FREE;
-                    }
-                    break;
-                case GT_TOURNAMENT:
-                    // if the game is full, go into a waiting mode
-                    if (level.numNonSpectatorClients >= 2) {
-                        sess->sessionTeam = TEAM_SPECTATOR;
-                    } else {
-                        sess->sessionTeam = TEAM_FREE;
-                    }
-                    break;
-            }
-        }
-
-        sess->spectatorState = SPECTATOR_FREE;
+        sess->sessionTeam = TEAM_SPECTATOR;
     }
+
+    sess->spectatorState = SPECTATOR_FREE;
+    sess->spectatorTime = level.time;
+    sess->privileges = 0;
+    sess->specOnly = (g_gametype.integer == GT_TOURNAMENT) ? 1 : 0;
+    sess->playQueue = 0;
+    sess->muted = 0;
+    sess->weaponPrimary = 0;
+    sess->prevScore = 0;
 
     AddTournamentQueue(client);
 

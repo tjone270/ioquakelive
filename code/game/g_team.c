@@ -1051,8 +1051,8 @@ void CheckTeamStatus(void) {
     int i;
     gentity_t *loc, *ent;
 
-    if (level.time - level.lastTeamLocationTime > TEAM_LOCATION_UPDATE_TIME) {
-        level.lastTeamLocationTime = level.time;
+    if (level.time >= level.nextTeamInfoTime) {
+        level.nextTeamInfoTime = level.time + TEAM_LOCATION_UPDATE_TIME;
 
         for (i = 0; i < g_maxclients.integer; i++) {
             ent = g_entities + i;
