@@ -133,7 +133,7 @@ void G_RankRunFrame() {
     }
 
     // tell time to clients so they can show current match rating
-    if (level.intermissiontime == 0) {
+    if (level.intermissionTime == 0) {
         for (i = 0; i < level.maxclients; i++) {
             ent = &(g_entities[i]);
             if (ent->client == NULL) {
@@ -204,7 +204,7 @@ G_RankDamage
 */
 void G_RankDamage(int self, int attacker, int damage, int means_of_death) {
     // state information to avoid counting each shotgun pellet as a hit
-    static int last_framenum = -1;
+    static int last_time = -1;
     static int last_self = -1;
     static int last_attacker = -1;
     static int last_means_of_death = MOD_UNKNOWN;
@@ -220,13 +220,13 @@ void G_RankDamage(int self, int attacker, int damage, int means_of_death) {
         return;
     }
 
-    new_hit = (level.framenum != last_framenum) ||
+    new_hit = (level.time != last_time) ||
               (self != last_self) ||
               (attacker != last_attacker) ||
               (means_of_death != last_means_of_death);
 
     // update state information
-    last_framenum = level.framenum;
+    last_time = level.time;
     last_self = self;
     last_attacker = attacker;
     last_means_of_death = means_of_death;

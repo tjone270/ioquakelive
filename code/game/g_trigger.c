@@ -236,10 +236,9 @@ void SP_target_push(gentity_t* self) {
     G_SetMovedir(self->s.angles, self->s.origin2);
     VectorScale(self->s.origin2, self->speed, self->s.origin2);
 
+    // [QL] only set noise_index when bouncepad flag is set; no windfly sound
     if (self->spawnflags & 1) {
         self->noise_index = G_SoundIndex("sound/world/jumppad.wav");
-    } else {
-        self->noise_index = G_SoundIndex("sound/misc/windfly.wav");
     }
     if (self->target) {
         VectorCopy(self->s.origin, self->r.absmin);
