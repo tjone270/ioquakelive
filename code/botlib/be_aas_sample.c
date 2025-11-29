@@ -1160,7 +1160,7 @@ typedef struct
 
 aas_link_t* AAS_AASLinkEntity(vec3_t absmins, vec3_t absmaxs, int entnum) {
     int side, nodenum;
-    aas_linkstack_t linkstack[128];
+    aas_linkstack_t linkstack[AAS_LINKENTITY_STACKSIZE];
     aas_linkstack_t* lstack_p;
     aas_node_t* aasnode;
     aas_plane_t* plane;
@@ -1233,7 +1233,7 @@ aas_link_t* AAS_AASLinkEntity(vec3_t absmins, vec3_t absmaxs, int entnum) {
             lstack_p->nodenum = aasnode->children[0];
             lstack_p++;
         }  // end if
-        if (lstack_p >= &linkstack[127]) {
+        if (lstack_p >= &linkstack[AAS_LINKENTITY_STACKSIZE - 1]) {
             botimport.Print(PRT_ERROR, "AAS_LinkEntity: stack overflow\n");
             break;
         }  // end if
@@ -1242,7 +1242,7 @@ aas_link_t* AAS_AASLinkEntity(vec3_t absmins, vec3_t absmaxs, int entnum) {
             lstack_p->nodenum = aasnode->children[1];
             lstack_p++;
         }  // end if
-        if (lstack_p >= &linkstack[127]) {
+        if (lstack_p >= &linkstack[AAS_LINKENTITY_STACKSIZE - 1]) {
             botimport.Print(PRT_ERROR, "AAS_LinkEntity: stack overflow\n");
             break;
         }  // end if

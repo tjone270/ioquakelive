@@ -78,7 +78,7 @@ int AAS_Loaded(void) {
 //===========================================================================
 int AAS_Initialized(void) {
     return aasworld.initialized;
-}  // end of the function AAS_Initialized
+}  // end of the function AAS_Initialised
 //===========================================================================
 //
 // Parameter:				-
@@ -87,14 +87,14 @@ int AAS_Initialized(void) {
 //===========================================================================
 void AAS_SetInitialized(void) {
     aasworld.initialized = qtrue;
-    botimport.Print(PRT_MESSAGE, "AAS initialized.\n");
+    botimport.Print(PRT_MESSAGE, "AAS initialised.\n");
 #ifdef DEBUG
     // create all the routing cache
     // AAS_CreateAllRoutingCache();
     //
     // AAS_RoutingInfo();
 #endif
-}  // end of the function AAS_SetInitialized
+}  // end of the function AAS_SetInitialised
 //===========================================================================
 //
 // Parameter:				-

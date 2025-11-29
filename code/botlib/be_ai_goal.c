@@ -350,7 +350,7 @@ void InitLevelItemHeap(void) {
     if (levelitemheap)
         FreeMemory(levelitemheap);
 
-    max_levelitems = (int)LibVarValue("max_levelitems", "256");
+    max_levelitems = (int)LibVarValue("max_levelitems", "1024");
     levelitemheap = (levelitem_t*)GetClearedMemory(max_levelitems * sizeof(levelitem_t));
 
     for (i = 0; i < max_levelitems - 1; i++) {
