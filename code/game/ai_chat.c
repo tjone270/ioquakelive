@@ -825,7 +825,7 @@ int BotChat_HitTalking(bot_state_t* bs) {
         return qfalse;
     if (BotNumActivePlayers() <= 1)
         return qfalse;
-    lasthurt_client = g_entities[bs->client].client->lasthurt_client;
+    lasthurt_client = g_entities[bs->client].client->lasthurt_client[0];
     if (!lasthurt_client)
         return qfalse;
     if (lasthurt_client == bs->client)
@@ -849,8 +849,8 @@ int BotChat_HitTalking(bot_state_t* bs) {
     if (!BotValidChatPosition(bs))
         return qfalse;
     //
-    ClientName(g_entities[bs->client].client->lasthurt_client, name, sizeof(name));
-    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_mod);
+    ClientName(g_entities[bs->client].client->lasthurt_client[0], name, sizeof(name));
+    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_mod[0]);
     //
     BotAI_BotInitialChat(bs, "hit_talking", name, weap, NULL);
     bs->lastchat_time = FloatTime();
@@ -869,7 +869,7 @@ int BotChat_HitNoDeath(bot_state_t* bs) {
     int lasthurt_client;
     aas_entityinfo_t entinfo;
 
-    lasthurt_client = g_entities[bs->client].client->lasthurt_client;
+    lasthurt_client = g_entities[bs->client].client->lasthurt_client[0];
     if (!lasthurt_client)
         return qfalse;
     if (lasthurt_client == bs->client)
@@ -907,7 +907,7 @@ int BotChat_HitNoDeath(bot_state_t* bs) {
         return qfalse;
     //
     ClientName(lasthurt_client, name, sizeof(name));
-    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_mod);
+    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_mod[0]);
     //
     BotAI_BotInitialChat(bs, "hit_nodeath", name, weap, NULL);
     bs->lastchat_time = FloatTime();
@@ -954,7 +954,7 @@ int BotChat_HitNoKill(bot_state_t* bs) {
         return qfalse;
     //
     ClientName(bs->enemy, name, sizeof(name));
-    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->enemy].client->lasthurt_mod);
+    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->enemy].client->lasthurt_mod[0]);
     //
     BotAI_BotInitialChat(bs, "hit_nokill", name, weap, NULL);
     bs->lastchat_time = FloatTime();
@@ -1229,8 +1229,8 @@ void BotChatTest(bot_state_t* bs) {
         BotAI_BotInitialChat(bs, "enemy_suicide", name, NULL);
         trap_BotEnterChat(bs->cs, 0, CHAT_ALL);
     }
-    ClientName(g_entities[bs->client].client->lasthurt_client, name, sizeof(name));
-    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_client);
+    ClientName(g_entities[bs->client].client->lasthurt_client[0], name, sizeof(name));
+    weap = BotWeaponNameForMeansOfDeath(g_entities[bs->client].client->lasthurt_client[0]);
     num = trap_BotNumInitialChats(bs->cs, "hit_talking");
     for (i = 0; i < num; i++) {
         BotAI_BotInitialChat(bs, "hit_talking", name, weap, NULL);

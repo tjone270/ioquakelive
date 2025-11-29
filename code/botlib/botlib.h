@@ -504,6 +504,6 @@ name:						default:			module(s):			description:
 "max_weaponinfo"			"32"				be_ai_weap.c		maximum number of weapon info
 "max_projectileinfo"		"32"				be_ai_weap.c		maximum number of projectile info
 "max_iteminfo"				"256"				be_ai_goal.c		maximum number of item info
-"max_levelitems"			"256"				be_ai_goal.c		maximum number of level items
+"max_levelitems"			"1024"				be_ai_goal.c		maximum number of level items
 
 */
