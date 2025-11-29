@@ -2076,7 +2076,7 @@ BotIntermission
 */
 qboolean BotIntermission(bot_state_t* bs) {
     // NOTE: we shouldn't be looking at the game code...
-    if (level.intermissiontime)
+    if (level.intermissionTime)
         return qtrue;
     return (bs->cur_ps.pm_type == PM_FREEZE || bs->cur_ps.pm_type == PM_INTERMISSION);
 }
@@ -4990,10 +4990,7 @@ void BotCheckEvents(bot_state_t* bs, entityState_t* state) {
         case EV_FALL_SHORT:
         case EV_FALL_MEDIUM:
         case EV_FALL_FAR:
-        case EV_STEP_4:
-        case EV_STEP_8:
-        case EV_STEP_12:
-        case EV_STEP_16:
+        // [QL] EV_STEP_4/8/12/16 removed - step smoothing via pmove_t fields
         case EV_JUMP_PAD:
         case EV_JUMP:
         case EV_TAUNT:
