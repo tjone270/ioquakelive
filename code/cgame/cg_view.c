@@ -468,25 +468,19 @@ static int CG_CalcFov(void) {
         // if in intermission, use a fixed value
         fov_x = 90;
     } else {
-        // user selectable
-        if (cgs.dmflags & DF_FIXED_FOV) {
-            // dmflag to prevent wide fov for all clients
-            fov_x = 90;
-        } else {
-            fov_x = cg_fov.value;
-            if (fov_x < 1) {
-                fov_x = 1;
-            } else if (fov_x > 160) {
-                fov_x = 160;
-            }
+        fov_x = cg_fov.value;
+        if (fov_x < 1) {
+            fov_x = 1;
+        } else if (fov_x > 130) {
+            fov_x = 130;
         }
 
         // account for zooms
         zoomFov = cg_zoomFov.value;
         if (zoomFov < 1) {
             zoomFov = 1;
-        } else if (zoomFov > 160) {
-            zoomFov = 160;
+        } else if (zoomFov > 130) {
+            zoomFov = 130;
         }
 
         if (cg.zoomed) {
@@ -635,6 +629,16 @@ static int CG_CalcViewValues(void) {
     cg.xyspeed = sqrt(ps->velocity[0] * ps->velocity[0] +
                       ps->velocity[1] * ps->velocity[1]);
 
+    // [QL] update speedometer history ring buffer
+    if (cg.speedHistoryCount < SPEED_HISTORY_SIZE - 1) {
+        cg.speedHistoryCount++;
+    }
+    cg.speedHistoryIndex++;
+    if (cg.speedHistoryIndex > SPEED_HISTORY_SIZE - 1) {
+        cg.speedHistoryIndex = 0;
+    }
+    cg.speedHistory[cg.speedHistoryIndex] = cg.xyspeed;
+
     VectorCopy(ps->origin, cg.refdef.vieworg);
     VectorCopy(ps->viewangles, cg.refdefViewAngles);
 
@@ -732,33 +736,100 @@ static void CG_PlayBufferedSounds(void) {
     }
 }
 
+/*
+=================
+CG_AddPOIMarkers
+
+[QL] Draw point-of-interest markers as distance-scaled sprites.
+POI events mark flag carriers, powerup holders, etc. for team modes.
+=================
+*/
+#define ICON_SCALE_DISTANCE 400.0f
+
+void CG_AddPOIMarkers(void) {
+    int i, j;
+    refEntity_t ent;
+    int team;
+
+    if (!cg_drawSprites.integer) {
+        return;
+    }
+
+    team = cg.snap->ps.persistant[PERS_TEAM];
+
+    for (i = 0; i < cg.numPoiPics; i++) {
+        int endTime = cg.poiPics[i].startTime + cg.poiPics[i].length;
+
+        if (cg.time >= cg.poiPics[i].startTime && cg.time < endTime) {
+            // Only show POIs for the opposing team (enemy markers)
+            if (cg.poiPics[i].team != team) {
+                float dist;
+                float minWidth, maxWidth, radius;
+
+                memset(&ent, 0, sizeof(ent));
+                VectorCopy(cg.poiPics[i].origin, ent.origin);
+                ent.origin[2] += 48;  // float above entity
+                ent.reType = RT_SPRITE;
+                ent.customShader = cgs.media.poiShader;
+                ent.renderfx = RF_DEPTHHACK;
+
+                // Distance-scaled sizing using cg_poiMinWidth / cg_poiMaxWidth
+                maxWidth = cg_poiMaxWidth.value;
+                minWidth = cg_poiMinWidth.value;
+                radius = maxWidth / 2.0f;
+                dist = ICON_SCALE_DISTANCE * (maxWidth / 16.0f);
+
+                if (minWidth > 0.1f) {
+                    dist *= (16.0f / minWidth);
+                }
+
+                ent.radius = radius;
+                if (Distance(ent.origin, cg.refdef.vieworg) > dist && minWidth > 0.1f) {
+                    ent.radius = radius * (Distance(ent.origin, cg.refdef.vieworg) / dist);
+                }
+
+                ent.origin[2] += ent.radius;
+
+                // White color, fade out in last second
+                ent.shaderRGBA[0] = 255;
+                ent.shaderRGBA[1] = 255;
+                ent.shaderRGBA[2] = 255;
+                if (endTime - cg.time <= 1000) {
+                    ent.shaderRGBA[3] = (byte)(255.0f * (endTime - cg.time) / 1000.0f);
+                } else {
+                    ent.shaderRGBA[3] = 255;
+                }
+
+                trap_R_AddRefEntityToScene(&ent);
+            }
+        } else {
+            // Expired - remove by shifting array down
+            for (j = i + 1; j < cg.numPoiPics; j++) {
+                cg.poiPics[j - 1] = cg.poiPics[j];
+            }
+            cg.numPoiPics--;
+            i--;
+        }
+    }
+}
+
 //=========================================================================
 
-static void CG_DrawAdvertisements(void) {
+void CG_DrawAdvertisements(void) {
     float* vt;
-    int i;
+    int i, j;
     polyVert_t verts[4];
-    int j;
-    int scaleGuess;
-    const char* shaderName;
-    qboolean turn90 = qfalse;
 
     if (!cgs.adsLoaded) {
         trap_Get_Advertisements(&cgs.numAds, cgs.adverts, cgs.adShaders);
         cgs.adsLoaded = qtrue;
         Com_Printf("ads: %d\n", cgs.numAds);
         for (i = 0; i < cgs.numAds; i++) {
-            // FIXME not using ad shaders?
             Com_Printf("ad %d: '%s'\n", i + 1, cgs.adShaders[i]);
-
-            if (strstr(cgs.adShaders[i], "trans")) {
-                // ex: beyondreality
-                cgs.transAds[i] = qtrue;
-            }
         }
     }
 
-    if (cg.hyperspace) {
+    if (cg.hyperspace || cgs.numAds <= 0) {
         return;
     }
 
@@ -766,11 +837,17 @@ static void CG_DrawAdvertisements(void) {
 
     for (i = 0; i < cgs.numAds; i++) {
         qhandle_t shader;
-        int width, height;
-        float scale;
 
-        shaderName = "";
+        // use the BSP shader name directly (e.g. "textures/ad_content/2x1")
+        if (!cgs.adShaders[i][0]) {
+            continue;
+        }
+        shader = trap_R_RegisterShader(cgs.adShaders[i]);
+        if (!shader) {
+            continue;
+        }
 
+        // BSP lump provides 4 corner vertices (12 floats) + normal (3) + cellId (1) = 16 per ad
         verts[3].xyz[0] = vt[i * 16 + 0];
         verts[3].xyz[1] = vt[i * 16 + 1];
         verts[3].xyz[2] = vt[i * 16 + 2];
@@ -787,126 +864,23 @@ static void CG_DrawAdvertisements(void) {
         verts[0].xyz[1] = vt[i * 16 + 10];
         verts[0].xyz[2] = vt[i * 16 + 11];
 
-        width = Distance(verts[3].xyz, verts[0].xyz);
-        height = Distance(verts[3].xyz, verts[2].xyz);
-
-        scale = (float)width / (float)height;
-
-        if (scale < 0.3f) {  // 0.5
-            shader = cgs.media.adboxblack;
-            scaleGuess = 0;
-        } else if (scale >= 9.0f) {
-            shader = cgs.media.adboxblack;
-            scaleGuess = 0;
-        } else if (scale > 7.0f) {
-            shader = cgs.media.adbox8x1;
-            scaleGuess = 8;
-        } else if (scale > 3.0f) {
-            shader = cgs.media.adbox4x1;
-            scaleGuess = 4;
-        } else if (scale > 1.5f) {
-            shader = cgs.media.adbox2x1;
-            scaleGuess = 2;
-        } else if (scale > 0.75) {
-            shader = cgs.media.adbox1x1;
-            scaleGuess = 1;
-        } else if (scale > 0.25) {
-            // ex: blackcathedral
-            shader = cgs.media.adbox2x1;
-            scaleGuess = 2;
-            turn90 = qtrue;
-        } else {
-            shader = cgs.media.adboxblack;
-            scaleGuess = 0;
+        for (j = 0; j < 4; j++) {
+            verts[j].modulate[0] = 255;
+            verts[j].modulate[1] = 255;
+            verts[j].modulate[2] = 255;
+            verts[j].modulate[3] = 255;
         }
 
-        // Com_Printf("ad %d  shader %d\n", i + 1, shader);
+        verts[0].st[0] = 0;
+        verts[0].st[1] = 1;
+        verts[1].st[0] = 0;
+        verts[1].st[1] = 0;
+        verts[2].st[0] = 1;
+        verts[2].st[1] = 0;
+        verts[3].st[0] = 1;
+        verts[3].st[1] = 1;
 
-        // FIXME transparent ads that arent 2x1, haven't seen any
-        if (cgs.transAds[i]) {
-            if (scaleGuess == 2) {
-                shader = cgs.media.adbox2x1_trans;
-            }
-        }
-
-        verts[0].modulate[0] = 255;
-        verts[0].modulate[1] = 255;
-        verts[0].modulate[2] = 255;
-        verts[0].modulate[3] = 255;
-
-        verts[1].modulate[0] = 255;
-        verts[1].modulate[1] = 255;
-        verts[1].modulate[2] = 255;
-        verts[1].modulate[3] = 255;
-
-        verts[2].modulate[0] = 255;
-        verts[2].modulate[1] = 255;
-        verts[2].modulate[2] = 255;
-        verts[2].modulate[3] = 255;
-
-        verts[3].modulate[0] = 255;
-        verts[3].modulate[1] = 255;
-        verts[3].modulate[2] = 255;
-        verts[3].modulate[3] = 255;
-
-        verts[0].st[0] = 0;  // 0;  //0;
-        verts[0].st[1] = 1;  // 0;  //1;
-
-        verts[1].st[0] = 0;  // 1;  //1;
-        verts[1].st[1] = 0;  // 0;  //1;
-
-        verts[2].st[0] = 1;  // 1;  //1;
-        verts[2].st[1] = 0;  // 1;  //0;
-
-        verts[3].st[0] = 1;  // 0;  //0;
-        verts[3].st[1] = 1;  // 1;  //0;
-
-        if (turn90) {
-            verts[0].st[0] = 0;  // 1;  //0;
-            verts[0].st[1] = 0;  // 1;  //1;
-
-            verts[1].st[0] = 1;  // 0;  //1;
-            verts[1].st[1] = 0;  // 1;  //1;
-
-            verts[2].st[0] = 1;  // 0;  //1;
-            verts[2].st[1] = 1;  // 0;  //0;
-
-            verts[3].st[0] = 0;  // 1;  //0;
-            verts[3].st[1] = 1;  // 0;  //0;
-        }
-
-        // FIXME no clue what I'm doing
-        if (verts[0].xyz[2] > verts[1].xyz[2]) {
-            // ex: ad 3 blackcathedral
-            // Com_Printf("flip ad %i\n", i + 1);
-            verts[0].st[0] = 1;
-            verts[0].st[1] = 0;
-
-            verts[1].st[0] = 1;
-            verts[1].st[1] = 1;  // 1;
-
-            verts[2].st[0] = 0;  // 1;
-            verts[2].st[1] = 1;  // 1;
-
-            verts[3].st[0] = 0;  // 1;
-            verts[3].st[1] = 0;
-        }
-
-        trap_R_AddPolyToScene(shader, 4, verts);  // no lightmap
-
-        if (cg_debugAds.integer) {
-            byte cl[4];
-
-            cl[0] = 0;
-            cl[1] = 0;
-            cl[2] = 255;
-            cl[3] = 255;
-
-            CG_FloatNumber(i + 1, verts[0].xyz, RF_DEPTHHACK, NULL, 1.0);
-            for (j = 0; j < 4; j++) {
-                CG_FloatNumber(j, verts[j].xyz, 0, cl, 1.0);
-            }
-        }
+        trap_R_AddPolyToScene(shader, 4, verts);
     }
 }
 
@@ -959,6 +933,20 @@ void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoP
     // update cg.predictedPlayerState
     CG_PredictPlayerState();
 
+    // [QL] track spectator state transitions for menu visibility
+    {
+        static int wasSpectating = 0;
+        int isSpectating = (cg.predictedPlayerState.pm_type == PM_SPECTATOR);
+        if (!wasSpectating && isSpectating) {
+            trap_Cvar_Set("cg_spectating", "1");
+            trap_Cvar_Update(&cg_spectating);
+        } else if (wasSpectating && !isSpectating) {
+            trap_Cvar_Set("cg_spectating", "0");
+            trap_Cvar_Update(&cg_spectating);
+        }
+        wasSpectating = isSpectating;
+    }
+
     // decide on third person view
     cg.renderingThirdPerson = cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR && (cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0));
 
@@ -976,6 +964,7 @@ void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoP
         CG_AddMarks();
         CG_AddParticles();
         CG_AddLocalEntities();
+        CG_AddPOIMarkers();
     }
     CG_AddViewWeapon(&cg.predictedPlayerState);
 

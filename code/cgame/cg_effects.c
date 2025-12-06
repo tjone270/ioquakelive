@@ -400,6 +400,61 @@ void CG_ScorePlum(int client, vec3_t org, int score) {
 }
 
 /*
+==================
+CG_DamagePlum
+[QL] floating damage number display
+==================
+*/
+void CG_DamagePlum(int damage, int weapon, vec3_t org) {
+    localEntity_t* le;
+    refEntity_t* re;
+    vec3_t angles;
+
+    le = CG_AllocLocalEntity();
+    le->leFlags = 0;
+    le->leType = LE_DAMAGEPLUM;
+    le->startTime = cg.time;
+    le->endTime = cg.time + 1000;
+    le->lifeRate = 1.0 / (le->endTime - le->startTime);
+
+    // color style based on cg_damagePlumColorStyle
+    switch (cg_damagePlumColorStyle.integer) {
+    case 2:  // damage tier colors
+        if (damage >= 76) {
+            le->color[0] = 1.0f; le->color[1] = 0.0f; le->color[2] = 0.0f;
+        } else if (damage >= 51) {
+            le->color[0] = 1.0f; le->color[1] = 0.5f; le->color[2] = 0.0f;
+        } else if (damage >= 26) {
+            le->color[0] = 1.0f; le->color[1] = 1.0f; le->color[2] = 0.0f;
+        } else {
+            le->color[0] = 0.25f; le->color[1] = 0.5f; le->color[2] = 1.0f;
+        }
+        le->color[3] = 1.0f;
+        break;
+    default:  // style 1: gradient
+        le->color[0] = le->color[1] = le->color[2] = le->color[3] = 1.0;
+        break;
+    }
+
+    le->radius = damage;
+
+    VectorCopy(org, le->pos.trBase);
+    // add random scatter
+    le->pos.trBase[0] += crandom() * 10.0f;
+    le->pos.trBase[1] += crandom() * 10.0f;
+    le->pos.trBase[2] += crandom() * 10.0f;
+
+    le->pos.trDelta[2] = 120.0f + crandom() * 10.0f;
+
+    re = &le->refEntity;
+    re->reType = RT_SPRITE;
+    re->radius = 16;
+
+    VectorClear(angles);
+    AnglesToAxis(angles, re->axis);
+}
+
+/*
 ====================
 CG_MakeExplosion
 ====================
@@ -482,7 +537,8 @@ void CG_Bleed(vec3_t origin, int entityNum) {
     ex->refEntity.rotation = rand() % 360;
     ex->refEntity.radius = 24;
 
-    ex->refEntity.customShader = cgs.media.bloodExplosionShader;
+    // [QL] randomly pick from 4 blood spray shaders
+    ex->refEntity.customShader = cgs.media.bloodSprayShaders[rand() & 3];
 
     // don't show player's own blood in view
     if (entityNum == cg.snap->ps.clientNum) {

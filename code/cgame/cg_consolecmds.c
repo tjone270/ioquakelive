@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cg_local.h"
 #include "../ui/ui_shared.h"
 extern menuDef_t* menuScoreboard;
+extern menuDef_t* menuEndScoreboard;
 
 void CG_TargetCommand_f(void) {
     int targetNum;
@@ -104,7 +105,6 @@ static void CG_ScoresUp_f(void) {
     }
 }
 
-extern menuDef_t* menuScoreboard;
 void Menu_Reset(void);  // FIXME: add to right include file
 
 static void CG_LoadHud_f(void) {
@@ -122,7 +122,45 @@ static void CG_LoadHud_f(void) {
     }
 
     CG_LoadMenus(hudSet);
+
+    // [QL] Reload extra menus from pak00 (same list as CG_RegisterGraphics)
+    CG_ParseMenu("ui/intro.menu");
+    CG_ParseMenu("ui/ingamescorenoteam.menu");
+    CG_ParseMenu("ui/ingamescoreteam.menu");
+    CG_ParseMenu("ui/endscorenoteam.menu");
+    CG_ParseMenu("ui/endscoreteam.menu");
+    CG_ParseMenu("ui/spectator.menu");
+    CG_ParseMenu("ui/spectator_follow.menu");
+    CG_ParseMenu("ui/comp_spectator.menu");
+    CG_ParseMenu("ui/comp_spectator_follow.menu");
+    CG_ParseMenu("ui/ingamestats.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ffa.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_duel.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_tdm.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ctf.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ca.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ft.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_dom.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ad.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_rr.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_har.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_1fctf.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_race.menu");
+    CG_ParseMenu("ui/end_scoreboard_ffa.menu");
+    CG_ParseMenu("ui/end_scoreboard_duel.menu");
+    CG_ParseMenu("ui/end_scoreboard_tdm.menu");
+    CG_ParseMenu("ui/end_scoreboard_ctf.menu");
+    CG_ParseMenu("ui/end_scoreboard_ca.menu");
+    CG_ParseMenu("ui/end_scoreboard_ft.menu");
+    CG_ParseMenu("ui/end_scoreboard_dom.menu");
+    CG_ParseMenu("ui/end_scoreboard_ad.menu");
+    CG_ParseMenu("ui/end_scoreboard_rr.menu");
+    CG_ParseMenu("ui/end_scoreboard_har.menu");
+    CG_ParseMenu("ui/end_scoreboard_1fctf.menu");
+    CG_ParseMenu("ui/end_scoreboard_race.menu");
+
     menuScoreboard = NULL;
+    menuEndScoreboard = NULL;
 }
 
 static void CG_scrollScoresDown_f(void) {
@@ -421,6 +459,17 @@ static void CG_Camera_f( void ) {
 }
 */
 
+// [QL] Stats overlay toggles
+static void CG_StatsDown_f(void) { cg.statsShowing = qtrue; }
+static void CG_StatsUp_f(void) { cg.statsShowing = qfalse; }
+static void CG_AccDown_f(void) { cg.accShowing = qtrue; }
+static void CG_AccUp_f(void) { cg.accShowing = qfalse; }
+static void CG_PStatsDown_f(void) { cg.pstatsShowing = qtrue; }
+static void CG_PStatsUp_f(void) { cg.pstatsShowing = qfalse; }
+
+// [QL] Score request (forwards to server)
+static void CG_Score_f(void) { trap_SendClientCommand("score"); }
+
 typedef struct {
     char* cmd;
     void (*function)(void);
@@ -476,7 +525,16 @@ static consoleCommand_t commands[] = {
 
     {"startOrbit", CG_StartOrbit_f},
     //{ "camera", CG_Camera_f },
-    {"loaddeferred", CG_LoadDeferredPlayers}};
+    {"loaddeferred", CG_LoadDeferredPlayers},
+    // [QL] stats overlays
+    {"+stats", CG_StatsDown_f},
+    {"-stats", CG_StatsUp_f},
+    {"+acc", CG_AccDown_f},
+    {"-acc", CG_AccUp_f},
+    {"+pstats", CG_PStatsDown_f},
+    {"-pstats", CG_PStatsUp_f},
+    {"score", CG_Score_f},
+};
 
 /*
 =================
@@ -544,4 +602,45 @@ void CG_InitConsoleCommands(void) {
     trap_AddCommand("stats");
     trap_AddCommand("teamtask");
     trap_AddCommand("loaddefered");  // spelled wrong, but not changing for demo
+
+    // [QL] drop commands
+    trap_AddCommand("dropflag");
+    trap_AddCommand("droppowerup");
+    trap_AddCommand("droprune");
+    trap_AddCommand("dropweapon");
+
+    // [QL] additional server-forwarded commands
+    trap_AddCommand("readyup");
+    trap_AddCommand("forfeit");
+    trap_AddCommand("ragequit");
+    trap_AddCommand("spec");
+    trap_AddCommand("specresp");
+    trap_AddCommand("acc");
+    trap_AddCommand("pstats");
+    trap_AddCommand("raceinit");
+    trap_AddCommand("racepoint");
+    // [QL] permission-based commands (forwarded to server)
+    trap_AddCommand("players");
+    trap_AddCommand("timeout");
+    trap_AddCommand("timein");
+    trap_AddCommand("pause");
+    trap_AddCommand("unpause");
+    trap_AddCommand("allready");
+    trap_AddCommand("lock");
+    trap_AddCommand("unlock");
+    trap_AddCommand("put");
+    trap_AddCommand("mute");
+    trap_AddCommand("unmute");
+    trap_AddCommand("tempban");
+    trap_AddCommand("ban");
+    trap_AddCommand("unban");
+    trap_AddCommand("listaccess");
+    trap_AddCommand("opsay");
+    trap_AddCommand("addadmin");
+    trap_AddCommand("addmod");
+    trap_AddCommand("demote");
+    trap_AddCommand("abort");
+    trap_AddCommand("addscore");
+    trap_AddCommand("addteamscore");
+    trap_AddCommand("setmatchtime");
 }

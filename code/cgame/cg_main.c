@@ -30,6 +30,7 @@ displayContextDef_t cgDC;
 int forceModelModificationCount = -1;
 
 void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum);
+void CG_RegisterCvars(void);
 void CG_Shutdown(void);
 
 /*
@@ -40,10 +41,13 @@ This is the only way control passes into the module.
 This must be the very first function compiled into the .q3vm file
 ================
 */
-Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11) {
+Q_EXPORT intptr_t vmMain(int command, intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4, intptr_t arg5, intptr_t arg6, intptr_t arg7, intptr_t arg8, intptr_t arg9, intptr_t arg10, intptr_t arg11) {
     switch (command) {
         case CG_INIT:
             CG_Init(arg0, arg1, arg2);
+            return 0;
+        case CG_REGISTER_CVARS:
+            CG_RegisterCvars();
             return 0;
         case CG_SHUTDOWN:
             CG_Shutdown();
@@ -107,7 +111,6 @@ vmCvar_t cg_crosshairHealth;
 vmCvar_t cg_draw2D;
 vmCvar_t cg_drawStatus;
 vmCvar_t cg_animSpeed;
-vmCvar_t cg_debugAds;
 vmCvar_t cg_debugAnim;
 vmCvar_t cg_debugPosition;
 vmCvar_t cg_debugEvents;
@@ -149,15 +152,11 @@ vmCvar_t cg_predictItems;
 vmCvar_t cg_deferPlayers;
 vmCvar_t cg_drawTeamOverlay;
 vmCvar_t cg_teamOverlayUserinfo;
-vmCvar_t cg_drawFriend;
 vmCvar_t cg_teamChatsOnly;
 
 vmCvar_t cg_hudFiles;
 vmCvar_t cg_scorePlum;
 vmCvar_t cg_smoothClients;
-vmCvar_t pmove_fixed;
-// vmCvar_t	cg_pmove_fixed;
-vmCvar_t pmove_msec;
 vmCvar_t cg_pmove_msec;
 vmCvar_t cg_cameraMode;
 vmCvar_t cg_cameraOrbit;
@@ -189,6 +188,266 @@ vmCvar_t cg_lightningStyle;
 vmCvar_t cg_screenDamage;
 vmCvar_t cg_kickScale;
 
+// [QL] additional cvars
+vmCvar_t cg_armorTiered;
+vmCvar_t cg_allowTaunt;
+vmCvar_t cg_announcer;
+vmCvar_t cg_autoHop;
+vmCvar_t cg_bob;
+vmCvar_t cg_bubbleTrail;
+vmCvar_t cg_buzzerSound;
+vmCvar_t cg_crosshairBrightness;
+vmCvar_t cg_crosshairColor;
+vmCvar_t cg_crosshairHitColor;
+vmCvar_t cg_crosshairHitStyle;
+vmCvar_t cg_crosshairHitTime;
+vmCvar_t cg_crosshairPulse;
+vmCvar_t cg_damagePlum;
+vmCvar_t cg_damagePlumColorStyle;
+vmCvar_t cg_deadBodyColor;
+vmCvar_t cg_deadBodyDarken;
+vmCvar_t cg_drawCrosshairTeamHealth;
+vmCvar_t cg_drawFragMessages;
+vmCvar_t cg_drawFullWeaponBar;
+vmCvar_t cg_drawItemPickups;
+vmCvar_t cg_drawCheckpointRemaining;
+vmCvar_t cg_drawSpecMessages;
+vmCvar_t cg_drawPregameMessages;
+vmCvar_t cg_drawTieredArmorAvailability;
+vmCvar_t cg_enemyHeadColor;
+vmCvar_t cg_enemyLowerColor;
+vmCvar_t cg_enemyUpperColor;
+vmCvar_t cg_flagStyle;
+vmCvar_t cg_forceEnemyModel;
+vmCvar_t cg_forceTeamModel;
+vmCvar_t cg_hitBeep;
+vmCvar_t cg_impactSparks;
+vmCvar_t cg_impactSparksLifetime;
+vmCvar_t cg_impactSparksSize;
+vmCvar_t cg_impactSparksVelocity;
+vmCvar_t cg_itemFx;
+vmCvar_t cg_itemTimers;
+vmCvar_t cg_killBeep;
+vmCvar_t cg_levelTimerDirection;
+vmCvar_t cg_lightningImpact;
+vmCvar_t cg_lowAmmoWarningPercentile;
+vmCvar_t cg_lowAmmoWarningSound;
+vmCvar_t cg_muzzleFlash;
+vmCvar_t cg_obituaryRowSize;
+vmCvar_t cg_playerLean;
+vmCvar_t cg_plasmaStyle;
+vmCvar_t cg_railStyle;
+vmCvar_t cg_rocketStyle;
+vmCvar_t cg_raceBeep;
+vmCvar_t cg_screenDamage_Self;
+vmCvar_t cg_screenDamage_Team;
+vmCvar_t cg_simpleItemsBob;
+vmCvar_t cg_simpleItemsHeightOffset;
+vmCvar_t cg_simpleItemsRadius;
+vmCvar_t cg_speedometer;
+vmCvar_t cg_switchOnEmpty;
+vmCvar_t cg_switchToEmpty;
+vmCvar_t cg_teamHeadColor;
+vmCvar_t cg_teamLowerColor;
+vmCvar_t cg_teamUpperColor;
+vmCvar_t cg_thirdPersonPitch;
+vmCvar_t cg_trueShotgun;
+vmCvar_t cg_vignette;
+vmCvar_t cg_waterWarp;
+vmCvar_t cg_weaponBar;
+vmCvar_t cg_zoomOutOnDeath;
+vmCvar_t cg_zoomScaling;
+vmCvar_t cg_zoomSensitivity;
+vmCvar_t cg_zoomToggle;
+vmCvar_t cg_drawInputCmds;
+vmCvar_t cg_drawTeamOverlayOpacity;
+vmCvar_t cg_drawTeamOverlaySize;
+vmCvar_t cg_drawTeamOverlayX;
+vmCvar_t cg_drawTeamOverlayY;
+vmCvar_t cg_impactMarkTime;
+vmCvar_t cg_chatbeep;
+vmCvar_t cg_teamChatBeep;
+vmCvar_t cg_gametype;
+vmCvar_t cg_svFps;
+vmCvar_t cg_comMaxfps;
+
+// [QL] announcer cvars
+vmCvar_t cg_announcerLastStandingVO;
+vmCvar_t cg_announcerLeadsVO;
+vmCvar_t cg_announcerRewardsVO;
+vmCvar_t cg_announcerTiesVO;
+
+// [QL] sound cvars
+vmCvar_t s_ambient;
+vmCvar_t s_announcerVolume;
+vmCvar_t s_killBeepVolume;
+
+// [QL] weapon loadout/config cvars
+vmCvar_t cg_weaponConfig;
+vmCvar_t cg_weaponConfig_g;
+vmCvar_t cg_weaponConfig_mg;
+vmCvar_t cg_weaponConfig_sg;
+vmCvar_t cg_weaponConfig_gl;
+vmCvar_t cg_weaponConfig_rl;
+vmCvar_t cg_weaponConfig_lg;
+vmCvar_t cg_weaponConfig_rg;
+vmCvar_t cg_weaponConfig_pg;
+vmCvar_t cg_weaponConfig_bfg;
+vmCvar_t cg_weaponConfig_gh;
+vmCvar_t cg_weaponConfig_ng;
+vmCvar_t cg_weaponConfig_pl;
+vmCvar_t cg_weaponConfig_cg;
+vmCvar_t cg_weaponConfig_hmg;
+vmCvar_t cg_weaponColor_grenade;
+vmCvar_t cg_weaponPrimary;
+
+// [QL] spectator/demo cvars
+vmCvar_t cg_drawDemoHUD;
+vmCvar_t cg_followKiller;
+vmCvar_t cg_followPowerup;
+vmCvar_t cg_specDuelHealthArmor;
+vmCvar_t cg_specDuelHealthColor;
+vmCvar_t cg_specFov;
+vmCvar_t cg_specItemTimers;
+vmCvar_t cg_specItemTimersSize;
+vmCvar_t cg_specItemTimersX;
+vmCvar_t cg_specItemTimersY;
+vmCvar_t cg_specNames;
+vmCvar_t cg_specTeamVitals;
+vmCvar_t cg_specTeamVitalsHealthColor;
+vmCvar_t cg_specTeamVitalsWidth;
+vmCvar_t cg_specTeamVitalsY;
+
+// [QL] HUD/UI cvars
+vmCvar_t cg_chatHistoryLength;
+vmCvar_t cg_complaintWarning;
+vmCvar_t cg_drawCrosshairTeamHealthSize;
+vmCvar_t cg_drawInputCmdsSize;
+vmCvar_t cg_drawInputCmdsX;
+vmCvar_t cg_drawInputCmdsY;
+vmCvar_t cg_drawRewardsRowSize;
+vmCvar_t cg_drawSprites;
+vmCvar_t cg_drawSpriteSelf;
+vmCvar_t cg_enemyCrosshairNames;
+vmCvar_t cg_enemyCrosshairNamesOpacity;
+vmCvar_t cg_lowAmmoWeaponBarWarning;
+vmCvar_t cg_selfOnTeamOverlay;
+vmCvar_t cg_teammateCrosshairNames;
+vmCvar_t cg_teammateCrosshairNamesOpacity;
+vmCvar_t cg_teammateNames;
+vmCvar_t cg_useItemMessage;
+vmCvar_t cg_useItemWarning;
+vmCvar_t cg_voiceChatIndicator;
+
+// [QL] POI cvars
+vmCvar_t cg_flagPOIs;
+vmCvar_t cg_poiMaxWidth;
+vmCvar_t cg_poiMinWidth;
+vmCvar_t cg_powerupPOIs;
+vmCvar_t cg_teammatePOIs;
+vmCvar_t cg_teammatePOIsMaxWidth;
+vmCvar_t cg_teammatePOIsMinWidth;
+
+// [QL] smoke/particle cvars
+vmCvar_t cg_smoke_SG;
+vmCvar_t cg_smokeRadius_dust;
+vmCvar_t cg_smokeRadius_flight;
+vmCvar_t cg_smokeRadius_GL;
+vmCvar_t cg_smokeRadius_haste;
+vmCvar_t cg_smokeRadius_NG;
+vmCvar_t cg_smokeRadius_RL;
+
+// [QL] visual/rendering cvars
+vmCvar_t cg_drawDeadFriendTime;
+vmCvar_t cg_drawHitFriendTime;
+vmCvar_t cg_forceBlueTeamModel;
+vmCvar_t cg_forceDrawCrosshair;
+vmCvar_t cg_forceEnemySkin;
+vmCvar_t cg_forceEnemyWeaponColor;
+vmCvar_t cg_forceRedTeamModel;
+vmCvar_t cg_forceTeamSkin;
+vmCvar_t cg_forceTeamWeaponColor;
+vmCvar_t cg_lightningImpactCap;
+vmCvar_t cg_screenDamageAlpha;
+vmCvar_t cg_screenDamageAlpha_Team;
+vmCvar_t cg_scalePlayerModelsToBB;
+
+// [QL] gameplay cvars
+vmCvar_t cg_autoAction;
+vmCvar_t cg_autoProjectileNudge;
+vmCvar_t cg_predictLocalRailshots;
+
+// [QL] gameplay cvars (continued)
+vmCvar_t cg_latchedHookOffset;
+vmCvar_t cg_overheadNamesWidth;
+vmCvar_t cg_preferredStartingWeapons;
+vmCvar_t cg_projectileNudge;
+vmCvar_t cg_weaponPrimaryQueued;
+
+// [QL] camera/view cvars
+vmCvar_t cg_cameraSmartMode;
+vmCvar_t cg_cameraThirdPersonSmartMode;
+vmCvar_t cg_filter_angles;
+
+// [QL] loadout disable cvars
+vmCvar_t cg_disableLoadout_bfg;
+vmCvar_t cg_disableLoadout_cg;
+vmCvar_t cg_disableLoadout_gl;
+vmCvar_t cg_disableLoadout_hmg;
+vmCvar_t cg_disableLoadout_lg;
+vmCvar_t cg_disableLoadout_mg;
+vmCvar_t cg_disableLoadout_ng;
+vmCvar_t cg_disableLoadout_pg;
+vmCvar_t cg_disableLoadout_pm;
+vmCvar_t cg_disableLoadout_rg;
+vmCvar_t cg_disableLoadout_rl;
+vmCvar_t cg_disableLoadout_sg;
+vmCvar_t cg_disableLoadout_gh;
+vmCvar_t cg_disableLoadout_gt;
+
+// [QL] game info cvars (server-to-client state)
+vmCvar_t cg_gameInfo1;
+vmCvar_t cg_gameInfo2;
+vmCvar_t cg_gameInfo3;
+vmCvar_t cg_gameInfo4;
+vmCvar_t cg_gameInfo5;
+vmCvar_t cg_gameInfo6;
+
+// [QL] team name cvars
+vmCvar_t cg_blueTeamName;
+vmCvar_t cg_redTeamName;
+vmCvar_t cg_playerTeam;
+
+// [QL] voice/chat cvars
+vmCvar_t cg_playVoiceChats;
+vmCvar_t cg_showVoiceText;
+
+// [QL] misc cvars
+vmCvar_t cg_debugFlags;
+vmCvar_t cg_drawProfileImages;
+vmCvar_t cg_ignoreMouseInput;
+vmCvar_t cg_lastmsg;
+vmCvar_t cg_stereoSeparation;
+vmCvar_t cg_trackPlayer;
+
+// [QL] UI state cvars (shared with UI module)
+vmCvar_t ui_endMapVotingDisabled;
+vmCvar_t ui_gameTypeVotingDisabled;
+vmCvar_t ui_intermission;
+vmCvar_t ui_mainmenu;
+vmCvar_t ui_mapVotingDisabled;
+vmCvar_t ui_voteactive;
+vmCvar_t ui_votestring;
+vmCvar_t ui_warmup;
+
+// [QL] g_ cvars read by cgame
+vmCvar_t g_skipTrainingEnable;
+vmCvar_t g_training;
+
+// [QL] internal/ROM cvars
+vmCvar_t cg_loadout;
+vmCvar_t cg_spectating;
+
 typedef struct {
     vmCvar_t* vmCvar;
     char* cvarName;
@@ -198,10 +457,10 @@ typedef struct {
 
 static cvarTable_t cvarTable[] = {
     {&cg_ignore, "cg_ignore", "0", 0},  // used for debugging
-    {&cg_autoswitch, "cg_autoswitch", "1", CVAR_ARCHIVE},
+    {&cg_autoswitch, "cg_autoswitch", "0", CVAR_ARCHIVE},  // [QL] default 0 (was Q3 "1")
     {&cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE},
-    {&cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE},
-    {&cg_fov, "cg_fov", "90", CVAR_ARCHIVE},
+    {&cg_zoomFov, "cg_zoomfov", "30", CVAR_ARCHIVE},
+    {&cg_fov, "cg_fov", "100", CVAR_ARCHIVE},
     {&cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE},
     {&cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE},
     {&cg_gibs, "cg_gibs", "1", CVAR_ARCHIVE},
@@ -212,19 +471,19 @@ static cvarTable_t cvarTable[] = {
     {&cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE},
     {&cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE},
     {&cg_drawIcons, "cg_drawIcons", "1", CVAR_ARCHIVE},
-    {&cg_drawAmmoWarning, "cg_drawAmmoWarning", "1", CVAR_ARCHIVE},
+    {&cg_drawAmmoWarning, "cg_drawAmmoWarning", "2", CVAR_ARCHIVE},  // [QL] default 2 (was Q3 "1")
     {&cg_drawAttacker, "cg_drawAttacker", "1", CVAR_ARCHIVE},
-    {&cg_drawCrosshair, "cg_drawCrosshair", "4", CVAR_ARCHIVE},
+    {&cg_drawCrosshair, "cg_drawCrosshair", "2", CVAR_ARCHIVE},
     {&cg_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE},
     {&cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE},
-    {&cg_crosshairSize, "cg_crosshairSize", "24", CVAR_ARCHIVE},
-    {&cg_crosshairHealth, "cg_crosshairHealth", "1", CVAR_ARCHIVE},
+    {&cg_crosshairSize, "cg_crosshairSize", "32", CVAR_ARCHIVE},
+    {&cg_crosshairHealth, "cg_crosshairHealth", "0", CVAR_ARCHIVE},  // [QL] default 0 (was Q3 "1")
     {&cg_crosshairX, "cg_crosshairX", "0", CVAR_ARCHIVE},
     {&cg_crosshairY, "cg_crosshairY", "0", CVAR_ARCHIVE},
     {&cg_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE},
     {&cg_simpleItems, "cg_simpleItems", "0", CVAR_ARCHIVE},
     {&cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE},
-    {&cg_lagometer, "cg_lagometer", "1", CVAR_ARCHIVE},
+    {&cg_lagometer, "cg_lagometer", "0", CVAR_ARCHIVE},  // [QL] default 0 (was Q3 "1")
     {&cg_railTrailTime, "cg_railTrailTime", "400", CVAR_ARCHIVE},
     {&cg_gun_x, "cg_gunX", "0", CVAR_CHEAT},
     {&cg_gun_y, "cg_gunY", "0", CVAR_CHEAT},
@@ -237,7 +496,6 @@ static cvarTable_t cvarTable[] = {
     {&cg_bobroll, "cg_bobroll", "0.002", CVAR_ARCHIVE},
     {&cg_swingSpeed, "cg_swingSpeed", "0.3", CVAR_CHEAT},
     {&cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT},
-    {&cg_debugAds, "cg_debugAds", "0", CVAR_ARCHIVE},
     {&cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT},
     {&cg_debugPosition, "cg_debugposition", "0", CVAR_CHEAT},
     {&cg_debugEvents, "cg_debugevents", "0", CVAR_CHEAT},
@@ -249,18 +507,17 @@ static cvarTable_t cvarTable[] = {
     {&cg_tracerChance, "cg_tracerchance", "0.4", CVAR_CHEAT},
     {&cg_tracerWidth, "cg_tracerwidth", "1", CVAR_CHEAT},
     {&cg_tracerLength, "cg_tracerlength", "100", CVAR_CHEAT},
-    {&cg_thirdPersonRange, "cg_thirdPersonRange", "40", CVAR_CHEAT},
+    {&cg_thirdPersonRange, "cg_thirdPersonRange", "80", CVAR_CHEAT},  // [QL] default 80 (was Q3 "40")
     {&cg_thirdPersonAngle, "cg_thirdPersonAngle", "0", CVAR_CHEAT},
     {&cg_thirdPerson, "cg_thirdPerson", "0", 0},
     {&cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE},
     {&cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE},
     {&cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE},
     {&cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE},
-    {&cg_deferPlayers, "cg_deferPlayers", "0", CVAR_ARCHIVE},
-    {&cg_drawTeamOverlay, "cg_drawTeamOverlay", "0", CVAR_ARCHIVE},
+    {&cg_deferPlayers, "cg_deferPlayers", "1", CVAR_ARCHIVE},  // [QL] default 1 (was Q3 "0")
+    {&cg_drawTeamOverlay, "cg_drawTeamOverlay", "1", CVAR_ARCHIVE},  // [QL] default 1 (was Q3 "0")
     {&cg_teamOverlayUserinfo, "teamoverlay", "0", CVAR_ROM | CVAR_USERINFO},
     {&cg_stats, "cg_stats", "0", 0},
-    {&cg_drawFriend, "cg_drawFriend", "1", CVAR_ARCHIVE},
     {&cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE},
     // the following variables are created in other parts of the system,
     // but we also reference them here
@@ -285,12 +542,9 @@ static cvarTable_t cvarTable[] = {
     {&cg_timescaleFadeEnd, "cg_timescaleFadeEnd", "1", 0},
     {&cg_timescaleFadeSpeed, "cg_timescaleFadeSpeed", "0", 0},
     {&cg_timescale, "timescale", "1", 0},
-    {&cg_scorePlum, "cg_scorePlums", "1", CVAR_USERINFO | CVAR_ARCHIVE},
+    {&cg_scorePlum, "cg_scorePlums", "0", CVAR_USERINFO | CVAR_ARCHIVE},  // [QL] default 0 (was Q3 "1")
     {&cg_smoothClients, "cg_smoothClients", "0", CVAR_USERINFO | CVAR_ARCHIVE},
     {&cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
-
-    {&pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO},
-    {&pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO},
 
     {&cg_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
     {&cg_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
@@ -300,11 +554,269 @@ static cvarTable_t cvarTable[] = {
     {&cg_oldRail, "cg_oldRail", "1", CVAR_ARCHIVE},
     {&cg_oldRocket, "cg_oldRocket", "1", CVAR_ARCHIVE},
     {&cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
-    {&cg_trueLightning, "cg_trueLightning", "0.0", CVAR_ARCHIVE},
+    {&cg_trueLightning, "cg_trueLightning", "1", CVAR_ARCHIVE},  // [QL] default 1 (was Q3 "0.0")
     {&cg_lightningStyle, "cg_lightningStyle", "1", CVAR_ARCHIVE},
-    {&cg_screenDamage, "cg_screenDamage", "1", CVAR_ARCHIVE},
+    {&cg_screenDamage, "cg_screenDamage", "0x700000C8", CVAR_ARCHIVE},
     {&cg_kickScale, "cg_kickScale", "0.25", CVAR_ARCHIVE},
-    // { &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
+
+    // [QL] additional cvars from cgamex86.dll binary (build 1069)
+    {&cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM},
+    {&cg_allowTaunt, "cg_allowTaunt", "1", CVAR_ARCHIVE},
+    {&cg_announcer, "cg_announcer", "1", CVAR_ARCHIVE},
+    {&cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE},
+    {&cg_bob, "cg_bob", "0.25", CVAR_ARCHIVE},
+    {&cg_bubbleTrail, "cg_bubbleTrail", "1", CVAR_ARCHIVE},
+    {&cg_buzzerSound, "cg_buzzerSound", "1", CVAR_ARCHIVE},
+    {&cg_crosshairBrightness, "cg_crosshairBrightness", "1.0", CVAR_ARCHIVE},
+    {&cg_crosshairColor, "cg_crosshairColor", "25", CVAR_ARCHIVE},
+    {&cg_crosshairHitColor, "cg_crosshairHitColor", "1", CVAR_ARCHIVE},
+    {&cg_crosshairHitStyle, "cg_crosshairHitStyle", "1", CVAR_ARCHIVE},
+    {&cg_crosshairHitTime, "cg_crosshairHitTime", "200.0", CVAR_ARCHIVE},
+    {&cg_crosshairPulse, "cg_crosshairPulse", "1", CVAR_ARCHIVE},
+    {&cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", CVAR_ARCHIVE},
+    {&cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", CVAR_ARCHIVE},
+    {&cg_deadBodyColor, "cg_deadBodyColor", "0x101010FF", CVAR_ARCHIVE},
+    {&cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE},
+    {&cg_drawCrosshairTeamHealth, "cg_drawCrosshairTeamHealth", "2", CVAR_ARCHIVE},
+    {&cg_drawFragMessages, "cg_drawFragMessages", "1", CVAR_ARCHIVE},
+    {&cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE},
+    {&cg_drawItemPickups, "cg_drawItemPickups", "3", CVAR_ARCHIVE},
+    {&cg_drawCheckpointRemaining, "cg_drawCheckpointRemaining", "1", CVAR_ARCHIVE},
+    {&cg_drawSpecMessages, "cg_drawSpecMessages", "1", 0},
+    {&cg_drawPregameMessages, "cg_drawPregameMessages", "1", 0},
+    {&cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE},
+    {&cg_enemyHeadColor, "cg_enemyHeadColor", "0x2a8000FF", CVAR_ARCHIVE},
+    {&cg_enemyLowerColor, "cg_enemyLowerColor", "0x2a8000FF", CVAR_ARCHIVE},
+    {&cg_enemyUpperColor, "cg_enemyUpperColor", "0x2a8000FF", CVAR_ARCHIVE},
+    {&cg_flagStyle, "cg_flagStyle", "1", CVAR_ARCHIVE},
+    {&cg_forceEnemyModel, "cg_forceEnemyModel", "", CVAR_ARCHIVE},
+    {&cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE},
+    {&cg_hitBeep, "cg_hitBeep", "2", CVAR_ARCHIVE},
+    {&cg_impactSparks, "cg_impactSparks", "1", CVAR_ARCHIVE},
+    {&cg_impactSparksLifetime, "cg_impactSparksLifetime", "250", CVAR_ARCHIVE},
+    {&cg_impactSparksSize, "cg_impactSparksSize", "8", CVAR_ARCHIVE},
+    {&cg_impactSparksVelocity, "cg_impactSparksVelocity", "128", CVAR_ARCHIVE},
+    {&cg_itemFx, "cg_itemFx", "7", CVAR_ARCHIVE},
+    {&cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE},
+    {&cg_killBeep, "cg_killBeep", "7", CVAR_ARCHIVE},
+    {&cg_levelTimerDirection, "cg_levelTimerDirection", "1", CVAR_ARCHIVE},
+    {&cg_lightningImpact, "cg_lightningImpact", "1", CVAR_ARCHIVE},
+    {&cg_lowAmmoWarningPercentile, "cg_lowAmmoWarningPercentile", "0.20", CVAR_ARCHIVE},
+    {&cg_lowAmmoWarningSound, "cg_lowAmmoWarningSound", "1", CVAR_ARCHIVE},
+    {&cg_muzzleFlash, "cg_muzzleFlash", "1", CVAR_ARCHIVE},
+    {&cg_obituaryRowSize, "cg_obituaryRowSize", "5", CVAR_ARCHIVE},
+    {&cg_playerLean, "cg_playerLean", "1", CVAR_ARCHIVE},
+    {&cg_plasmaStyle, "cg_plasmaStyle", "1", CVAR_ARCHIVE},
+    {&cg_railStyle, "cg_railStyle", "1", CVAR_ARCHIVE},
+    {&cg_rocketStyle, "cg_rocketStyle", "1", CVAR_ARCHIVE},
+    {&cg_raceBeep, "cg_raceBeep", "7", CVAR_ARCHIVE},
+    {&cg_screenDamage_Self, "cg_screenDamage_Self", "0x00000000", CVAR_ARCHIVE},
+    {&cg_screenDamage_Team, "cg_screenDamage_Team", "0x700000C8", CVAR_ARCHIVE},
+    {&cg_simpleItemsBob, "cg_simpleItemsBob", "2", CVAR_ARCHIVE},
+    {&cg_simpleItemsHeightOffset, "cg_simpleItemsHeightOffset", "8", CVAR_ARCHIVE},
+    {&cg_simpleItemsRadius, "cg_simpleItemsRadius", "15", CVAR_ARCHIVE},
+    {&cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE},
+    {&cg_switchOnEmpty, "cg_switchOnEmpty", "1", CVAR_ARCHIVE},
+    {&cg_switchToEmpty, "cg_switchToEmpty", "1", CVAR_ARCHIVE},
+    {&cg_teamHeadColor, "cg_teamHeadColor", "0x808080FF", CVAR_ARCHIVE},
+    {&cg_teamLowerColor, "cg_teamLowerColor", "0x808080FF", CVAR_ARCHIVE},
+    {&cg_teamUpperColor, "cg_teamUpperColor", "0x808080FF", CVAR_ARCHIVE},
+    {&cg_thirdPersonPitch, "cg_thirdPersonPitch", "-1", CVAR_CHEAT},
+    {&cg_trueShotgun, "cg_trueShotgun", "0", CVAR_ARCHIVE},
+    {&cg_vignette, "cg_vignette", "0", CVAR_ARCHIVE},
+    {&cg_waterWarp, "cg_waterWarp", "1", CVAR_ARCHIVE},
+    {&cg_weaponBar, "cg_weaponBar", "1", CVAR_ARCHIVE},
+    {&cg_zoomOutOnDeath, "cg_zoomOutOnDeath", "1", CVAR_ARCHIVE},
+    {&cg_zoomScaling, "cg_zoomScaling", "1", CVAR_ARCHIVE},
+    {&cg_zoomSensitivity, "cg_zoomSensitivity", "1", CVAR_ARCHIVE},
+    {&cg_zoomToggle, "cg_zoomToggle", "0", CVAR_ARCHIVE},
+    {&cg_drawInputCmds, "cg_drawInputCmds", "0", CVAR_ARCHIVE},
+    {&cg_drawTeamOverlayOpacity, "cg_drawTeamOverlayOpacity", "0.75", CVAR_ARCHIVE},
+    {&cg_drawTeamOverlaySize, "cg_drawTeamOverlaySize", "0.16", CVAR_ARCHIVE},
+    {&cg_drawTeamOverlayX, "cg_drawTeamOverlayX", "0", CVAR_ARCHIVE},
+    {&cg_drawTeamOverlayY, "cg_drawTeamOverlayY", "0", CVAR_ARCHIVE},
+    {&cg_impactMarkTime, "cg_impactMarkTime", "10000", CVAR_ARCHIVE},
+    {&cg_chatbeep, "cg_chatbeep", "0", CVAR_ARCHIVE},
+    {&cg_teamChatBeep, "cg_teamChatBeep", "0", CVAR_ARCHIVE},
+    {&cg_gametype, "cg_gametype", "0", CVAR_ROM},
+    {&cg_svFps, "sv_fps", "40", CVAR_ROM},
+    {&cg_comMaxfps, "com_maxfps", "125", CVAR_ARCHIVE},
+
+    // [QL] announcer cvars
+    {&cg_announcerLastStandingVO, "cg_announcerLastStandingVO", "1", CVAR_ARCHIVE},
+    {&cg_announcerLeadsVO, "cg_announcerLeadsVO", "1", CVAR_ARCHIVE},
+    {&cg_announcerRewardsVO, "cg_announcerRewardsVO", "1", CVAR_ARCHIVE},
+    {&cg_announcerTiesVO, "cg_announcerTiesVO", "1", CVAR_ARCHIVE},
+
+    // [QL] sound cvars
+    {&s_ambient, "s_ambient", "1", CVAR_ARCHIVE},
+    {&s_announcerVolume, "s_announcerVolume", "1", CVAR_ARCHIVE},
+    {&s_killBeepVolume, "s_killBeepVolume", "1", CVAR_ARCHIVE},
+
+    // [QL] weapon config cvars
+    {&cg_weaponConfig, "cg_weaponConfig", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_g, "cg_weaponConfig_g", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_mg, "cg_weaponConfig_mg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_sg, "cg_weaponConfig_sg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_gl, "cg_weaponConfig_gl", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_rl, "cg_weaponConfig_rl", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_lg, "cg_weaponConfig_lg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_rg, "cg_weaponConfig_rg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_pg, "cg_weaponConfig_pg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_bfg, "cg_weaponConfig_bfg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_ng, "cg_weaponConfig_ng", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_pl, "cg_weaponConfig_pl", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_cg, "cg_weaponConfig_cg", "", CVAR_ARCHIVE},
+    {&cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE},
+    {&cg_weaponColor_grenade, "cg_weaponColor_grenade", "0x007000FF", CVAR_ARCHIVE},
+    {&cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM},
+
+    // [QL] spectator/demo cvars
+    {&cg_drawDemoHUD, "cg_drawDemoHUD", "1", CVAR_ARCHIVE},
+    {&cg_followKiller, "cg_followKiller", "0", CVAR_ARCHIVE},
+    {&cg_followPowerup, "cg_followPowerup", "0", CVAR_ARCHIVE},
+    {&cg_specDuelHealthArmor, "cg_specDuelHealthArmor", "1", CVAR_ARCHIVE},
+    {&cg_specDuelHealthColor, "cg_specDuelHealthColor", "0", CVAR_ARCHIVE},
+    {&cg_specFov, "cg_specFov", "1", CVAR_ARCHIVE},
+    {&cg_specItemTimers, "cg_specItemTimers", "7", CVAR_ARCHIVE},
+    {&cg_specItemTimersSize, "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE},
+    {&cg_specItemTimersX, "cg_specItemTimersX", "10", CVAR_ARCHIVE},
+    {&cg_specItemTimersY, "cg_specItemTimersY", "200", CVAR_ARCHIVE},
+    {&cg_specNames, "cg_specNames", "2", CVAR_ARCHIVE},
+    {&cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE},
+    {&cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE},
+    {&cg_specTeamVitalsWidth, "cg_specTeamVitalsWidth", "100", CVAR_ARCHIVE},
+    {&cg_specTeamVitalsY, "cg_specTeamVitalsY", "85", CVAR_ARCHIVE},
+
+    // [QL] HUD/UI cvars
+    {&cg_chatHistoryLength, "cg_chatHistoryLength", "6", CVAR_ARCHIVE},
+    {&cg_complaintWarning, "cg_complaintWarning", "1", CVAR_ARCHIVE},
+    {&cg_drawCrosshairTeamHealthSize, "cg_drawCrosshairTeamHealthSize", "0.12", CVAR_ARCHIVE},
+    {&cg_drawInputCmdsSize, "cg_drawInputCmdsSize", "24", CVAR_ARCHIVE},
+    {&cg_drawInputCmdsX, "cg_drawInputCmdsX", "320", CVAR_ARCHIVE},
+    {&cg_drawInputCmdsY, "cg_drawInputCmdsY", "240", CVAR_ARCHIVE},
+    {&cg_drawRewardsRowSize, "cg_drawRewardsRowSize", "1", CVAR_ARCHIVE},
+    {&cg_drawSprites, "cg_drawSprites", "1", CVAR_ARCHIVE},
+    {&cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", CVAR_ARCHIVE},
+    {&cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE},
+    {&cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE},
+    {&cg_lowAmmoWeaponBarWarning, "cg_lowAmmoWeaponBarWarning", "2", CVAR_ARCHIVE},
+    {&cg_selfOnTeamOverlay, "cg_selfOnTeamOverlay", "0", CVAR_ARCHIVE},
+    {&cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "0", CVAR_ARCHIVE},
+    {&cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE},
+    {&cg_teammateNames, "cg_teammateNames", "1", CVAR_ARCHIVE},
+    {&cg_useItemMessage, "cg_useItemMessage", "1", CVAR_ARCHIVE},
+    {&cg_useItemWarning, "cg_useItemWarning", "1", CVAR_ARCHIVE},
+    {&cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE},
+
+    // [QL] POI cvars
+    {&cg_flagPOIs, "cg_flagPOIs", "1", CVAR_ARCHIVE},
+    {&cg_poiMaxWidth, "cg_poiMaxWidth", "32.0", CVAR_ARCHIVE},
+    {&cg_poiMinWidth, "cg_poiMinWidth", "16.0", CVAR_ARCHIVE},
+    {&cg_powerupPOIs, "cg_powerupPOIs", "2", CVAR_ARCHIVE},
+    {&cg_teammatePOIs, "cg_teammatePOIs", "1", CVAR_ARCHIVE},
+    {&cg_teammatePOIsMaxWidth, "cg_teammatePOIsMaxWidth", "24.0", CVAR_ARCHIVE},
+    {&cg_teammatePOIsMinWidth, "cg_teammatePOIsMinWidth", "4.0", CVAR_ARCHIVE},
+
+    // [QL] smoke/particle cvars
+    {&cg_smoke_SG, "cg_smoke_SG", "1", CVAR_ARCHIVE},
+    {&cg_smokeRadius_dust, "cg_smokeRadius_dust", "24", CVAR_ARCHIVE},
+    {&cg_smokeRadius_flight, "cg_smokeRadius_flight", "8", CVAR_ARCHIVE},
+    {&cg_smokeRadius_GL, "cg_smokeRadius_GL", "64", CVAR_ARCHIVE},
+    {&cg_smokeRadius_haste, "cg_smokeRadius_haste", "8", CVAR_ARCHIVE},
+    {&cg_smokeRadius_NG, "cg_smokeRadius_NG", "16", CVAR_ARCHIVE},
+    {&cg_smokeRadius_RL, "cg_smokeRadius_RL", "32", CVAR_ARCHIVE},
+
+    // [QL] visual/rendering cvars
+    {&cg_blood, "cg_blood", "1", CVAR_ARCHIVE},
+    {&cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000.0", CVAR_ARCHIVE},
+    {&cg_drawHitFriendTime, "cg_drawHitFriendTime", "100", CVAR_ARCHIVE},
+    {&cg_forceBlueTeamModel, "cg_forceBlueTeamModel", "", CVAR_ARCHIVE},
+    {&cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", CVAR_ARCHIVE},
+    {&cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE},
+    {&cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE},
+    {&cg_forceRedTeamModel, "cg_forceRedTeamModel", "", CVAR_ARCHIVE},
+    {&cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE},
+    {&cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE},
+    {&cg_lightningImpactCap, "cg_lightningImpactCap", "192", CVAR_ARCHIVE},
+    {&cg_screenDamageAlpha, "cg_screenDamageAlpha", "200", CVAR_ARCHIVE},
+    {&cg_screenDamageAlpha_Team, "cg_screenDamageAlpha_Team", "200", CVAR_ARCHIVE},
+    {&cg_scalePlayerModelsToBB, "cg_scalePlayerModelsToBB", "1", 0},
+
+    // [QL] gameplay cvars
+    {&cg_autoAction, "cg_autoAction", "3", CVAR_ARCHIVE},
+    {&cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE},
+    {&cg_latchedHookOffset, "cg_latchedHookOffset", "1.0", CVAR_ARCHIVE},
+    {&cg_overheadNamesWidth, "cg_overheadNamesWidth", "75", CVAR_ARCHIVE},
+    {&cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", CVAR_ARCHIVE | CVAR_USERINFO},
+    {&cg_predictLocalRailshots, "cg_predictLocalRailshots", "1", 0},
+    {&cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE},
+
+    // [QL] camera/view cvars
+    {&cg_cameraSmartMode, "cg_cameraSmartMode", "0", CVAR_ARCHIVE},
+    {&cg_cameraThirdPersonSmartMode, "cg_cameraThirdPersonSmartMode", "1", CVAR_ARCHIVE},
+    {&cg_filter_angles, "cg_filter_angles", "0", CVAR_ARCHIVE},
+    {&cg_stereoSeparation, "cg_stereoSeparation", "0.4", CVAR_ARCHIVE},
+
+    // [QL] loadout disable cvars
+    {&cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_gt, "cg_disableLoadout_gt", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_pm, "cg_disableLoadout_pm", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ARCHIVE},
+
+    // [QL] game info cvars (server-to-client state)
+    {&cg_gameInfo1, "cg_gameInfo1", "0", CVAR_ROM},
+    {&cg_gameInfo2, "cg_gameInfo2", "0", CVAR_ROM},
+    {&cg_gameInfo3, "cg_gameInfo3", "0", CVAR_ROM},
+    {&cg_gameInfo4, "cg_gameInfo4", "0", CVAR_ROM},
+    {&cg_gameInfo5, "cg_gameInfo5", "0", CVAR_ROM},
+    {&cg_gameInfo6, "cg_gameInfo6", "0", CVAR_ROM},
+
+    // [QL] team name cvars
+    {&cg_blueTeamName, "cg_blueTeamName", "", 0},
+    {&cg_redTeamName, "cg_redTeamName", "", 0},
+    {&cg_playerTeam, "cg_playerTeam", "", 0},
+
+    // [QL] voice/chat cvars
+    {&cg_playVoiceChats, "cg_playVoiceChats", "0", CVAR_ARCHIVE},
+    {&cg_showVoiceText, "cg_showVoiceText", "0", CVAR_ARCHIVE},
+
+    // [QL] misc cvars
+    {&cg_debugFlags, "cg_debugFlags", "0", 0},
+    {&cg_drawProfileImages, "cg_drawProfileImages", "1", CVAR_ARCHIVE},
+    {&cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ROM},
+    {&cg_lastmsg, "cg_lastmsg", "", CVAR_ROM},
+    {&cg_trackPlayer, "cg_trackPlayer", "-1", 0},
+    {&cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_ROM},
+
+    // [QL] UI state cvars (shared with UI module)
+    {&ui_endMapVotingDisabled, "ui_endMapVotingDisabled", "0", CVAR_ROM},
+    {&ui_gameTypeVotingDisabled, "ui_gameTypeVotingDisabled", "0", CVAR_ROM},
+    {&ui_intermission, "ui_intermission", "0", CVAR_ROM},
+    {&ui_mainmenu, "ui_mainmenu", "1", CVAR_ROM},
+    {&ui_mapVotingDisabled, "ui_mapVotingDisabled", "0", CVAR_ROM},
+    {&ui_voteactive, "ui_voteactive", "0", CVAR_ROM},
+    {&ui_votestring, "ui_votestring", "", CVAR_ROM},
+    {&ui_warmup, "ui_warmup", "0", CVAR_ROM},
+
+    // [QL] g_ cvars read by cgame
+    {&g_skipTrainingEnable, "g_skipTrainingEnable", "0", 0},
+    {&g_training, "g_training", "0", 0},
+
+    // [QL] internal/ROM cvars
+    {&cg_loadout, "cg_loadout", "0", CVAR_ROM},
+    {&cg_spectating, "cg_spectating", "0", CVAR_ROM},
 };
 
 static int cvarTableSize = ARRAY_LEN(cvarTable);
@@ -332,8 +844,6 @@ void CG_RegisterCvars(void) {
 
     trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE);
     trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE);
-    trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE);
-    trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE);
 }
 
 /*
@@ -523,25 +1033,26 @@ static void CG_RegisterSounds(void) {
     char name[MAX_QPATH];
     const char* soundName;
 
-    cgs.media.oneMinuteSound = trap_S_RegisterSound("sound/vo/1_minute", qtrue);
-    cgs.media.fiveMinuteSound = trap_S_RegisterSound("sound/vo/5_minute", qtrue);
-    cgs.media.suddenDeathSound = trap_S_RegisterSound("sound/vo/sudden_death", qtrue);
-    cgs.media.oneFragSound = trap_S_RegisterSound("sound/vo/1_frag", qtrue);
-    cgs.media.twoFragSound = trap_S_RegisterSound("sound/vo/2_frags", qtrue);
-    cgs.media.threeFragSound = trap_S_RegisterSound("sound/vo/3_frags", qtrue);
-    cgs.media.count3Sound = trap_S_RegisterSound("sound/vo/three", qtrue);
-    cgs.media.count2Sound = trap_S_RegisterSound("sound/vo/two", qtrue);
-    cgs.media.count1Sound = trap_S_RegisterSound("sound/vo/one", qtrue);
-    cgs.media.countFightSound = trap_S_RegisterSound("sound/vo/fight", qtrue);
-    cgs.media.countPrepareSound = trap_S_RegisterSound("sound/vo/prepare_to_fight", qtrue);
-    cgs.media.countPrepareTeamSound = trap_S_RegisterSound("sound/vo/prepare_your_team", qtrue);
+    // [QL] vo sounds use announcer voice prefix (vo/vo_evil/vo_female)
+    cgs.media.oneMinuteSound = trap_S_RegisterSound("sound/vo/1_minute.ogg", qtrue);
+    cgs.media.fiveMinuteSound = trap_S_RegisterSound("sound/vo/5_minute.ogg", qtrue);
+    cgs.media.suddenDeathSound = trap_S_RegisterSound("sound/vo/sudden_death.ogg", qtrue);
+    cgs.media.oneFragSound = trap_S_RegisterSound("sound/vo/1_frag.ogg", qtrue);
+    cgs.media.twoFragSound = trap_S_RegisterSound("sound/vo/2_frags.ogg", qtrue);
+    cgs.media.threeFragSound = trap_S_RegisterSound("sound/vo/3_frags.ogg", qtrue);
+    cgs.media.count3Sound = trap_S_RegisterSound("sound/vo/three.ogg", qtrue);
+    cgs.media.count2Sound = trap_S_RegisterSound("sound/vo/two.ogg", qtrue);
+    cgs.media.count1Sound = trap_S_RegisterSound("sound/vo/one.ogg", qtrue);
+    cgs.media.countFightSound = trap_S_RegisterSound("sound/vo/fight.ogg", qtrue);
+    cgs.media.countPrepareSound = trap_S_RegisterSound("sound/vo/prepare_to_fight.ogg", qtrue);
+    cgs.media.countPrepareTeamSound = trap_S_RegisterSound("sound/vo/prepare_your_team.ogg", qtrue);
 
     if (cgs.gametype >= GT_TEAM || cg_buildScript.integer) {
         cgs.media.captureAwardSound = trap_S_RegisterSound("sound/teamplay/flagcapture_yourteam", qtrue);
         cgs.media.redLeadsSound = trap_S_RegisterSound("sound/vo/red_leads", qtrue);
         cgs.media.blueLeadsSound = trap_S_RegisterSound("sound/vo/blue_leads", qtrue);
         cgs.media.teamsTiedSound = trap_S_RegisterSound("sound/vo/teams_tied", qtrue);
-        cgs.media.hitTeamSound = trap_S_RegisterSound("sound/vo/hit_teammate", qtrue);
+        cgs.media.hitTeamSound = trap_S_RegisterSound("sound/feedback/hit_teammate", qtrue);
 
         cgs.media.redScoredSound = trap_S_RegisterSound("sound/vo/red_scores", qtrue);
         cgs.media.blueScoredSound = trap_S_RegisterSound("sound/vo/blue_scores", qtrue);
@@ -563,7 +1074,7 @@ static void CG_RegisterSounds(void) {
         }
 
         if (cgs.gametype == GT_1FCTF || cg_buildScript.integer) {
-            cgs.media.neutralFlagReturnedSound = trap_S_RegisterSound("sound/teamplay/flagreturn_opponent.wav", qtrue);
+            cgs.media.neutralFlagReturnedSound = trap_S_RegisterSound("sound/teamplay/flagreturn_opponent.ogg", qtrue);
             cgs.media.yourTeamTookTheFlagSound = trap_S_RegisterSound("sound/vo/your_team_has_flag", qtrue);
             cgs.media.enemyTookTheFlagSound = trap_S_RegisterSound("sound/vo/the_enemy_has_flag", qtrue);
         }
@@ -574,94 +1085,104 @@ static void CG_RegisterSounds(void) {
         }
 
         if (cgs.gametype == GT_OBELISK || cg_buildScript.integer) {
-            cgs.media.yourBaseIsUnderAttackSound = trap_S_RegisterSound("sound/teamplay/voc_base_attack.wav", qtrue);
+            cgs.media.yourBaseIsUnderAttackSound = trap_S_RegisterSound("sound/teamplay/voc_base_attack.ogg", qtrue);
         }
     }
 
-    cgs.media.tracerSound = trap_S_RegisterSound("sound/weapons/machinegun/buletby1", qfalse);
-    cgs.media.selectSound = trap_S_RegisterSound("sound/weapons/change", qfalse);
-    cgs.media.wearOffSound = trap_S_RegisterSound("sound/items/wearoff", qfalse);
-    cgs.media.useNothingSound = trap_S_RegisterSound("sound/items/use_nothing", qfalse);  // haven't re-mapped the sounds below
-    cgs.media.gibSound = trap_S_RegisterSound("dlc_gibs/gibsplt1", qfalse);
-    cgs.media.gibBounce1Sound = trap_S_RegisterSound("dlc_gibs/gibimp1", qfalse);
-    cgs.media.gibBounce2Sound = trap_S_RegisterSound("dlc_gibs/gibimp2", qfalse);
-    cgs.media.gibBounce3Sound = trap_S_RegisterSound("dlc_gibs/gibimp3", qfalse);
+    cgs.media.tracerSound = trap_S_RegisterSound("sound/weapons/machinegun/buletby1.ogg", qfalse);
+    cgs.media.selectSound = trap_S_RegisterSound("sound/weapons/change.ogg", qfalse);
+    cgs.media.wearOffSound = trap_S_RegisterSound("sound/items/wearoff.ogg", qfalse);
+    cgs.media.useNothingSound = trap_S_RegisterSound("sound/items/use_nothing.ogg", qfalse);
+    cgs.media.gibSound = trap_S_RegisterSound("dlc_gibs/gibsplt1.ogg", qfalse);
+    cgs.media.gibBounce1Sound = trap_S_RegisterSound("dlc_gibs/gibimp1.ogg", qfalse);
+    cgs.media.gibBounce2Sound = trap_S_RegisterSound("dlc_gibs/gibimp2.ogg", qfalse);
+    cgs.media.gibBounce3Sound = trap_S_RegisterSound("dlc_gibs/gibimp3.ogg", qfalse);
 
-    cgs.media.useInvulnerabilitySound = trap_S_RegisterSound("sound/items/invul_activate.wav", qfalse);
-    cgs.media.invulnerabilityImpactSound1 = trap_S_RegisterSound("sound/items/invul_impact_01.wav", qfalse);
-    cgs.media.invulnerabilityImpactSound2 = trap_S_RegisterSound("sound/items/invul_impact_02.wav", qfalse);
-    cgs.media.invulnerabilityImpactSound3 = trap_S_RegisterSound("sound/items/invul_impact_03.wav", qfalse);
-    cgs.media.invulnerabilityJuicedSound = trap_S_RegisterSound("sound/items/invul_juiced.wav", qfalse);
-    cgs.media.obeliskHitSound1 = trap_S_RegisterSound("sound/items/obelisk_hit_01.wav", qfalse);
-    cgs.media.obeliskHitSound2 = trap_S_RegisterSound("sound/items/obelisk_hit_02.wav", qfalse);
-    cgs.media.obeliskHitSound3 = trap_S_RegisterSound("sound/items/obelisk_hit_03.wav", qfalse);
-    cgs.media.obeliskRespawnSound = trap_S_RegisterSound("sound/items/obelisk_respawn.wav", qfalse);
+    cgs.media.useInvulnerabilitySound = trap_S_RegisterSound("sound/items/invul_activate.ogg", qfalse);
+    cgs.media.invulnerabilityImpactSound1 = trap_S_RegisterSound("sound/items/invul_impact_01.ogg", qfalse);
+    cgs.media.invulnerabilityImpactSound2 = trap_S_RegisterSound("sound/items/invul_impact_02.ogg", qfalse);
+    cgs.media.invulnerabilityImpactSound3 = trap_S_RegisterSound("sound/items/invul_impact_03.ogg", qfalse);
+    cgs.media.invulnerabilityJuicedSound = trap_S_RegisterSound("dlc_gibs/invul_juiced.ogg", qfalse);
+    cgs.media.obeliskHitSound1 = trap_S_RegisterSound("sound/items/obelisk_hit_01.ogg", qfalse);
+    cgs.media.obeliskHitSound2 = trap_S_RegisterSound("sound/items/obelisk_hit_02.ogg", qfalse);
+    cgs.media.obeliskHitSound3 = trap_S_RegisterSound("sound/items/obelisk_hit_03.ogg", qfalse);
+    cgs.media.obeliskRespawnSound = trap_S_RegisterSound("sound/items/obelisk_respawn.ogg", qfalse);
 
-    cgs.media.ammoregenSound = trap_S_RegisterSound("sound/items/cl_ammoregen.wav", qfalse);
-    cgs.media.doublerSound = trap_S_RegisterSound("sound/items/cl_doubler.wav", qfalse);
-    cgs.media.guardSound = trap_S_RegisterSound("sound/items/cl_guard.wav", qfalse);
-    cgs.media.scoutSound = trap_S_RegisterSound("sound/items/cl_scout.wav", qfalse);
+    // [QL] renamed from cl_* prefix
+    cgs.media.ammoregenSound = trap_S_RegisterSound("sound/items/armorregen.ogg", qfalse);
+    cgs.media.doublerSound = trap_S_RegisterSound("sound/items/damage.ogg", qfalse);  // no dedicated doubler sound in QL
+    cgs.media.guardSound = trap_S_RegisterSound("sound/items/guard.ogg", qfalse);
+    cgs.media.scoutSound = trap_S_RegisterSound("sound/items/scout.ogg", qfalse);
 
-    cgs.media.teleInSound = trap_S_RegisterSound("sound/world/telein.wav", qfalse);
-    cgs.media.teleOutSound = trap_S_RegisterSound("sound/world/teleout.wav", qfalse);
-    cgs.media.respawnSound = trap_S_RegisterSound("sound/items/respawn1.wav", qfalse);
+    cgs.media.teleInSound = trap_S_RegisterSound("sound/world/telein.ogg", qfalse);
+    cgs.media.teleOutSound = trap_S_RegisterSound("sound/world/teleout.ogg", qfalse);
+    cgs.media.respawnSound = trap_S_RegisterSound("sound/items/respawn1.ogg", qfalse);
 
-    cgs.media.noAmmoSound = trap_S_RegisterSound("sound/weapons/noammo.wav", qfalse);
+    cgs.media.noAmmoSound = trap_S_RegisterSound("sound/weapons/noammo.ogg", qfalse);
 
-    cgs.media.talkSound = trap_S_RegisterSound("sound/player/talk.wav", qfalse);
-    cgs.media.landSound = trap_S_RegisterSound("sound/player/land1.wav", qfalse);
+    cgs.media.talkSound = trap_S_RegisterSound("sound/player/talk.ogg", qfalse);
+    cgs.media.landSound = trap_S_RegisterSound("sound/player/land1.ogg", qfalse);
 
-    cgs.media.hitSound = trap_S_RegisterSound("sound/feedback/hit.wav", qfalse);
+    cgs.media.hitSound = trap_S_RegisterSound("sound/feedback/hit0.ogg", qfalse);
 
-    cgs.media.hitSoundHighArmor = trap_S_RegisterSound("sound/feedback/hithi.wav", qfalse);
-    cgs.media.hitSoundLowArmor = trap_S_RegisterSound("sound/feedback/hitlo.wav", qfalse);
+    // [QL] hit tier sounds use hit0-hit3 instead of hithi/hitlo
+    cgs.media.hitSoundHighArmor = trap_S_RegisterSound("sound/feedback/hit0.ogg", qfalse);
+    cgs.media.hitSoundLowArmor = trap_S_RegisterSound("sound/feedback/hit3.ogg", qfalse);
 
-    cgs.media.impressiveSound = trap_S_RegisterSound("sound/feedback/impressive.wav", qtrue);
-    cgs.media.excellentSound = trap_S_RegisterSound("sound/feedback/excellent.wav", qtrue);
-    cgs.media.deniedSound = trap_S_RegisterSound("sound/feedback/denied.wav", qtrue);
-    cgs.media.humiliationSound = trap_S_RegisterSound("sound/feedback/humiliation.wav", qtrue);
-    cgs.media.assistSound = trap_S_RegisterSound("sound/feedback/assist.wav", qtrue);
-    cgs.media.defendSound = trap_S_RegisterSound("sound/feedback/defense.wav", qtrue);
+    // [QL] announcements moved from sound/feedback/ to sound/vo/
+    cgs.media.impressiveSound = trap_S_RegisterSound("sound/vo/impressive1.ogg", qtrue);
+    cgs.media.excellentSound = trap_S_RegisterSound("sound/vo/excellent1.ogg", qtrue);
+    cgs.media.deniedSound = trap_S_RegisterSound("sound/vo/denied.ogg", qtrue);
+    cgs.media.humiliationSound = trap_S_RegisterSound("sound/vo/humiliation1.ogg", qtrue);
+    cgs.media.assistSound = trap_S_RegisterSound("sound/vo/assist.ogg", qtrue);
+    cgs.media.defendSound = trap_S_RegisterSound("sound/vo/defense.ogg", qtrue);
 
-    cgs.media.firstImpressiveSound = trap_S_RegisterSound("sound/feedback/first_impressive.wav", qtrue);
-    cgs.media.firstExcellentSound = trap_S_RegisterSound("sound/feedback/first_excellent.wav", qtrue);
-    cgs.media.firstHumiliationSound = trap_S_RegisterSound("sound/feedback/first_gauntlet.wav", qtrue);
+    cgs.media.firstImpressiveSound = trap_S_RegisterSound("sound/vo/first_impressive.ogg", qtrue);
+    cgs.media.firstExcellentSound = trap_S_RegisterSound("sound/vo/first_excellent.ogg", qtrue);
+    cgs.media.firstHumiliationSound = trap_S_RegisterSound("sound/vo/first_gauntlet.ogg", qtrue);
 
-    cgs.media.takenLeadSound = trap_S_RegisterSound("sound/feedback/takenlead.wav", qtrue);
-    cgs.media.tiedLeadSound = trap_S_RegisterSound("sound/feedback/tiedlead.wav", qtrue);
-    cgs.media.lostLeadSound = trap_S_RegisterSound("sound/feedback/lostlead.wav", qtrue);
+    cgs.media.takenLeadSound = trap_S_RegisterSound("sound/vo/lead_taken.ogg", qtrue);
+    cgs.media.tiedLeadSound = trap_S_RegisterSound("sound/vo/lead_tied.ogg", qtrue);
+    cgs.media.lostLeadSound = trap_S_RegisterSound("sound/vo/lead_lost.ogg", qtrue);
 
-    cgs.media.voteNow = trap_S_RegisterSound("sound/feedback/vote_now.wav", qtrue);
-    cgs.media.votePassed = trap_S_RegisterSound("sound/feedback/vote_passed.wav", qtrue);
-    cgs.media.voteFailed = trap_S_RegisterSound("sound/feedback/vote_failed.wav", qtrue);
+    cgs.media.voteNow = trap_S_RegisterSound("sound/vo/vote_now.ogg", qtrue);
+    cgs.media.votePassed = trap_S_RegisterSound("sound/vo/vote_passed.ogg", qtrue);
+    cgs.media.voteFailed = trap_S_RegisterSound("sound/vo/vote_failed.ogg", qtrue);
 
-    cgs.media.watrInSound = trap_S_RegisterSound("sound/player/watr_in.wav", qfalse);
-    cgs.media.watrOutSound = trap_S_RegisterSound("sound/player/watr_out.wav", qfalse);
-    cgs.media.watrUnSound = trap_S_RegisterSound("sound/player/watr_un.wav", qfalse);
+    cgs.media.watrInSound = trap_S_RegisterSound("sound/player/watr_in.ogg", qfalse);
+    cgs.media.watrOutSound = trap_S_RegisterSound("sound/player/watr_out.ogg", qfalse);
+    cgs.media.watrUnSound = trap_S_RegisterSound("sound/player/watr_un.ogg", qfalse);
 
-    cgs.media.jumpPadSound = trap_S_RegisterSound("sound/world/jumppad.wav", qfalse);
+    cgs.media.jumpPadSound = trap_S_RegisterSound("sound/world/jumppad.ogg", qfalse);
 
     for (i = 0; i < 4; i++) {
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/step%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/step%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_NORMAL][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/boot%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/boot%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_BOOT][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/flesh%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/flesh%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_FLESH][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/mech%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/mech%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_MECH][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/energy%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/energy%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_ENERGY][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/splash%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/splash%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_SPLASH][i] = trap_S_RegisterSound(name, qfalse);
 
-        Com_sprintf(name, sizeof(name), "sound/player/footsteps/clank%i.wav", i + 1);
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/clank%i.ogg", i + 1);
         cgs.media.footsteps[FOOTSTEP_METAL][i] = trap_S_RegisterSound(name, qfalse);
+
+        // [QL] snow and wood surface footsteps
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/snow%i.ogg", i + 1);
+        cgs.media.footsteps[FOOTSTEP_SNOW][i] = trap_S_RegisterSound(name, qfalse);
+
+        Com_sprintf(name, sizeof(name), "sound/player/footsteps/wood%i.ogg", i + 1);
+        cgs.media.footsteps[FOOTSTEP_WOOD][i] = trap_S_RegisterSound(name, qfalse);
     }
 
     // only register the items that the server says we need
@@ -683,66 +1204,47 @@ static void CG_RegisterSounds(void) {
     }
 
     // FIXME: only needed with item
-    cgs.media.flightSound = trap_S_RegisterSound("sound/items/flight.wav", qfalse);
-    cgs.media.medkitSound = trap_S_RegisterSound("sound/items/use_medkit.wav", qfalse);
-    cgs.media.quadSound = trap_S_RegisterSound("sound/items/damage3.wav", qfalse);
-    cgs.media.sfx_ric1 = trap_S_RegisterSound("sound/weapons/machinegun/ric1.wav", qfalse);
-    cgs.media.sfx_ric2 = trap_S_RegisterSound("sound/weapons/machinegun/ric2.wav", qfalse);
-    cgs.media.sfx_ric3 = trap_S_RegisterSound("sound/weapons/machinegun/ric3.wav", qfalse);
-    // cgs.media.sfx_railg = trap_S_RegisterSound ("sound/weapons/railgun/railgf1a.wav", qfalse);
-    cgs.media.sfx_rockexp = trap_S_RegisterSound("sound/weapons/rocket/rocklx1a.wav", qfalse);
-    cgs.media.sfx_plasmaexp = trap_S_RegisterSound("sound/weapons/plasma/plasmx1a.wav", qfalse);
+    cgs.media.flightSound = trap_S_RegisterSound("sound/items/flight.ogg", qfalse);
+    cgs.media.medkitSound = trap_S_RegisterSound("sound/items/use_medkit.ogg", qfalse);
+    cgs.media.quadSound = trap_S_RegisterSound("sound/items/damage3.ogg", qfalse);
+    cgs.media.sfx_ric1 = trap_S_RegisterSound("sound/weapons/machinegun/ric1.ogg", qfalse);
+    cgs.media.sfx_ric2 = trap_S_RegisterSound("sound/weapons/machinegun/ric2.ogg", qfalse);
+    cgs.media.sfx_ric3 = trap_S_RegisterSound("sound/weapons/machinegun/ric3.ogg", qfalse);
+    cgs.media.sfx_rockexp = trap_S_RegisterSound("sound/weapons/rocket/rocklx1a.ogg", qfalse);
+    cgs.media.sfx_plasmaexp = trap_S_RegisterSound("sound/weapons/plasma/plasmx1a.ogg", qfalse);
 
-    cgs.media.sfx_proxexp = trap_S_RegisterSound("sound/weapons/proxmine/wstbexpl.wav", qfalse);
-    cgs.media.sfx_nghit = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpd.wav", qfalse);
-    cgs.media.sfx_nghitflesh = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpl.wav", qfalse);
-    cgs.media.sfx_nghitmetal = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpm.wav", qfalse);
-    cgs.media.sfx_chghit = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpd.wav", qfalse);
-    cgs.media.sfx_chghitflesh = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpl.wav", qfalse);
-    cgs.media.sfx_chghitmetal = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpm.wav", qfalse);
-    cgs.media.weaponHoverSound = trap_S_RegisterSound("sound/weapons/weapon_hover.wav", qfalse);
-    cgs.media.kamikazeExplodeSound = trap_S_RegisterSound("sound/items/kam_explode.wav", qfalse);
-    cgs.media.kamikazeImplodeSound = trap_S_RegisterSound("sound/items/kam_implode.wav", qfalse);
-    cgs.media.kamikazeFarSound = trap_S_RegisterSound("sound/items/kam_explode_far.wav", qfalse);
-    cgs.media.winnerSound = trap_S_RegisterSound("sound/feedback/voc_youwin.wav", qfalse);
-    cgs.media.loserSound = trap_S_RegisterSound("sound/feedback/voc_youlose.wav", qfalse);
+    cgs.media.sfx_proxexp = trap_S_RegisterSound("sound/weapons/proxmine/wstbexpl.ogg", qfalse);
+    cgs.media.sfx_nghit = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpd.ogg", qfalse);
+    cgs.media.sfx_nghitflesh = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpl.ogg", qfalse);
+    cgs.media.sfx_nghitmetal = trap_S_RegisterSound("sound/weapons/nailgun/wnalimpm.ogg", qfalse);
+    cgs.media.sfx_chghit = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpd.ogg", qfalse);
+    cgs.media.sfx_chghitflesh = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpl.ogg", qfalse);
+    cgs.media.sfx_chghitmetal = trap_S_RegisterSound("sound/weapons/vulcan/wvulimpm.ogg", qfalse);
+    cgs.media.weaponHoverSound = trap_S_RegisterSound("sound/weapons/weapon_hover.ogg", qfalse);
+    cgs.media.kamikazeExplodeSound = trap_S_RegisterSound("sound/items/kam_explode.ogg", qfalse);
+    cgs.media.kamikazeImplodeSound = trap_S_RegisterSound("sound/items/kam_implode.ogg", qfalse);
+    cgs.media.kamikazeFarSound = trap_S_RegisterSound("sound/items/kam_explode_far.ogg", qfalse);
+    // [QL] moved from sound/feedback/voc_youwin to sound/vo/you_win
+    cgs.media.winnerSound = trap_S_RegisterSound("sound/vo/you_win.ogg", qfalse);
+    cgs.media.loserSound = trap_S_RegisterSound("sound/vo/you_lose.ogg", qfalse);
 
-    cgs.media.wstbimplSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpl.wav", qfalse);
-    cgs.media.wstbimpmSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpm.wav", qfalse);
-    cgs.media.wstbimpdSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpd.wav", qfalse);
-    cgs.media.wstbactvSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbactv.wav", qfalse);
+    cgs.media.wstbimplSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpl.ogg", qfalse);
+    cgs.media.wstbimpmSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpm.ogg", qfalse);
+    cgs.media.wstbimpdSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbimpd.ogg", qfalse);
+    cgs.media.wstbactvSound = trap_S_RegisterSound("sound/weapons/proxmine/wstbactv.ogg", qfalse);
 
-    cgs.media.regenSound = trap_S_RegisterSound("sound/items/regen.wav", qfalse);
-    cgs.media.protectSound = trap_S_RegisterSound("sound/items/protect3.wav", qfalse);
-    cgs.media.n_healthSound = trap_S_RegisterSound("sound/items/n_health.wav", qfalse);
-    cgs.media.hgrenb1aSound = trap_S_RegisterSound("sound/weapons/grenade/hgrenb1a.wav", qfalse);
-    cgs.media.hgrenb2aSound = trap_S_RegisterSound("sound/weapons/grenade/hgrenb2a.wav", qfalse);
+    cgs.media.regenSound = trap_S_RegisterSound("sound/items/regen.ogg", qfalse);
+    cgs.media.protectSound = trap_S_RegisterSound("sound/items/protect3.ogg", qfalse);
+    cgs.media.n_healthSound = trap_S_RegisterSound("sound/items/n_health.ogg", qfalse);
+    cgs.media.hgrenb1aSound = trap_S_RegisterSound("sound/weapons/grenade/hgrenb1a.ogg", qfalse);
+    cgs.media.hgrenb2aSound = trap_S_RegisterSound("sound/weapons/grenade/hgrenb2a.ogg", qfalse);
 
-    trap_S_RegisterSound("sound/player/james/death1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/death2.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/death3.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/jump1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/pain25_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/pain75_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/pain100_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/falling1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/gasp.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/drown.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/fall1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/james/taunt.wav", qfalse);
-
-    trap_S_RegisterSound("sound/player/janet/death1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/death2.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/death3.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/jump1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/pain25_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/pain75_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/pain100_1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/falling1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/gasp.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/drown.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/fall1.wav", qfalse);
-    trap_S_RegisterSound("sound/player/janet/taunt.wav", qfalse);
+    // [QL] additional sounds
+    cgs.media.armorRegenSound = trap_S_RegisterSound("sound/misc/ar1_pkup.ogg", qfalse);
+    cgs.media.overtimeSound = trap_S_RegisterSound("sound/world/klaxon2.ogg", qfalse);
+    cgs.media.thawTickSound = trap_S_RegisterSound("sound/misc/tim_pump.ogg", qfalse);
+    cgs.media.raceFinishSound = trap_S_RegisterSound("sound/world/klaxon1.ogg", qfalse);
+    cgs.media.infectedSound = trap_S_RegisterSound("sound/vo/infected.ogg", qfalse);
 }
 
 //===================================================================================
@@ -809,7 +1311,12 @@ static void CG_RegisterGraphics(void) {
     cgs.media.blueProxMine = trap_R_RegisterModel("models/weaphits/proxmineb.md3");
 
     cgs.media.plasmaBallShader = trap_R_RegisterShader("sprites/plasma1");
-    cgs.media.bloodTrailShader = trap_R_RegisterShader("dlc_gibs/juicer");
+    // [QL] blood spray shaders (translucent sprites with proper alpha blend)
+    cgs.media.bloodSprayShaders[0] = trap_R_RegisterShader("bloodSpray1");
+    cgs.media.bloodSprayShaders[1] = trap_R_RegisterShader("bloodSpray2");
+    cgs.media.bloodSprayShaders[2] = trap_R_RegisterShader("bloodSpray3");
+    cgs.media.bloodSprayShaders[3] = trap_R_RegisterShader("bloodSpray4");
+    cgs.media.bloodTrailShader = cgs.media.bloodSprayShaders[0];
     cgs.media.lagometerShader = trap_R_RegisterShader("lagometer");
     cgs.media.connectionShader = trap_R_RegisterShader("disconnected");
 
@@ -817,6 +1324,8 @@ static void CG_RegisterGraphics(void) {
 
     cgs.media.tracerShader = trap_R_RegisterShader("gfx/misc/tracer");
     cgs.media.selectShader = trap_R_RegisterShader("gfx/2d/select");
+    cgs.media.weaponBarHighlightShader = trap_R_RegisterShader("ui/assets/hud/weaplit2.tga");
+    cgs.media.infiniteAmmoShader = trap_R_RegisterShader("icons/infinite.tga");
 
     for (i = 1; i < NUM_CROSSHAIRS; i++) {
         cgs.media.crosshairShader[i] = trap_R_RegisterShader(va("gfx/2d/crosshair%i", i));
@@ -824,6 +1333,7 @@ static void CG_RegisterGraphics(void) {
 
     cgs.media.backTileShader = trap_R_RegisterShader("gfx/2d/backtile");
     cgs.media.noammoShader = trap_R_RegisterShader("icons/noammo");
+    cgs.media.fragIconShader = trap_R_RegisterShader("icons/icon_frag");
 
     // powerup shaders
     cgs.media.quadShader = trap_R_RegisterShader("powerups/quad");
@@ -833,6 +1343,21 @@ static void CG_RegisterGraphics(void) {
     cgs.media.invisShader = trap_R_RegisterShader("powerups/invisibility");
     cgs.media.regenShader = trap_R_RegisterShader("powerups/regen");
     cgs.media.hastePuffShader = trap_R_RegisterShader("hasteSmokePuff");
+
+    // [QL] gametype icons for scoreboard/HUD (from pak00: ui/assets/hud/*.png)
+    cgs.media.gametypeIcon[GT_FFA]        = trap_R_RegisterShaderNoMip("ui/assets/hud/ffa");
+    cgs.media.gametypeIcon[GT_DUEL]       = trap_R_RegisterShaderNoMip("ui/assets/hud/duel");
+    cgs.media.gametypeIcon[GT_RACE]       = trap_R_RegisterShaderNoMip("ui/assets/hud/race");
+    cgs.media.gametypeIcon[GT_TEAM]       = trap_R_RegisterShaderNoMip("ui/assets/hud/tdm");
+    cgs.media.gametypeIcon[GT_CA]         = trap_R_RegisterShaderNoMip("ui/assets/hud/ca");
+    cgs.media.gametypeIcon[GT_CTF]        = trap_R_RegisterShaderNoMip("ui/assets/hud/ctf");
+    cgs.media.gametypeIcon[GT_1FCTF]      = trap_R_RegisterShaderNoMip("ui/assets/hud/1f");
+    cgs.media.gametypeIcon[GT_OBELISK]    = trap_R_RegisterShaderNoMip("ui/assets/hud/ob");
+    cgs.media.gametypeIcon[GT_HARVESTER]  = trap_R_RegisterShaderNoMip("ui/assets/hud/har");
+    cgs.media.gametypeIcon[GT_FREEZE]     = trap_R_RegisterShaderNoMip("ui/assets/hud/ft");
+    cgs.media.gametypeIcon[GT_DOMINATION] = trap_R_RegisterShaderNoMip("ui/assets/hud/dom");
+    cgs.media.gametypeIcon[GT_AD]         = trap_R_RegisterShaderNoMip("ui/assets/hud/ad");
+    cgs.media.gametypeIcon[GT_RR]         = trap_R_RegisterShaderNoMip("ui/assets/hud/rr");
 
     if (cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
         cgs.media.redCubeModel = trap_R_RegisterModel("models/powerups/orb/r_orb.md3");
@@ -890,10 +1415,10 @@ static void CG_RegisterGraphics(void) {
     cgs.media.dustPuffShader = trap_R_RegisterShader("hasteSmokePuff");
 
     if (cgs.gametype >= GT_TEAM || cg_buildScript.integer) {
-        cgs.media.friendShader = trap_R_RegisterShader("sprites/foe");
         cgs.media.redQuadShader = trap_R_RegisterShader("powerups/blueflag");
         cgs.media.teamStatusBar = trap_R_RegisterShader("gfx/2d/colorbar.tga");
         cgs.media.blueKamikazeShader = trap_R_RegisterShader("models/weaphits/kamikblu");
+        cgs.media.poiShader = trap_R_RegisterShader("sprites/neutralflagcarrier");
     }
 
     cgs.media.armorModel = trap_R_RegisterModel("models/powerups/armor/armor_yel.md3");
@@ -917,7 +1442,7 @@ static void CG_RegisterGraphics(void) {
 
     cgs.media.balloonShader = trap_R_RegisterShader("sprites/balloon3");
 
-    cgs.media.bloodExplosionShader = trap_R_RegisterShader("dlc_gibs/juicer");
+    cgs.media.bloodExplosionShader = cgs.media.bloodSprayShaders[0];
 
     cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
     cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
@@ -933,25 +1458,36 @@ static void CG_RegisterGraphics(void) {
     cgs.media.doublerPowerupModel = trap_R_RegisterModel("models/powerups/doubler_player.md3");
     cgs.media.ammoRegenPowerupModel = trap_R_RegisterModel("models/powerups/ammo_player.md3");
     cgs.media.invulnerabilityImpactModel = trap_R_RegisterModel("models/powerups/shield/impact.md3");
-    cgs.media.invulnerabilityJuicedModel = trap_R_RegisterModel("models/powerups/shield/juicer.md3");
+    cgs.media.invulnerabilityJuicedModel = trap_R_RegisterModel("dlc_gibs/juicer.md3");  // [QL] moved from models/powerups/shield/
     cgs.media.medkitUsageModel = trap_R_RegisterModel("models/powerups/regen.md3");
     cgs.media.heartShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/selectedhealth.tga");
     cgs.media.invulnerabilityPowerupModel = trap_R_RegisterModel("models/powerups/shield/shield.md3");
 
-    cgs.media.medalImpressive = trap_R_RegisterShaderNoMip("medal_impressive");
-    cgs.media.medalExcellent = trap_R_RegisterShaderNoMip("medal_excellent");
-    cgs.media.medalGauntlet = trap_R_RegisterShaderNoMip("medal_gauntlet");
-    cgs.media.medalDefend = trap_R_RegisterShaderNoMip("medal_defend");
+    // [QL] 16 medal types (verified from binary CG_RegisterGraphics)
+    cgs.media.medalAccuracy = trap_R_RegisterShaderNoMip("medal_accuracy");
     cgs.media.medalAssist = trap_R_RegisterShaderNoMip("medal_assist");
     cgs.media.medalCapture = trap_R_RegisterShaderNoMip("medal_capture");
+    cgs.media.medalComboKill = trap_R_RegisterShaderNoMip("medal_combokill");
+    cgs.media.medalDefend = trap_R_RegisterShaderNoMip("medal_defense");
+    cgs.media.medalExcellent = trap_R_RegisterShaderNoMip("medal_excellent");
+    cgs.media.medalFirstFrag = trap_R_RegisterShaderNoMip("medal_firstfrag");
+    cgs.media.medalGauntlet = trap_R_RegisterShaderNoMip("medal_gauntlet");
+    cgs.media.medalHeadshot = trap_R_RegisterShaderNoMip("medal_headshot");
+    cgs.media.medalImpressive = trap_R_RegisterShaderNoMip("medal_impressive");
+    cgs.media.medalMidair = trap_R_RegisterShaderNoMip("medal_midair");
+    cgs.media.medalPerfect = trap_R_RegisterShaderNoMip("medal_perfect");
+    cgs.media.medalPerforated = trap_R_RegisterShaderNoMip("medal_perforated");
+    cgs.media.medalQuadGod = trap_R_RegisterShaderNoMip("medal_quadgod");
+    cgs.media.medalRampage = trap_R_RegisterShaderNoMip("medal_rampage");
+    cgs.media.medalRevenge = trap_R_RegisterShaderNoMip("medal_revenge");
 
-    // ads
-    cgs.media.adbox1x1 = trap_R_RegisterShader("adbox1x1");
-    cgs.media.adbox2x1 = trap_R_RegisterShader("adbox2x1");
-    cgs.media.adbox2x1_trans = trap_R_RegisterShader("adbox2x1_trans");
-    cgs.media.adbox4x1 = trap_R_RegisterShader("adbox4x1");
-    cgs.media.adbox8x1 = trap_R_RegisterShader("adbox8x1");
-    cgs.media.adboxblack = trap_R_RegisterShader("adboxblack");
+    // [QL] freeze tag
+    cgs.media.iceShardModel = trap_R_RegisterModel("models/gibs/sphere.md3");
+    cgs.media.iceShardShader1 = trap_R_RegisterShader("powerups/ice1");
+    cgs.media.iceShardShader2 = trap_R_RegisterShader("powerups/ice2");
+    cgs.media.iceShardShader3 = trap_R_RegisterShader("powerups/ice3");
+    cgs.media.frozenShader = trap_R_RegisterShader("sprites/frozen");
+    cgs.media.iceMarkShader = trap_R_RegisterShader("iceMark");
 
     memset(cg_items, 0, sizeof(cg_items));
     memset(cg_weapons, 0, sizeof(cg_weapons));
@@ -973,7 +1509,7 @@ static void CG_RegisterGraphics(void) {
     cgs.media.energyMarkShader = trap_R_RegisterShader("gfx/damage/plasma_mrk");
     cgs.media.shadowMarkShader = trap_R_RegisterShader("markShadow");
     cgs.media.wakeMarkShader = trap_R_RegisterShader("wake");
-    cgs.media.bloodMarkShader = trap_R_RegisterShader("dlc_gibs/blood_stain");
+    cgs.media.bloodMarkShader = cgs.media.bloodSprayShaders[0];
 
     // register the inline models
     cgs.numInlineModels = trap_CM_NumInlineModels();
@@ -1017,13 +1553,14 @@ static void CG_RegisterGraphics(void) {
     cgs.media.flagShaders[1] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_capture.tga");
     cgs.media.flagShaders[2] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_missing.tga");
 
+    // [QL] head models are in the player directory, not a separate heads/ directory
     trap_R_RegisterModel("models/players/james/lower.md3");
     trap_R_RegisterModel("models/players/james/upper.md3");
-    trap_R_RegisterModel("models/players/heads/james/james.md3");
+    trap_R_RegisterModel("models/players/james/head.md3");
 
     trap_R_RegisterModel("models/players/janet/lower.md3");
     trap_R_RegisterModel("models/players/janet/upper.md3");
-    trap_R_RegisterModel("models/players/heads/janet/janet.md3");
+    trap_R_RegisterModel("models/players/janet/head.md3");
 
     CG_ClearParticles();
     /*
@@ -1169,13 +1706,15 @@ qboolean CG_Asset_Parse(int handle) {
             return qtrue;
         }
 
-        // font
+        // font - parse but skip registerFont if already registered by CG_Init
         if (Q_stricmp(token.string, "font") == 0) {
             int pointSize;
             if (!PC_String_Parse(handle, &tempStr) || !PC_Int_Parse(handle, &pointSize)) {
                 return qfalse;
             }
-            cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.textFont);
+            if (!cgDC.Assets.fontRegistered) {
+                cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.textFont);
+            }
             continue;
         }
 
@@ -1185,17 +1724,21 @@ qboolean CG_Asset_Parse(int handle) {
             if (!PC_String_Parse(handle, &tempStr) || !PC_Int_Parse(handle, &pointSize)) {
                 return qfalse;
             }
-            cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.smallFont);
+            if (!cgDC.Assets.fontRegistered) {
+                cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.smallFont);
+            }
             continue;
         }
 
-        // font
+        // bigFont
         if (Q_stricmp(token.string, "bigfont") == 0) {
             int pointSize;
             if (!PC_String_Parse(handle, &tempStr) || !PC_Int_Parse(handle, &pointSize)) {
                 return qfalse;
             }
-            cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.bigFont);
+            if (!cgDC.Assets.fontRegistered) {
+                cgDC.registerFont(tempStr, pointSize, &cgDC.Assets.bigFont);
+            }
             continue;
         }
 
@@ -1431,7 +1974,7 @@ void CG_LoadMenus(const char* menuFile) {
         }
     }
 
-    Com_Printf("UI menu load time = %d milli seconds\n", trap_Milliseconds() - start);
+    Com_Printf("UI menu load time = %d milliseconds\n", trap_Milliseconds() - start);
 }
 
 static qboolean CG_OwnerDrawHandleKey(int ownerDraw, int flags, float* special, int key) {
@@ -1453,8 +1996,16 @@ static int CG_FeederCount(float feederID) {
                 count++;
             }
         }
-    } else if (feederID == FEEDER_SCOREBOARD) {
+    } else if (feederID == FEEDER_SCOREBOARD || feederID == FEEDER_ENDSCOREBOARD) {
         return cg.numScores;
+    } else if (feederID == FEEDER_REDTEAM_STATS) {
+        for (i = 0; i < cg.numScores; i++) {
+            if (cg.scores[i].team == TEAM_RED) count++;
+        }
+    } else if (feederID == FEEDER_BLUETEAM_STATS) {
+        for (i = 0; i < cg.numScores; i++) {
+            if (cg.scores[i].team == TEAM_BLUE) count++;
+        }
     }
     return count;
 }
@@ -1512,14 +2063,213 @@ static clientInfo_t* CG_InfoFromScoreIndex(int index, int team, int* scoreIndex)
     return &cgs.clientinfo[cg.scores[index].client];
 }
 
+// [QL] Format damage with "k" suffix for scoreboard display (binary-verified)
+static const char* CG_FormatDamage(int dmg) {
+    if (dmg >= 10000) return va("%.0fk", (float)dmg / 1000.0f);
+    if (dmg >= 1000) return va("%.1fk", (float)dmg / 1000.0f);
+    return va("%d", dmg);
+}
+
+// [QL] FFA/Duel/RR scoreboard columns 6-13 (14 total, binary FUN_10026160)
+static const char* CG_FeederColumnsFfa(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
+    switch (column) {
+        case 6:
+            return "";
+        case 7:
+            if (sp->score == -9999 || sp->score == -999) return "";
+            return va("%d", sp->score);
+        case 8:
+            return va("%d/%d", sp->frags, sp->deaths);
+        case 9:
+            return CG_FormatDamage(sp->damageDone);
+        case 10:
+            if (sp->damageDone > 0 && sp->bestWeapon > 0 && sp->bestWeapon < WP_NUM_WEAPONS)
+                *handle = cg_weapons[sp->bestWeapon].weaponIcon;
+            return "";
+        case 11:
+            if (sp->damageDone > 0 && sp->bestWeapon > 0)
+                return va("%d%%", sp->bestWeaponAccuracy);
+            return "";
+        case 12:
+            return va("%d", sp->time);
+        case 13:
+            if (sp->ping == -1) return "connecting";
+            return va("%d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] TDM columns 6-9 (10 total), FT columns 6-9 (10 total) - binary FUN_10027e30
+static const char* CG_FeederColumnsTdm(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
+    switch (column) {
+        case 6:
+            if (sp->score == -9999 || sp->score == -999) return "";
+            return va("%d", sp->score);
+        case 7:
+            if (cgs.gametype == GT_FREEZE)
+                return va("%d/%d", sp->frags, sp->deaths);
+            return va("%d", sp->net);
+        case 8:
+            if (cgs.gametype == GT_FREEZE)
+                return va("%d", sp->thaws);
+            return CG_FormatDamage(sp->damageDone);
+        case 9:
+            if (sp->ping == -1) return "connecting";
+            return va("%d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] CA columns 6-11 (12 total) - binary FUN_10027240
+static const char* CG_FeederColumnsCa(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
+    switch (column) {
+        case 6:
+            if (sp->score == -9999 || sp->score == -999) return "";
+            return va("%d", sp->score);
+        case 7:
+            return va("%d/%d", sp->frags, sp->deaths);
+        case 8:
+            return CG_FormatDamage(sp->damageDone);
+        case 9:
+            if (sp->damageDone > 0 && sp->bestWeapon > 0 && sp->bestWeapon < WP_NUM_WEAPONS)
+                *handle = cg_weapons[sp->bestWeapon].weaponIcon;
+            return "";
+        case 10:
+            if (sp->damageDone > 0 && sp->bestWeapon > 0)
+                return va("%d%%", sp->bestWeaponAccuracy);
+            return "";
+        case 11:
+            if (sp->ping == -1) return "connecting";
+            return va("%d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] CTF/1FCTF/HAR/DOM/AD columns 6-11 (12 total) - binary FUN_100268b0
+static const char* CG_FeederColumnsCtf(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
+    switch (column) {
+        case 6:
+            if (sp->score == -9999 || sp->score == -999) return "";
+            return va("%d", sp->score);
+        case 7:
+            return va("%d/%d", sp->frags, sp->deaths);
+        case 8:
+            return va("%d", sp->captures);
+        case 9:
+            return va("%d", sp->assistCount);
+        case 10:
+            return va("%d", sp->defendCount);
+        case 11:
+            if (sp->ping == -1) return "connecting";
+            return va("%d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] Race scoreboard columns 0-6 (7 total, different layout) - binary FUN_10027c40
+static const char* CG_FeederItemTextRace(clientInfo_t* info, score_t* sp, int column, qhandle_t* handle) {
+    switch (column) {
+        case 0:
+            *handle = info->modelIcon;
+            return "";
+        case 1:
+            return "";
+        case 2:
+            if (cg.warmup) {
+                *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
+                    ? trap_R_RegisterShader("ui/assets/score/arrowg")
+                    : trap_R_RegisterShader("ui/assets/score/arrowr");
+            }
+            return "";
+        case 3:
+            return info->name;
+        case 4:
+            if (sp->score > 0 && sp->score != 0x7FFFFFFF)
+                return va("%d:%02d.%03d", sp->score / 60000, (sp->score / 1000) % 60, sp->score % 1000);
+            return "";
+        case 5:
+            return va("%d", sp->time);
+        case 6:
+            if (sp->ping == -1) return "connecting";
+            return va("%d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] Stats feeder - returns available data, stubs for unavailable per-weapon/item stats
+// Binary has separate functions per gametype: FUN_10028300 (TDM/FT), CG_FeederItemText (CA), FUN_10026cf0 (CTF)
+static const char* CG_FeederItemTextStats(float feederID, int index, int column, qhandle_t* handle) {
+    int scoreIndex = 0;
+    int team = (feederID == FEEDER_REDTEAM_STATS) ? TEAM_RED : TEAM_BLUE;
+    clientInfo_t* info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
+    score_t* sp = &cg.scores[scoreIndex];
+
+    if (!info || !info->infoValid) return "";
+
+    switch (cgs.gametype) {
+        case GT_CA:
+            // CA stats: 17 columns
+            switch (column) {
+                case 0: return info->name;
+                case 1: return va("%d", sp->score);
+                case 2: return va("%d", sp->frags);
+                case 3: return va("%d", sp->deaths);
+                case 4: return CG_FormatDamage(sp->damageDone);
+                case 5: return "";
+                case 6: return va("%d%%", sp->accuracy);
+                case 16: return va("%d", sp->time);
+            }
+            return "";
+        case GT_TEAM:
+        case GT_FREEZE:
+            // TDM/FT stats: 18 columns
+            switch (column) {
+                case 0: return info->name;
+                case 1: return va("%d", sp->score);
+                case 2: return va("%d", sp->frags);
+                case 3: return va("%d", sp->deaths);
+                case 4: return "";
+                case 5: return va("%d", sp->tks);
+                case 6: return va("%d", sp->tkd);
+                case 7: return va("%d", sp->net);
+                case 8: return CG_FormatDamage(sp->damageDone);
+                case 9: return "";
+                case 10: return va("%d%%", sp->accuracy);
+                case 17: return va("%d", sp->time);
+            }
+            return "";
+        default:
+            // CTF/etc stats: 19 columns
+            switch (column) {
+                case 0: return info->name;
+                case 1: return va("%d", sp->score);
+                case 2: return va("%d", sp->frags);
+                case 3: return va("%d", sp->deaths);
+                case 4: return "";
+                case 5: return va("%d", sp->net);
+                case 6: return CG_FormatDamage(sp->damageDone);
+                case 7: return "";
+                case 8: return va("%d%%", sp->accuracy);
+                case 18: return va("%d", sp->time);
+            }
+            return "";
+    }
+}
+
+// [QL] Main feeder dispatcher - dispatches to per-gametype functions
+// Binary: FUN_10028830 dispatches by feederID + gametype
 static const char* CG_FeederItemText(float feederID, int index, int column, qhandle_t* handle) {
-    gitem_t* item;
     int scoreIndex = 0;
     clientInfo_t* info = NULL;
     int team = -1;
     score_t* sp = NULL;
 
     *handle = -1;
+
+    // Stats feeders have completely separate column layouts
+    if (feederID == FEEDER_REDTEAM_STATS || feederID == FEEDER_BLUETEAM_STATS) {
+        return CG_FeederItemTextStats(feederID, index, column, handle);
+    }
 
     if (feederID == FEEDER_REDTEAM_LIST) {
         team = TEAM_RED;
@@ -1530,80 +2280,78 @@ static const char* CG_FeederItemText(float feederID, int index, int column, qhan
     info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
     sp = &cg.scores[scoreIndex];
 
-    if (info && info->infoValid) {
-        switch (column) {
-            case 0:
-                if (info->powerups & (1 << PW_NEUTRALFLAG)) {
-                    item = BG_FindItemForPowerup(PW_NEUTRALFLAG);
-                    *handle = cg_items[ITEM_INDEX(item)].icon;
-                } else if (info->powerups & (1 << PW_REDFLAG)) {
-                    item = BG_FindItemForPowerup(PW_REDFLAG);
-                    *handle = cg_items[ITEM_INDEX(item)].icon;
-                } else if (info->powerups & (1 << PW_BLUEFLAG)) {
-                    item = BG_FindItemForPowerup(PW_BLUEFLAG);
-                    *handle = cg_items[ITEM_INDEX(item)].icon;
-                } else {
-                    if (info->botSkill > 0 && info->botSkill <= 5) {
-                        *handle = cgs.media.botSkillShaders[info->botSkill - 1];
-                    } else if (info->handicap < 100) {
-                        return va("%i", info->handicap);
-                    }
-                }
-                break;
-            case 1:
-                if (team == -1) {
-                    return "";
-                } else {
-                    *handle = CG_StatusHandle(info->teamTask);
-                }
-                break;
-            case 2:
-                if (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client)) {
-                    return "Ready";
-                }
-                if (team == -1) {
-                    if (cgs.gametype == GT_TOURNAMENT) {
-                        return va("%i/%i", info->wins, info->losses);
-                    } else if (info->infoValid && info->team == TEAM_SPECTATOR) {
-                        return "Spectator";
-                    } else {
-                        return "";
-                    }
-                } else {
-                    if (info->teamLeader) {
-                        return "Leader";
-                    }
-                }
-                break;
-            case 3:
-                return info->name;
-                break;
-            case 4:
-                return va("%i", info->score);
-                break;
-            case 5:
-                return va("%4i", sp->time);
-                break;
-            case 6:
-                if (sp->ping == -1) {
-                    return "connecting";
-                }
-                return va("%4i", sp->ping);
-                break;
+    if (!info || !info->infoValid) return "";
+
+    // Race scoreboard has unique column layout (7 columns, name at col 3)
+    if (cgs.gametype == GT_RACE && team == -1) {
+        return CG_FeederItemTextRace(info, sp, column, handle);
+    }
+
+    // Common icon columns 0-5 (all non-race gametypes)
+    switch (column) {
+        case 0:
+            *handle = info->modelIcon;
+            return "";
+        case 1:
+            return "";
+        case 2:
+            return "";
+        case 3:
+            if (cg.warmup) {
+                *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
+                    ? trap_R_RegisterShader("ui/assets/score/arrowg")
+                    : trap_R_RegisterShader("ui/assets/score/arrowr");
+            } else if (info->team == TEAM_RED) {
+                *handle = trap_R_RegisterShader("ui/assets/score/ca_arrow_red");
+            } else if (info->team == TEAM_BLUE) {
+                *handle = trap_R_RegisterShader("ui/assets/score/ca_arrow_blue");
+            }
+            return "";
+        case 4:
+            return "";
+        case 5:
+            return info->name;
+    }
+
+    // Gametype-specific columns 6+ for team feeders
+    if (team != -1) {
+        switch (cgs.gametype) {
+            case GT_TEAM:
+            case GT_FREEZE:
+                return CG_FeederColumnsTdm(sp, info, column, handle);
+            case GT_CA:
+                return CG_FeederColumnsCa(sp, info, column, handle);
+            case GT_CTF:
+            case GT_1FCTF:
+            case GT_HARVESTER:
+            case GT_DOMINATION:
+            case GT_AD:
+                return CG_FeederColumnsCtf(sp, info, column, handle);
+            default:
+                return CG_FeederColumnsFfa(sp, info, column, handle);
         }
     }
 
-    return "";
+    // Non-team feeders (FEEDER_SCOREBOARD, FEEDER_ENDSCOREBOARD) use FFA layout
+    return CG_FeederColumnsFfa(sp, info, column, handle);
 }
 
 static qhandle_t CG_FeederItemImage(float feederID, int index) {
+    // [QL] Return country flag or other per-player image for premium scoreboard.
+    // Standard scoreboard uses column 0 icon handle from CG_FeederItemText instead.
+    // FEEDER_ENDSCOREBOARD could show country flags here if we had the data.
     return 0;
 }
 
 static void CG_FeederSelection(float feederID, int index) {
     if (cgs.gametype >= GT_TEAM) {
         int i, count;
-        int team = (feederID == FEEDER_REDTEAM_LIST) ? TEAM_RED : TEAM_BLUE;
+        int team;
+        if (feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_REDTEAM_STATS) {
+            team = TEAM_RED;
+        } else {
+            team = TEAM_BLUE;
+        }
         count = 0;
         for (i = 0; i < cg.numScores; i++) {
             if (cg.scores[i].team == team) {
@@ -1635,10 +2383,10 @@ static int CG_OwnerDrawWidth(int ownerDraw, float scale) {
             return CG_Text_Width(CG_GameTypeString(), scale, 0);
         case CG_GAME_STATUS:
             return CG_Text_Width(CG_GetGameStatusText(), scale, 0);
-            break;
+        case CG_MATCH_STATUS:
+            return CG_Text_Width(CG_GetMatchStatusText(), scale, 0);
         case CG_KILLER:
             return CG_Text_Width(CG_GetKillerText(), scale, 0);
-            break;
     }
     return 0;
 }
@@ -1674,9 +2422,9 @@ void CG_LoadHudMenu(void) {
     cgDC.setColor = &trap_R_SetColor;
     cgDC.drawHandlePic = &CG_DrawPic;
     cgDC.drawStretchPic = &trap_R_DrawStretchPic;
-    cgDC.drawText = &CG_Text_Paint;
-    cgDC.textWidth = &CG_Text_Width;
-    cgDC.textHeight = &CG_Text_Height;
+    cgDC.drawText = &CG_DrawText_DC;
+    cgDC.textWidth = &CG_TextWidth_DC;
+    cgDC.textHeight = &CG_TextHeight_DC;
     cgDC.registerModel = &trap_R_RegisterModel;
     cgDC.modelBounds = &trap_R_ModelBounds;
     cgDC.fillRect = &CG_FillRect;
@@ -1695,7 +2443,7 @@ void CG_LoadHudMenu(void) {
     cgDC.setCVar = trap_Cvar_Set;
     cgDC.getCVarString = trap_Cvar_VariableStringBuffer;
     cgDC.getCVarValue = CG_Cvar_Get;
-    cgDC.drawTextWithCursor = &CG_Text_PaintWithCursor;
+    cgDC.drawTextWithCursor = &CG_DrawTextWithCursor_DC;
     // cgDC.setOverstrikeMode = &trap_Key_SetOverstrikeMode;
     // cgDC.getOverstrikeMode = &trap_Key_GetOverstrikeMode;
     cgDC.startLocalSound = &trap_S_StartLocalSound;
@@ -1706,7 +2454,7 @@ void CG_LoadHudMenu(void) {
     cgDC.feederSelection = &CG_FeederSelection;
     // cgDC.setBinding = &trap_Key_SetBinding;
     // cgDC.getBindingBuf = &trap_Key_GetBindingBuf;
-    // cgDC.keynumToStringBuf = &trap_Key_KeynumToStringBuf;
+    cgDC.keynumToStringBuf = &trap_Key_KeynumToStringBuf;
     // cgDC.executeText = &trap_Cmd_ExecuteText;
     cgDC.Error = &Com_Error;
     cgDC.Print = &Com_Printf;
@@ -1719,6 +2467,7 @@ void CG_LoadHudMenu(void) {
     cgDC.stopCinematic = &CG_StopCinematic;
     cgDC.drawCinematic = &CG_DrawCinematic;
     cgDC.runCinematicFrame = &CG_RunCinematicFrame;
+    cgDC.setWidescreen = &CG_SetWidescreen;
 
     Init_Display(&cgDC);
 
@@ -1730,7 +2479,49 @@ void CG_LoadHudMenu(void) {
         hudSet = "ui/hud.txt";
     }
 
+    // [QL] Load hud.txt first - CG_LoadMenus calls Menu_Reset() internally,
+    // so all CG_ParseMenu calls must come AFTER to avoid being wiped.
     CG_LoadMenus(hudSet);
+
+    // [QL] Static table menus (binary-verified order)
+    CG_ParseMenu("ui/intro.menu");
+    CG_ParseMenu("ui/ingamescoreteam.menu");
+    CG_ParseMenu("ui/ingamescorenoteam.menu");
+    CG_ParseMenu("ui/endscoreteam.menu");
+    CG_ParseMenu("ui/endscorenoteam.menu");
+    CG_ParseMenu("ui/spectator.menu");
+    CG_ParseMenu("ui/spectator_follow.menu");
+    CG_ParseMenu("ui/comp_spectator.menu");
+    CG_ParseMenu("ui/comp_spectator_follow.menu");
+    CG_ParseMenu("ui/ingamestats.menu");
+
+    // [QL] Per-gametype in-game scoreboard menus
+    CG_ParseMenu("ui/ingame_scoreboard_ffa.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_duel.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_race.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_tdm.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ca.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ctf.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_1fctf.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_har.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ft.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_dom.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_ad.menu");
+    CG_ParseMenu("ui/ingame_scoreboard_rr.menu");
+
+    // [QL] Per-gametype end-of-game scoreboard menus
+    CG_ParseMenu("ui/end_scoreboard_ffa.menu");
+    CG_ParseMenu("ui/end_scoreboard_duel.menu");
+    CG_ParseMenu("ui/end_scoreboard_race.menu");
+    CG_ParseMenu("ui/end_scoreboard_tdm.menu");
+    CG_ParseMenu("ui/end_scoreboard_ca.menu");
+    CG_ParseMenu("ui/end_scoreboard_ctf.menu");
+    CG_ParseMenu("ui/end_scoreboard_1fctf.menu");
+    CG_ParseMenu("ui/end_scoreboard_har.menu");
+    CG_ParseMenu("ui/end_scoreboard_ft.menu");
+    CG_ParseMenu("ui/end_scoreboard_dom.menu");
+    CG_ParseMenu("ui/end_scoreboard_ad.menu");
+    CG_ParseMenu("ui/end_scoreboard_rr.menu");
 }
 
 void CG_AssetCache(void) {
@@ -1783,20 +2574,64 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     cgs.media.charsetPropGlow = trap_R_RegisterShaderNoMip("menu/art/font1_prop_glo.png");
     cgs.media.charsetPropB = trap_R_RegisterShaderNoMip("menu/art/font2_prop.png");
 
+    // [QL] Register TTF fonts early so CG_Text_Paint works during loading screen.
+    // Register at 2x point sizes for sharper rendering at high resolutions -
+    // ioq3's font atlas is fixed at registration time; higher point size = more glyph detail.
+    // Override glyphScale so text draws at the correct visual size.
+    // CG_LoadHudMenu() later tries to re-register with abstract names like "fonts/font"
+    // which don't exist in the pk3 - RE_RegisterFont returns early on file-not-found
+    // WITHOUT modifying the output struct, so our early registration is preserved.
+    trap_R_RegisterFont("fonts/notosans-regular.ttf", 48, &cgDC.Assets.textFont);
+    trap_R_RegisterFont("fonts/droidsansmono.ttf", 32, &cgDC.Assets.smallFont);
+    trap_R_RegisterFont("fonts/handelgothic.ttf", 96, &cgDC.Assets.bigFont);
+    cgDC.Assets.fontRegistered = qtrue;
+
+    // [QL] Populate extraFonts[] for fontIndex-based selection:
+    // 0 = textFont (NotoSans), 1 = bigFont (handelgothic), 2 = smallFont (DroidSansMono)
+    memcpy(&cgDC.Assets.extraFonts[0], &cgDC.Assets.textFont, sizeof(fontInfo_t));
+    memcpy(&cgDC.Assets.extraFonts[1], &cgDC.Assets.bigFont, sizeof(fontInfo_t));
+    memcpy(&cgDC.Assets.extraFonts[2], &cgDC.Assets.smallFont, sizeof(fontInfo_t));
+
+    // [QL] loading screen assets
+    cgs.media.loadingbackShader = trap_R_RegisterShaderNoMip("levelshots/loadingback.jpg");
+    cgs.media.gtBackgroundShader = trap_R_RegisterShaderNoMip("ui/assets/main_menu/gt_background.png");
+    cgs.media.qlLogoShader = trap_R_RegisterShaderNoMip("ui/assets/main_menu/ql_logo.png");
+    cgs.media.logoBackgroundShader = trap_R_RegisterShaderNoMip("ui/assets/main_menu/logo_background.png");
+    cgs.media.backscreenSmokeShader = trap_R_RegisterShaderNoMip("ui/assets/backscreen_smoke.jpg");
+
+    // [QL] initialize speedometer bar colors (green / yellow, alpha set per-mode)
+    cg.speedBarColor1[0] = 0.0f; cg.speedBarColor1[1] = 1.0f;
+    cg.speedBarColor1[2] = 0.0f; cg.speedBarColor1[3] = 1.0f;
+    cg.speedBarColor2[0] = 1.0f; cg.speedBarColor2[1] = 1.0f;
+    cg.speedBarColor2[2] = 0.0f; cg.speedBarColor2[3] = 1.0f;
+
     CG_RegisterCvars();
+
+    // [QL] reset state cvars on map load
+    trap_Cvar_Set("ui_mainmenu", "0");
+    trap_Cvar_Set("ui_intermission", "0");
 
     CG_InitConsoleCommands();
 
     cg.weaponSelect = WP_MACHINEGUN;
 
     cgs.redflag = cgs.blueflag = -1;  // For compatibily, default to unset for
-    cgs.flagStatus = -1;
-    // old servers
+    cgs.flagStatus = -1;              // old servers
 
     // get the rendering configuration from the client system
     trap_GetGlconfig(&cgs.glconfig);
     cgs.screenXScale = cgs.glconfig.vidWidth / (float)SCREEN_WIDTH;
     cgs.screenYScale = cgs.glconfig.vidHeight / (float)SCREEN_HEIGHT;
+
+    // [QL] compute widescreen bias: half the extra width beyond 4:3
+    {
+        float width43 = 4.0f * cgs.glconfig.vidHeight / 3.0f;
+        if ((float)cgs.glconfig.vidWidth > width43) {
+            cgs.widescreenBias = ((float)cgs.glconfig.vidWidth - width43) * 0.5f;
+        } else {
+            cgs.widescreenBias = 0.0f;
+        }
+    }
 
     // get the gamestate from the client system
     trap_GetGameState(&cgs.gameState);
@@ -1820,18 +2655,22 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     String_Init();
 
     cg.loading = qtrue;  // force players to load instead of defer
+    cg.loadingStage++;
 
     CG_LoadingString("sounds");
 
     CG_RegisterSounds();
+    cg.loadingStage++;
 
     CG_LoadingString("graphics");
 
     CG_RegisterGraphics();
+    cg.loadingStage++;
 
     CG_LoadingString("clients");
 
     CG_RegisterClients();  // if low on memory, some clients will be deferred
+    cg.loadingStage++;
 
     CG_AssetCache();
     CG_LoadHudMenu();  // load new hud stuff

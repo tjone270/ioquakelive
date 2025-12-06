@@ -66,7 +66,7 @@ functions imported from the main executable
 ==================================================================
 */
 
-#define CGAME_IMPORT_API_VERSION 4
+#define CGAME_IMPORT_API_VERSION 8  // [QL] was 4 in Q3
 
 typedef enum {
     CG_PRINT,
@@ -180,7 +180,8 @@ typedef enum {
     CG_TESTPRINTINT,
     CG_TESTPRINTFLOAT,
     CG_ACOS,
-    CG_GET_ADVERTISEMENTS
+    CG_GET_ADVERTISEMENTS,
+    CG_KEY_KEYNUMTOSTRINGBUF
 } cgameImport_t;
 
 /*
@@ -191,31 +192,23 @@ functions exported to the main executable
 ==================================================================
 */
 
+// [QL] cgame exports - CG_REGISTER_CVARS inserted at index 1, shifting all others.
+// Verified from cgamex86.dll vmMain table at 0x100769a8.
 typedef enum {
     CG_INIT,
     //	void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum )
-    // called when the level loads or when the renderer is restarted
-    // all media should be registered at this time
-    // cgame will display loading status by calling SCR_Update, which
-    // will call CG_DrawInformation during the loading process
-    // reliableCommandSequence will be 0 on fresh loads, but higher for
-    // demos, tourney restarts, or vid_restarts
+
+    CG_REGISTER_CVARS,  // [QL] - registers all cgame cvars (inserted, shifts everything below)
+    //	void CG_RegisterCvars( void );
 
     CG_SHUTDOWN,
     //	void (*CG_Shutdown)( void );
-    // opportunity to flush and close any open files
 
     CG_CONSOLE_COMMAND,
     //	qboolean (*CG_ConsoleCommand)( void );
-    // a console command has been issued locally that is not recognized by the
-    // main game system.
-    // use Cmd_Argc() / Cmd_Argv() to read the command, return qfalse if the
-    // command is not known to the game
 
     CG_DRAW_ACTIVE_FRAME,
     //	void (*CG_DrawActiveFrame)( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback );
-    // Generates and draws a game scene and status information at the given time.
-    // If demoPlayback is set, local movement prediction will not be enabled
 
     CG_CROSSHAIR_PLAYER,
     //	int (*CG_CrosshairPlayer)( void );
@@ -224,12 +217,14 @@ typedef enum {
     //	int (*CG_LastAttacker)( void );
 
     CG_KEY_EVENT,
-    //	void	(*CG_KeyEvent)( int key, qboolean down );
+    //	void (*CG_KeyEvent)( int key, qboolean down );
 
     CG_MOUSE_EVENT,
-    //	void	(*CG_MouseEvent)( int dx, int dy );
-    CG_EVENT_HANDLING
+    //	void (*CG_MouseEvent)( int dx, int dy );
+
+    CG_EVENT_HANDLING,
     //	void (*CG_EventHandling)(int type);
+    // [QL] index 9 - handles sub-commands 0 (unknown), 4 (screen resize), 5 (unknown)
 } cgameExport_t;
 
 //----------------------------------------------

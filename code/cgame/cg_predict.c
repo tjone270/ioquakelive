@@ -442,6 +442,14 @@ void CG_PredictPlayerState(void) {
         cg_pmove.tracemask &= ~CONTENTS_BODY;  // spectators can fly through bodies
     }
     cg_pmove.noFootsteps = (cgs.dmflags & DF_NO_FOOTSTEPS) > 0;
+    cg_pmove.stepHeight = 0.0f;  // [QL] clear before prediction loop
+
+    // [QL] set PMF_NO_AUTOHOP from client cvar for prediction
+    if (cg_autoHop.integer == 0) {
+        cg.predictedPlayerState.pm_flags |= PMF_NO_AUTOHOP;
+    } else {
+        cg.predictedPlayerState.pm_flags &= ~PMF_NO_AUTOHOP;
+    }
 
     // save the state before the pmove so we can detect transitions
     oldPlayerState = cg.predictedPlayerState;
@@ -475,26 +483,11 @@ void CG_PredictPlayerState(void) {
         cg.physicsTime = cg.snap->serverTime;
     }
 
-    if (pmove_msec.integer < 8) {
-        trap_Cvar_Set("pmove_msec", "8");
-        trap_Cvar_Update(&pmove_msec);
-    } else if (pmove_msec.integer > 33) {
-        trap_Cvar_Set("pmove_msec", "33");
-        trap_Cvar_Update(&pmove_msec);
-    }
-
-    cg_pmove.pmove_fixed = pmove_fixed.integer;  // | cg_pmove_fixed.integer;
-    cg_pmove.pmove_msec = pmove_msec.integer;
-
     // run cmds
     moved = qfalse;
     for (cmdNum = current - CMD_BACKUP + 1; cmdNum <= current; cmdNum++) {
         // get the command
         trap_GetUserCmd(cmdNum, &cg_pmove.cmd);
-
-        if (cg_pmove.pmove_fixed) {
-            PM_UpdateViewAngles(cg_pmove.ps, &cg_pmove.cmd);
-        }
 
         // don't do anything if the time is before the snapshot player time
         if (cg_pmove.cmd.serverTime <= cg.predictedPlayerState.commandTime) {
@@ -564,13 +557,17 @@ void CG_PredictPlayerState(void) {
         // when it actually inflicts damage
         cg_pmove.gauntletHit = qfalse;
 
-        if (cg_pmove.pmove_fixed) {
-            cg_pmove.cmd.serverTime = ((cg_pmove.cmd.serverTime + pmove_msec.integer - 1) / pmove_msec.integer) * pmove_msec.integer;
-        }
-
         Pmove(&cg_pmove);
 
         moved = qtrue;
+
+        // [QL] step smoothing - read stepHeight/stepTime set by PM_StepSlideMove
+        if (cg_pmove.stepHeight != 0.0f &&
+            cg_pmove.stepTime == cg_pmove.cmd.serverTime) {
+            cg.stepChange = cg_pmove.stepHeight;
+            cg.stepTime = cg_pmove.cmd.serverTime;
+            cg_pmove.stepHeight = 0.0f;
+        }
 
         // add push trigger movement effects
         CG_TouchTriggerPrediction();
