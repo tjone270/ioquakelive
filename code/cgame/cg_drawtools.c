@@ -23,19 +23,66 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_drawtools.c -- helper functions called by cg_draw, cg_scoreboard, cg_info, etc
 #include "cg_local.h"
 
+// [QL] widescreen rendering mode - set by DC->setWidescreen() before each item paints
+// 0=stretch, 1=left, 2=center, 3=right
+static int cg_currentWidescreen = 0;
+
+void CG_SetWidescreen(int mode) {
+    cg_currentWidescreen = mode;
+}
+
 /*
 ================
 CG_AdjustFrom640
 
-Adjusted for resolution and screen aspect ratio
+Adjusted for resolution and screen aspect ratio.
+[QL] Handles widescreen modes: constrains to 4:3 aspect and
+positions left/center/right based on cg_currentWidescreen.
 ================
 */
 void CG_AdjustFrom640(float* x, float* y, float* w, float* h) {
-    // scale for screen sizes
-    *x *= cgs.screenXScale;
-    *y *= cgs.screenYScale;
-    *w *= cgs.screenXScale;
-    *h *= cgs.screenYScale;
+    int useWidescreen;
+    float xscale43;
+
+    if (cgs.widescreenBias <= 0.0f) {
+        goto stretch;
+    }
+
+    // [QL] When widescreen mode is 0 (stretch), still use 4:3 centered
+    // scaling if the cgame key catcher is active (scoreboard, etc.)
+    useWidescreen = cg_currentWidescreen;
+    if (useWidescreen == 0) {
+        if (!(trap_Key_GetCatcher() & KEYCATCH_CGAME)) {
+            goto stretch;
+        }
+    }
+
+    // widescreen: use 4:3 scaling for x/w
+    xscale43 = (4.0f * cgs.glconfig.vidHeight / 3.0f) / 640.0f;
+
+    if (x) {
+        *x *= xscale43;
+    }
+    if (y) {
+        *y *= cgs.screenYScale;
+        // apply x bias after y is processed (matches binary order)
+        if (x) {
+            if (useWidescreen == 2 || (trap_Key_GetCatcher() & KEYCATCH_CGAME)) {
+                *x += cgs.widescreenBias;
+            } else if (useWidescreen == 3) {
+                *x += cgs.widescreenBias * 2.0f;
+            }
+        }
+    }
+    if (w) *w *= xscale43;
+    if (h) *h *= cgs.screenYScale;
+    return;
+
+stretch:
+    if (x) *x *= cgs.screenXScale;
+    if (y) *y *= cgs.screenYScale;
+    if (w) *w *= cgs.screenXScale;
+    if (h) *h *= cgs.screenYScale;
 }
 
 /*

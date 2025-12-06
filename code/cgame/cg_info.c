@@ -23,39 +23,20 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_info.c -- display information while data is being loading
 
 #include "cg_local.h"
+#include "../../ui/menudef.h"
 
 #define MAX_LOADING_PLAYER_ICONS 16
 #define MAX_LOADING_ITEM_ICONS 26
+
+// [QL] loading screen progress has 4 stages
+#define NUM_LOADING_STAGES 4
 
 static int loadingPlayerIconCount;
 static int loadingItemIconCount;
 static qhandle_t loadingPlayerIcons[MAX_LOADING_PLAYER_ICONS];
 static qhandle_t loadingItemIcons[MAX_LOADING_ITEM_ICONS];
 
-/*
-===================
-CG_DrawLoadingIcons
-===================
-*/
-static void CG_DrawLoadingIcons(void) {
-    int n;
-    int x, y;
-
-    for (n = 0; n < loadingPlayerIconCount; n++) {
-        x = 16 + n * 78;
-        y = 324 - 40;
-        CG_DrawPic(x, y, 64, 64, loadingPlayerIcons[n]);
-    }
-
-    for (n = 0; n < loadingItemIconCount; n++) {
-        y = 400 - 40;
-        if (n >= 13) {
-            y += 40;
-        }
-        x = 16 + n % 13 * 48;
-        CG_DrawPic(x, y, 32, 32, loadingItemIcons[n]);
-    }
-}
+// [QL] use shared gametypeDisplayNames[] from bg_misc.c
 
 /*
 ======================
@@ -109,11 +90,11 @@ void CG_LoadingClient(int clientNum) {
             skin = "default";
         }
 
-        Com_sprintf(iconName, MAX_QPATH, "models/players/%s/icon_%s.png", model, skin);
+        Com_sprintf(iconName, MAX_QPATH, "models/players/%s/icon_%s.tga", model, skin);
 
         loadingPlayerIcons[loadingPlayerIconCount] = trap_R_RegisterShaderNoMip(iconName);
         if (!loadingPlayerIcons[loadingPlayerIconCount]) {
-            Com_sprintf(iconName, MAX_QPATH, "models/players/%s/icon_%s.png", DEFAULT_MODEL, "default");
+            Com_sprintf(iconName, MAX_QPATH, "models/players/%s/icon_%s.tga", DEFAULT_MODEL, "default");
             loadingPlayerIcons[loadingPlayerIconCount] = trap_R_RegisterShaderNoMip(iconName);
         }
         if (loadingPlayerIcons[loadingPlayerIconCount]) {
@@ -122,11 +103,6 @@ void CG_LoadingClient(int clientNum) {
     }
 
     Q_strncpyz(personality, Info_ValueForKey(info, "n"), sizeof(personality));
-    Q_CleanStr(personality);
-
-    if (cgs.gametype == GT_SINGLE_PLAYER) {
-        trap_S_RegisterSound(va("sound/player/announce/%s.ogg", personality), qtrue);
-    }
 
     CG_LoadingString(personality);
 }
@@ -135,166 +111,112 @@ void CG_LoadingClient(int clientNum) {
 ====================
 CG_DrawInformation
 
-Draw all the status / pacifier stuff during level loading
+[QL] Rewritten to match Quake Live binary loading screen.
+Draws levelshot, QL branding, gametype, loading text, and progress bar.
 ====================
 */
 void CG_DrawInformation(void) {
-    const char* s;
-    const char* info;
-    const char* sysInfo;
-    int y;
-    int value;
+    const char *s;
+    const char *info;
+    const char *sAuthor, *sAuthor2;
+    const char *gametypeName;
     qhandle_t levelshot;
-    char buf[1024];
+    int i;
+    int w;
+    float s1, s2;
+
+    // [QL] colors from binary
+    static vec4_t colorBarFilled   = { 0.375f, 0.125f, 0.125f, 1.0f  };  // dark red, full alpha
+    static vec4_t colorBarEmpty    = { 0.0f,   0.0f,   0.0f,   0.75f };  // black semi-transparent
+    static vec4_t colorBarBg       = { 0.375f, 0.125f, 0.125f, 0.75f };  // dark red, semi-transparent
+
+    // [QL] compute aspect-correct texture coords for levelshot (1920x1080 source)
+    s1 = ((1920.0f - (1080.0f / (float)cgs.glconfig.vidHeight) * (float)cgs.glconfig.vidWidth)
+          / 1920.0f) * 0.5f;
+    s2 = 1.0f - s1;
 
     info = CG_ConfigString(CS_SERVERINFO);
-    sysInfo = CG_ConfigString(CS_SYSTEMINFO);
 
-    // draw the levelshot
+    // register levelshot
     s = Info_ValueForKey(info, "mapname");
-    levelshot = trap_R_RegisterShaderNoMip(va("levelshots/%s.jpg", s));
+    levelshot = trap_R_RegisterShaderNoMip(va("levelshots/%s.tga", s));
     if (!levelshot) {
         levelshot = trap_R_RegisterShaderNoMip("menu/art/unknownmap");
     }
     trap_R_SetColor(NULL);
-    CG_DrawPic(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, levelshot);
 
-    // draw the icons of things as they are loaded
-    CG_DrawLoadingIcons();
+    // [QL] draw the levelshot fullscreen with aspect-correct texture coords
+    trap_R_DrawStretchPic(0, 0, (float)cgs.glconfig.vidWidth, (float)cgs.glconfig.vidHeight,
+                          s1, 0, s2, 1.0f, levelshot);
 
-    // the first 150 rows are reserved for the client connection
-    // screen to write into
-    if (cg.infoScreenText[0]) {
-        UI_DrawProportionalString(320, 128 - 32, va("Loading... %s", cg.infoScreenText),
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-    } else {
-        UI_DrawProportionalString(320, 128 - 32, "Awaiting snapshot...",
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
+    // [QL] left-anchored elements: top bar, logos, bottom bar, map name, author
+    CG_SetWidescreen(WIDESCREEN_LEFT);
+
+    // top bar: dark red semi-transparent background across full width
+    CG_FillRect(-400, 0, 1440, 64, colorBarBg);
+
+    // logo background (512x128 source, drawn at 256x64 = 4:1 ratio preserved)
+    if (cgs.media.logoBackgroundShader) {
+        CG_DrawPic(0, 0, 256, 64, cgs.media.logoBackgroundShader);
     }
 
-    // draw info string information
-    y = 180 - 32;
-
-    // don't print server lines if playing a local game
-    trap_Cvar_VariableStringBuffer("sv_running", buf, sizeof(buf));
-    if (!atoi(buf)) {
-        // server hostname
-        Q_strncpyz(buf, Info_ValueForKey(info, "sv_hostname"), 1024);
-        Q_CleanStr(buf);
-        UI_DrawProportionalString(320, y, buf,
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-        y += PROP_HEIGHT;
-
-        // pure server
-        s = Info_ValueForKey(sysInfo, "sv_pure");
-        if (s[0] == '1') {
-            UI_DrawProportionalString(320, y, "Pure Server",
-                                      UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-            y += PROP_HEIGHT;
-        } else {
-            UI_DrawProportionalString(320, y, "Impure Server",
-                                      UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-            y += PROP_HEIGHT;
-        }
-
-        // server-specific message of the day
-        s = CG_ConfigString(CS_MOTD);
-        if (s[0]) {
-            UI_DrawProportionalString(320, y, s,
-                                      UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-            y += PROP_HEIGHT;
-        }
-
-        // some extra space after hostname and motd
-        y += 10;
+    // QL logo (512x128 source, drawn at 256x64)
+    if (cgs.media.qlLogoShader) {
+        CG_DrawPic(0, 0, 256, 64, cgs.media.qlLogoShader);
     }
 
-    // map-specific message (long map name)
+    // [QL] bottom bar: black semi-transparent covering y=400..480
+    CG_FillRect(-400, 400, 1440, 80, colorBarEmpty);
+
+    // [QL] map display name (lower-left, bigFont via scale 0.8)
     s = CG_ConfigString(CS_MESSAGE);
-    if (s[0]) {
-        UI_DrawProportionalString(320, y, s,
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-        y += PROP_HEIGHT;
+    CG_Text_Paint(8, 435, 0.8f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
+
+    // [QL] author/author2 below map name (textFont = NotoSans via fontIndex 0)
+    sAuthor = CG_ConfigString(CS_AUTHOR);
+    CG_DrawText_DC(8, 455, 0.25f, colorWhite, sAuthor, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, 0);
+
+    sAuthor2 = CG_ConfigString(CS_AUTHOR2);
+    CG_DrawText_DC(8, 470, 0.25f, colorWhite, sAuthor2, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, 0);
+
+    // [QL] right-anchored elements: gametype background and name
+    CG_SetWidescreen(WIDESCREEN_RIGHT);
+
+    // gametype background (right side of top bar, 512x128 source at 256x64)
+    if (cgs.media.gtBackgroundShader) {
+        CG_DrawPic(384, 0, 256, 64, cgs.media.gtBackgroundShader);
     }
 
-    // cheats warning
-    s = Info_ValueForKey(sysInfo, "sv_cheats");
-    if (s[0] == '1') {
-        UI_DrawProportionalString(320, y, "CHEATS ARE ENABLED",
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-        y += PROP_HEIGHT;
+    // [QL] gametype name (right-aligned in top bar, bigFont via scale 0.8)
+    if (cgs.gametype >= 0 && cgs.gametype < GT_MAX_GAME_TYPE) {
+        gametypeName = gametypeDisplayNames[cgs.gametype];
+    } else {
+        gametypeName = "Unknown Gametype";
     }
+    w = CG_Text_Width(gametypeName, 0.8f, 0);
+    CG_Text_Paint(620 - w, 45, 0.8f, colorWhite, gametypeName, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 
-    // game type
-    switch (cgs.gametype) {
-        case GT_FFA:
-            s = "Free For All";
-            break;
-        case GT_DUEL:
-            s = "Duel";
-            break;
-        case GT_RACE:
-            s = "Race";
-            break;
-        case GT_TEAM:
-            s = "Team Deathmatch";
-            break;
-        case GT_CA:
-            s = "Clan Arena";
-            break;
-        case GT_CTF:
-            s = "Capture The Flag";
-            break;
-        case GT_1FCTF:
-            s = "One Flag CTF";
-            break;
-        case GT_OBELISK:
-            s = "Overload";
-            break;
-        case GT_HARVESTER:
-            s = "Harvester";
-            break;
-        case GT_FREEZE:
-            s = "Freeze Tag";
-            break;
-        case GT_DOMINATION:
-            s = "Domination";
-            break;
-        case GT_AD:
-            s = "Attack & Defend";
-            break;
-        case GT_RR:
-            s = "Red Rover";
-            break;
-        default:
-            s = "Unknown Gametype";
-            break;
+    // [QL] center-anchored elements: loading text and progress boxes
+    CG_SetWidescreen(WIDESCREEN_CENTER);
+
+    // [QL] loading text (centered, textFont via scale 0.3)
+    if (cg.infoScreenText[0]) {
+        s = va("Loading %s", cg.infoScreenText);
+    } else {
+        s = "Awaiting Snapshot";
     }
-    UI_DrawProportionalString(320, y, s,
-                              UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-    y += PROP_HEIGHT;
+    w = CG_Text_Width(s, 0.3f, 0);
+    CG_Text_Paint(320 - w / 2, 368, 0.3f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 
-    value = atoi(Info_ValueForKey(info, "timelimit"));
-    if (value) {
-        UI_DrawProportionalString(320, y, va("timelimit %i", value),
-                                  UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-        y += PROP_HEIGHT;
-    }
-
-    if (cgs.gametype < GT_CTF) {
-        value = atoi(Info_ValueForKey(info, "fraglimit"));
-        if (value) {
-            UI_DrawProportionalString(320, y, va("fraglimit %i", value),
-                                      UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-            y += PROP_HEIGHT;
+    // [QL] progress boxes: 4 boxes, 8x8 each, 16px stride, y=380
+    for (i = 0; i < NUM_LOADING_STAGES; i++) {
+        if (cg.loadingStage > i) {
+            CG_FillRect(292 + i * 16, 380, 8, 8, colorBarFilled);
+        } else {
+            CG_FillRect(292 + i * 16, 380, 8, 8, colorBarEmpty);
         }
     }
 
-    if (cgs.gametype >= GT_CTF) {
-        value = atoi(Info_ValueForKey(info, "capturelimit"));
-        if (value) {
-            UI_DrawProportionalString(320, y, va("capturelimit %i", value),
-                                      UI_CENTER | UI_SMALLFONT | UI_DROPSHADOW, colorWhite);
-        }
-    }
+    // [QL] reset widescreen mode
+    CG_SetWidescreen(WIDESCREEN_STRETCH);
 }

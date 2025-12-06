@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_weapons.c -- events and effects dealing with weapons
 #include "cg_local.h"
+#include "../../ui/menudef.h"
 
 /*
 ==========================
@@ -563,7 +564,8 @@ void CG_GrappleTrail(centity_t* ent, const weaponInfo_t* wi) {
     if (Distance(beam.origin, beam.oldorigin) < 16)
         return;  // Don't draw if too close
 
-    beam.reType = RT_LIGHTNING;
+    // [QL] use RT_RAIL_CORE for single tiled quad (RT_LIGHTNING draws 4 overlapping rotated quads)
+    beam.reType = RT_RAIL_CORE;
     beam.customShader = cgs.media.grapplingChainShader;
 
     AxisClear(beam.axis);
@@ -646,9 +648,13 @@ void CG_RegisterWeapon(int weaponNum) {
     Q_strcat(path, sizeof(path), "_flash.md3");
     weaponInfo->flashModel = trap_R_RegisterModel(path);
 
-    COM_StripExtension(item->world_model[0], path, sizeof(path));
-    Q_strcat(path, sizeof(path), "_barrel.md3");
-    weaponInfo->barrelModel = trap_R_RegisterModel(path);
+    // [QL] only gauntlet, machinegun, BFG, and chaingun have barrel models in pak
+    if (weaponNum == WP_GAUNTLET || weaponNum == WP_MACHINEGUN ||
+        weaponNum == WP_BFG || weaponNum == WP_CHAINGUN) {
+        COM_StripExtension(item->world_model[0], path, sizeof(path));
+        Q_strcat(path, sizeof(path), "_barrel.md3");
+        weaponInfo->barrelModel = trap_R_RegisterModel(path);
+    }
 
     COM_StripExtension(item->world_model[0], path, sizeof(path));
     Q_strcat(path, sizeof(path), "_hand.md3");
@@ -661,25 +667,25 @@ void CG_RegisterWeapon(int weaponNum) {
     switch (weaponNum) {
         case WP_GAUNTLET:
             MAKERGB(weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f);
-            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/melee/fstrun.wav", qfalse);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/melee/fstatck.wav", qfalse);
+            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/melee/fstrun.ogg", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/melee/fstatck.ogg", qfalse);
             break;
 
         case WP_LIGHTNING:
             MAKERGB(weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f);
-            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/melee/fsthum.wav", qfalse);
-            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/lightning/lg_hum.wav", qfalse);
+            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/melee/fsthum.ogg", qfalse);
+            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/lightning/lg_hum.ogg", qfalse);
 
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/lightning/lg_fire.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/lightning/lg_fire.ogg", qfalse);
 
             for (i = 0; i < NUM_LIGHTNING_STYLES; i++) {
                 cgs.media.lightningShader[i] = trap_R_RegisterShader(va("lightningBolt%i", i + 1));
             }
 
             cgs.media.lightningExplosionModel = trap_R_RegisterModel("models/weaphits/crackle.md3");
-            cgs.media.sfx_lghit1 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit.wav", qfalse);
-            cgs.media.sfx_lghit2 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit2.wav", qfalse);
-            cgs.media.sfx_lghit3 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit3.wav", qfalse);
+            cgs.media.sfx_lghit1 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit.ogg", qfalse);
+            cgs.media.sfx_lghit2 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit2.ogg", qfalse);
+            cgs.media.sfx_lghit3 = trap_S_RegisterSound("sound/weapons/lightning/lg_hit3.ogg", qfalse);
             break;
 
         case WP_GRAPPLING_HOOK:
@@ -693,35 +699,45 @@ void CG_RegisterWeapon(int weaponNum) {
             break;
 
         case WP_CHAINGUN:
-            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/vulcan/wvulfire.wav", qfalse);
+            weaponInfo->firingSound = trap_S_RegisterSound("sound/weapons/vulcan/wvulfire.ogg", qfalse);
             MAKERGB(weaponInfo->flashDlightColor, 1, 1, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf1b.wav", qfalse);
-            weaponInfo->flashSound[1] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf2b.wav", qfalse);
-            weaponInfo->flashSound[2] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf3b.wav", qfalse);
-            weaponInfo->flashSound[3] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf4b.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf1b.ogg", qfalse);
+            weaponInfo->flashSound[1] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf2b.ogg", qfalse);
+            weaponInfo->flashSound[2] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf3b.ogg", qfalse);
+            weaponInfo->flashSound[3] = trap_S_RegisterSound("sound/weapons/vulcan/vulcanf4b.ogg", qfalse);
+            weaponInfo->ejectBrassFunc = CG_MachineGunEjectBrass;
+            cgs.media.bulletExplosionShader = trap_R_RegisterShader("bulletExplosion");
+            break;
+
+        case WP_HMG:
+            MAKERGB(weaponInfo->flashDlightColor, 1, 1, 0);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/hmg/machgf1b.ogg", qfalse);
+            weaponInfo->flashSound[1] = trap_S_RegisterSound("sound/weapons/hmg/machgf2b.ogg", qfalse);
+            weaponInfo->flashSound[2] = trap_S_RegisterSound("sound/weapons/hmg/machgf3b.ogg", qfalse);
+            weaponInfo->flashSound[3] = trap_S_RegisterSound("sound/weapons/hmg/machgf4b.ogg", qfalse);
             weaponInfo->ejectBrassFunc = CG_MachineGunEjectBrass;
             cgs.media.bulletExplosionShader = trap_R_RegisterShader("bulletExplosion");
             break;
 
         case WP_MACHINEGUN:
             MAKERGB(weaponInfo->flashDlightColor, 1, 1, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/machinegun/machgf1b.wav", qfalse);
-            weaponInfo->flashSound[1] = trap_S_RegisterSound("sound/weapons/machinegun/machgf2b.wav", qfalse);
-            weaponInfo->flashSound[2] = trap_S_RegisterSound("sound/weapons/machinegun/machgf3b.wav", qfalse);
-            weaponInfo->flashSound[3] = trap_S_RegisterSound("sound/weapons/machinegun/machgf4b.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/machinegun/machgf1b.ogg", qfalse);
+            weaponInfo->flashSound[1] = trap_S_RegisterSound("sound/weapons/machinegun/machgf2b.ogg", qfalse);
+            weaponInfo->flashSound[2] = trap_S_RegisterSound("sound/weapons/machinegun/machgf3b.ogg", qfalse);
+            weaponInfo->flashSound[3] = trap_S_RegisterSound("sound/weapons/machinegun/machgf4b.ogg", qfalse);
             weaponInfo->ejectBrassFunc = CG_MachineGunEjectBrass;
             cgs.media.bulletExplosionShader = trap_R_RegisterShader("bulletExplosion");
             break;
 
         case WP_SHOTGUN:
             MAKERGB(weaponInfo->flashDlightColor, 1, 1, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/shotgun/sshotf1b.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/shotgun/sshotf1b.ogg", qfalse);
             weaponInfo->ejectBrassFunc = CG_ShotgunEjectBrass;
             break;
 
         case WP_ROCKET_LAUNCHER:
             weaponInfo->missileModel = trap_R_RegisterModel("models/ammo/rocket/rocket.md3");
-            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/rocket/rockfly.wav", qfalse);
+            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/rocket/rockfly.ogg", qfalse);
             weaponInfo->missileTrailFunc = CG_RocketTrail;
             weaponInfo->missileDlight = 200;
             weaponInfo->wiTrailTime = 2000;
@@ -730,7 +746,7 @@ void CG_RegisterWeapon(int weaponNum) {
             MAKERGB(weaponInfo->missileDlightColor, 1, 0.75f, 0);
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.75f, 0);
 
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/rocket/rocklf1a.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/rocket/rocklf1a.ogg", qfalse);
             cgs.media.rocketExplosionShader = trap_R_RegisterShader("rocketExplosion");
             break;
 
@@ -740,7 +756,7 @@ void CG_RegisterWeapon(int weaponNum) {
             weaponInfo->wiTrailTime = 700;
             weaponInfo->trailRadius = 32;
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.70f, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/proxmine/wstbfire.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/proxmine/wstbfire.ogg", qfalse);
             cgs.media.grenadeExplosionShader = trap_R_RegisterShader("grenadeExplosion");
             break;
 
@@ -750,52 +766,52 @@ void CG_RegisterWeapon(int weaponNum) {
             weaponInfo->wiTrailTime = 700;
             weaponInfo->trailRadius = 32;
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.70f, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/grenade/grenlf1a.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/grenade/grenlf1a.ogg", qfalse);
             cgs.media.grenadeExplosionShader = trap_R_RegisterShader("grenadeExplosion");
             break;
 
         case WP_NAILGUN:
             weaponInfo->ejectBrassFunc = CG_NailgunEjectBrass;
             weaponInfo->missileTrailFunc = CG_NailTrail;
-            //		weaponInfo->missileSound = trap_S_RegisterSound( "sound/weapons/nailgun/wnalflit.wav", qfalse );
+            //		weaponInfo->missileSound = trap_S_RegisterSound( "sound/weapons/nailgun/wnalflit.ogg", qfalse );
             weaponInfo->trailRadius = 16;
             weaponInfo->wiTrailTime = 250;
             weaponInfo->missileModel = trap_R_RegisterModel("models/weaphits/nail.md3");
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.75f, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/nailgun/wnalfire.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/nailgun/wnalfire.ogg", qfalse);
             break;
 
         case WP_PLASMAGUN:
             //		weaponInfo->missileModel = cgs.media.invulnerabilityPowerupModel;
             weaponInfo->missileTrailFunc = CG_PlasmaTrail;
-            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/plasma/lasfly.wav", qfalse);
+            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/plasma/lasfly.ogg", qfalse);
             MAKERGB(weaponInfo->flashDlightColor, 0.6f, 0.6f, 1.0f);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/plasma/hyprbf1a.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/plasma/hyprbf1a.ogg", qfalse);
             cgs.media.plasmaExplosionShader = trap_R_RegisterShader("plasmaExplosion");
             cgs.media.railRingsShader = trap_R_RegisterShader("railDisc");
             break;
 
         case WP_RAILGUN:
-            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/railgun/rg_hum.wav", qfalse);
+            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/railgun/rg_hum.ogg", qfalse);
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.5f, 0);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/railgun/railgf1a.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/railgun/railgf1a.ogg", qfalse);
             cgs.media.railExplosionShader = trap_R_RegisterShader("railExplosion");
             cgs.media.railRingsShader = trap_R_RegisterShader("railDisc");
             cgs.media.railCoreShader = trap_R_RegisterShader("railCore");
             break;
 
         case WP_BFG:
-            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/bfg/bfg_hum.wav", qfalse);
+            weaponInfo->readySound = trap_S_RegisterSound("sound/weapons/bfg/bfg_hum.ogg", qfalse);
             MAKERGB(weaponInfo->flashDlightColor, 1, 0.7f, 1);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/bfg/bfg_fire.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/bfg/bfg_fire.ogg", qfalse);
             cgs.media.bfgExplosionShader = trap_R_RegisterShader("bfgExplosion");
             weaponInfo->missileModel = trap_R_RegisterModel("models/weaphits/bfg.md3");
-            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/rocket/rockfly.wav", qfalse);
+            weaponInfo->missileSound = trap_S_RegisterSound("sound/weapons/rocket/rockfly.ogg", qfalse);
             break;
 
         default:
             MAKERGB(weaponInfo->flashDlightColor, 1, 1, 1);
-            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/rocket/rocklf1a.wav", qfalse);
+            weaponInfo->flashSound[0] = trap_S_RegisterSound("sound/weapons/rocket/rocklf1a.ogg", qfalse);
             break;
     }
 }
@@ -1069,7 +1085,7 @@ static float CG_MachinegunSpinAngle(centity_t* cent) {
         cent->pe.barrelAngle = AngleMod(angle);
         cent->pe.barrelSpinning = !!(cent->currentState.eFlags & EF_FIRING);
         if (cent->currentState.weapon == WP_CHAINGUN && !cent->pe.barrelSpinning) {
-            trap_S_StartSound(NULL, cent->currentState.number, CHAN_WEAPON, trap_S_RegisterSound("sound/weapons/vulcan/wvulwind.wav", qfalse));
+            trap_S_StartSound(NULL, cent->currentState.number, CHAN_WEAPON, trap_S_RegisterSound("sound/weapons/vulcan/wvulwind.ogg", qfalse));
         }
     }
 
@@ -1363,7 +1379,7 @@ void CG_DrawWeaponSelect(void) {
     int i;
     int bits;
     int count;
-    int x, y, w;
+    int x, y;
     char* name;
     float* color;
 
@@ -1418,14 +1434,201 @@ void CG_DrawWeaponSelect(void) {
 
     // draw the selected name
     if (cg_weapons[cg.weaponSelect].item) {
+        float scale = 0.4f;
+        float tw;
         name = cg_weapons[cg.weaponSelect].item->pickup_name;
         if (name) {
-            w = CG_DrawStrlen(name) * BIGCHAR_WIDTH;
-            x = (SCREEN_WIDTH - w) / 2;
-            CG_DrawBigStringColor(x, y - 22, name, color);
+            tw = CG_Text_Width(name, scale, 0);
+            CG_Text_Paint(320 - tw / 2, y - 12, scale, color, name, 0, 0, 6 /*ITEM_TEXTSTYLE_SHADOWEDMORE*/);
         }
     }
 
+    trap_R_SetColor(NULL);
+}
+
+/*
+===================
+CG_DrawWeaponBar
+[QL] Draw the weapon bar in all modes (binary: FUN_10053960 + FUN_10053100)
+  cg_weaponBar: 0=No, 1=Left, 2=Right, 3=Centered, 4=Classic
+  cg_drawFullWeaponBar: 0=in inventory only, 1=all available weapons on map
+===================
+*/
+void CG_DrawWeaponBar(void) {
+    int i;
+    int bits;
+    int count;
+    float x, y;
+    float xStep, yStep;
+    int ammoOffset;
+    int textAlign;
+    int selectedWeapon;
+    int isSpectating;
+    int lowAmmoThreshold;
+    vec4_t colorNormal = { 1.0f, 1.0f, 1.0f, 1.0f };
+    vec4_t colorLow    = { 1.0f, 0.8f, 0.2f, 0.8f };
+    vec4_t colorEmpty   = { 1.0f, 0.0f, 0.0f, 0.8f };
+
+    // don't display if dead or no weapon bar mode
+    if (cg.predictedPlayerState.stats[STAT_HEALTH] <= 0) {
+        return;
+    }
+    if (cg_weaponBar.integer == 0) {
+        return;
+    }
+
+    isSpectating = (cg.snap->ps.pm_flags & PMF_FOLLOW) ||
+                   cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR;
+
+    // Mode 4 = Classic - use Q3-style horizontal bar (only on weapon switch)
+    if (cg_weaponBar.integer == 4) {
+        CG_DrawWeaponSelect();
+        return;
+    }
+
+    // For modes 1/2/3: always visible, no fade
+    bits = cg.snap->ps.stats[STAT_WEAPONS];
+    selectedWeapon = isSpectating ? cg.snap->ps.weapon : cg.weaponSelect;
+
+    // Count weapons for centered mode
+    count = 0;
+    for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
+        if (bits & (1 << i)) {
+            count++;
+        } else if (cg_drawFullWeaponBar.integer && cg_weapons[i].weaponIcon && !isSpectating) {
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        return;
+    }
+
+    // Set layout based on mode (binary-accurate values from FUN_10053100)
+    switch (cg_weaponBar.integer) {
+        case 1: // Left
+            x = 1.0f;
+            y = 94.0f;
+            xStep = 0.0f;
+            yStep = 22.0f;
+            ammoOffset = 20;
+            textAlign = 2;  // left-aligned text offset
+            break;
+        case 2: // Right
+            x = 623.0f;
+            y = 94.0f;
+            xStep = 0.0f;
+            yStep = 22.0f;
+            ammoOffset = -3;
+            textAlign = 16;
+            break;
+        case 3: // Centered
+        default:
+            x = 320.0f - (float)count * 55.0f * 0.5f;
+            y = isSpectating ? 436.0f : 413.0f;
+            xStep = 55.0f;
+            yStep = 0.0f;
+            ammoOffset = 20;
+            textAlign = 8;
+            break;
+    }
+
+    trap_R_SetColor(NULL);
+
+    // Set widescreen mode
+    if (!isSpectating && cg_weaponBar.integer != 3) {
+        CG_SetWidescreen(cg_weaponBar.integer == 2 ? WIDESCREEN_RIGHT : WIDESCREEN_LEFT);
+    } else {
+        CG_SetWidescreen(WIDESCREEN_CENTER);
+    }
+
+    lowAmmoThreshold = (int)cg_lowAmmoWeaponBarWarning.value;
+
+    for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
+        qboolean hasWeapon;
+        qhandle_t icon;
+        int ammo;
+
+        hasWeapon = (bits & (1 << i)) != 0;
+
+        if (!hasWeapon) {
+            if (!cg_drawFullWeaponBar.integer || isSpectating) {
+                continue;
+            }
+            // Show all available weapons (dimmed if not in inventory)
+            CG_RegisterWeapon(i);
+            icon = cg_weapons[i].weaponIcon;
+            if (!icon) {
+                continue;
+            }
+        } else {
+            CG_RegisterWeapon(i);
+            icon = cg_weapons[i].weaponIcon;
+            if (!icon) {
+                continue;
+            }
+        }
+
+        // Draw selection highlight behind selected weapon
+        if (i == selectedWeapon) {
+            if (cg_weaponBar.integer == 2) {
+                // Right mode: highlight extends left
+                CG_DrawPic(x - 33.0f, y - 2.0f, 52.0f, 20.0f,
+                           cgs.media.weaponBarHighlightShader);
+            } else {
+                CG_DrawPic(x - 4.0f, y - 2.0f, 52.0f, 20.0f,
+                           cgs.media.weaponBarHighlightShader);
+            }
+        }
+
+        // Draw weapon icon (16x16)
+        if (hasWeapon || cg_drawFullWeaponBar.integer) {
+            CG_DrawPic(x, y, 16.0f, 16.0f, icon);
+        }
+
+        // Draw ammo count
+        if (hasWeapon) {
+            ammo = cg.snap->ps.ammo[i];
+            if (ammo < 0) {
+                // Infinite ammo
+                CG_DrawPic(x + (float)ammoOffset - (float)textAlign, y, 16.0f, 16.0f,
+                           cgs.media.infiniteAmmoShader);
+            } else {
+                char ammoStr[8];
+                vec4_t *ammoColor;
+                float textX;
+
+                Com_sprintf(ammoStr, sizeof(ammoStr), "%i", ammo);
+
+                if (ammo == 0) {
+                    ammoColor = &colorEmpty;
+                } else if (lowAmmoThreshold > 0 && ammo < lowAmmoThreshold) {
+                    ammoColor = &colorLow;
+                } else {
+                    ammoColor = &colorNormal;
+                }
+
+                textX = x + (float)ammoOffset;
+                if (cg_weaponBar.integer == 2) {
+                    // Right mode: ammo text left of icon
+                    float tw = CG_Text_Width(ammoStr, 0.24f, 0);
+                    textX = x + (float)ammoOffset - tw;
+                }
+
+                CG_Text_Paint(textX, y + 13.0f, 0.24f, *ammoColor, ammoStr, 0, 0, 0);
+            }
+
+            // Draw no-ammo overlay
+            if (ammo == 0) {
+                CG_DrawPic(x, y, 16.0f, 16.0f, cgs.media.noammoShader);
+            }
+        }
+
+        x += xStep;
+        y += yStep;
+    }
+
+    CG_SetWidescreen(WIDESCREEN_STRETCH);
     trap_R_SetColor(NULL);
 }
 
@@ -1778,6 +1981,7 @@ void CG_MissileHitWall(int weapon, int clientNum, vec3_t origin, vec3_t dir, imp
             radius = 8;
             break;
         case WP_MACHINEGUN:
+        case WP_HMG:
             mod = cgs.media.bulletFlashModel;
             shader = cgs.media.bulletExplosionShader;
             mark = cgs.media.bulletMarkShader;

@@ -74,6 +74,113 @@ const char* CG_PlaceString(int rank) {
 
 /*
 =============
+CG_ModToWeaponIcon
+[QL] Map means of death to weapon icon shader for obituary display
+=============
+*/
+static qhandle_t CG_ModToWeaponIcon(int mod) {
+    switch (mod) {
+        case MOD_SHOTGUN:                                       return cg_weapons[WP_SHOTGUN].weaponIcon;
+        case MOD_GAUNTLET:                                      return cg_weapons[WP_GAUNTLET].weaponIcon;
+        case MOD_MACHINEGUN:                                    return cg_weapons[WP_MACHINEGUN].weaponIcon;
+        case MOD_GRENADE:
+        case MOD_GRENADE_SPLASH:                                return cg_weapons[WP_GRENADE_LAUNCHER].weaponIcon;
+        case MOD_ROCKET:
+        case MOD_ROCKET_SPLASH:                                 return cg_weapons[WP_ROCKET_LAUNCHER].weaponIcon;
+        case MOD_PLASMA:
+        case MOD_PLASMA_SPLASH:                                 return cg_weapons[WP_PLASMAGUN].weaponIcon;
+        case MOD_RAILGUN:
+        case MOD_RAILGUN_HEADSHOT:                              return cg_weapons[WP_RAILGUN].weaponIcon;
+        case MOD_LIGHTNING:
+        case MOD_LIGHTNING_DISCHARGE:                           return cg_weapons[WP_LIGHTNING].weaponIcon;
+        case MOD_BFG:
+        case MOD_BFG_SPLASH:                                    return cg_weapons[WP_BFG].weaponIcon;
+        case MOD_NAIL:                                          return cg_weapons[WP_NAILGUN].weaponIcon;
+        case MOD_CHAINGUN:                                      return cg_weapons[WP_CHAINGUN].weaponIcon;
+        case MOD_PROXIMITY_MINE:                                return cg_weapons[WP_PROX_LAUNCHER].weaponIcon;
+        case MOD_HMG:                                           return cg_weapons[WP_HMG].weaponIcon;
+        default:                                                return cgs.media.fragIconShader;
+    }
+}
+
+/*
+=============
+CG_StripColorCodes
+[QL] Strip Q3 color codes from a string (for team game obituary names)
+=============
+*/
+static void CG_StripColorCodes(char *dst, const char *src, int dstSize) {
+    int i = 0;
+    while (*src && i < dstSize - 1) {
+        if (*src == '^' && src[1] >= '0' && src[1] <= '7') {
+            src += 2;
+            continue;
+        }
+        if (*src >= ' ') {
+            dst[i++] = *src;
+        }
+        src++;
+    }
+    dst[i] = '\0';
+}
+
+/*
+=============
+CG_AddObituary
+[QL] Add an obituary entry to the ring buffer (binary: CG_ScorePlum at 10018f60)
+=============
+*/
+static void CG_AddObituary(const char *victimName, const char *attackerName,
+                            int victimTeam, int attackerTeam,
+                            int hasAttacker, qhandle_t weaponIcon) {
+    int i;
+
+    // Shift entries if we're at capacity (controlled by cg_obituaryRowSize)
+    if (cg.obituaryCount >= cg_obituaryRowSize.integer &&
+        cg_obituaryRowSize.integer > 0 && cg_obituaryRowSize.integer < MAX_OBITUARIES) {
+        for (i = 0; i < cg.obituaryCount - 1; i++) {
+            cg.obituaries[i] = cg.obituaries[i + 1];
+        }
+        cg.obituaryCount--;
+    }
+
+    // Also shift if at absolute max
+    if (cg.obituaryCount >= MAX_OBITUARIES) {
+        for (i = 0; i < MAX_OBITUARIES - 1; i++) {
+            cg.obituaries[i] = cg.obituaries[i + 1];
+        }
+        cg.obituaryCount = MAX_OBITUARIES - 1;
+    }
+
+    i = cg.obituaryCount;
+    memset(&cg.obituaries[i], 0, sizeof(cg.obituaries[i]));
+    cg.obituaries[i].active = 1;
+    cg.obituaries[i].time = cg.time;
+    cg.obituaries[i].hasAttacker = hasAttacker;
+    cg.obituaries[i].weaponIcon = weaponIcon;
+    cg.obituaries[i].victimTeam = victimTeam;
+    cg.obituaries[i].attackerTeam = attackerTeam;
+
+    if (victimName) {
+        if (cgs.gametype >= GT_TEAM) {
+            CG_StripColorCodes(cg.obituaries[i].victimName, victimName, sizeof(cg.obituaries[i].victimName));
+        } else {
+            Q_strncpyz(cg.obituaries[i].victimName, victimName, sizeof(cg.obituaries[i].victimName));
+        }
+    }
+    if (attackerName) {
+        if (cgs.gametype >= GT_TEAM) {
+            CG_StripColorCodes(cg.obituaries[i].attackerName, attackerName, sizeof(cg.obituaries[i].attackerName));
+        } else {
+            Q_strncpyz(cg.obituaries[i].attackerName, attackerName, sizeof(cg.obituaries[i].attackerName));
+        }
+    }
+
+    cg.obituaryCount++;
+}
+
+/*
+=============
 CG_Obituary
 =============
 */
@@ -88,6 +195,8 @@ static void CG_Obituary(entityState_t* ent) {
     char attackerName[32];
     gender_t gender;
     clientInfo_t* ci;
+    qhandle_t weaponIcon;
+    int victimTeam, attackerTeam;
 
     target = ent->otherEntityNum;
     attacker = ent->otherEntityNum2;
@@ -95,6 +204,18 @@ static void CG_Obituary(entityState_t* ent) {
 
     if (target < 0 || target >= MAX_CLIENTS) {
         CG_Error("CG_Obituary: target out of range");
+    }
+
+    // [QL] Resolve weapon icon and add to obituary display buffer
+    weaponIcon = CG_ModToWeaponIcon(mod);
+    victimTeam = cgs.clientinfo[target].team;
+    if (attacker >= 0 && attacker < MAX_CLIENTS && attacker != target) {
+        attackerTeam = cgs.clientinfo[attacker].team;
+        CG_AddObituary(cgs.clientinfo[target].name, cgs.clientinfo[attacker].name,
+                       victimTeam, attackerTeam, 1, weaponIcon);
+    } else {
+        CG_AddObituary(cgs.clientinfo[target].name, NULL,
+                       victimTeam, 0, 0, weaponIcon);
     }
     ci = &cgs.clientinfo[target];
 
@@ -480,9 +601,9 @@ void CG_PainEvent(centity_t* cent, int health) {
     // play a gurp sound instead of a normal pain sound
     if (CG_WaterLevel(cent) == 3) {
         if (rand() & 1) {
-            trap_S_StartSound(NULL, cent->currentState.number, CHAN_VOICE, CG_CustomSound(cent->currentState.number, "sound/player/gurp1.wav"));
+            trap_S_StartSound(NULL, cent->currentState.number, CHAN_VOICE, CG_CustomSound(cent->currentState.number, "sound/player/gurp1.ogg"));
         } else {
-            trap_S_StartSound(NULL, cent->currentState.number, CHAN_VOICE, CG_CustomSound(cent->currentState.number, "sound/player/gurp2.wav"));
+            trap_S_StartSound(NULL, cent->currentState.number, CHAN_VOICE, CG_CustomSound(cent->currentState.number, "sound/player/gurp2.ogg"));
         }
     } else {
         trap_S_StartSound(NULL, cent->currentState.number, CHAN_VOICE, CG_CustomSound(cent->currentState.number, snd));
@@ -600,41 +721,8 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
             }
             break;
 
-        case EV_STEP_4:
-        case EV_STEP_8:
-        case EV_STEP_12:
-        case EV_STEP_16:  // smooth out step up transitions
-            DEBUGNAME("EV_STEP");
-            {
-                float oldStep;
-                int delta;
-                int step;
-
-                if (clientNum != cg.predictedPlayerState.clientNum) {
-                    break;
-                }
-                // if we are interpolating, we don't need to smooth steps
-                if (cg.demoPlayback || (cg.snap->ps.pm_flags & PMF_FOLLOW) ||
-                    cg_nopredict.integer || cg_synchronousClients.integer) {
-                    break;
-                }
-                // check for stepping up before a previous step is completed
-                delta = cg.time - cg.stepTime;
-                if (delta < STEP_TIME) {
-                    oldStep = cg.stepChange * (STEP_TIME - delta) / STEP_TIME;
-                } else {
-                    oldStep = 0;
-                }
-
-                // add this amount
-                step = 4 * (event - EV_STEP_4 + 1);
-                cg.stepChange = oldStep + step;
-                if (cg.stepChange > MAX_STEP_CHANGE) {
-                    cg.stepChange = MAX_STEP_CHANGE;
-                }
-                cg.stepTime = cg.time;
-                break;
-            }
+        // [QL] EV_STEP_4/8/12/16 removed - QL uses playerState_t for step smoothing.
+        // Step smoothing is now handled in CG_PlayerStateToEntityState or CG_TransitionPlayerState.
 
         case EV_JUMP_PAD:
             DEBUGNAME("EV_JUMP_PAD");
@@ -761,6 +849,13 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
         case EV_CHANGE_WEAPON:
             DEBUGNAME("EV_CHANGE_WEAPON");
             trap_S_StartSound(NULL, es->number, CHAN_AUTO, cgs.media.selectSound);
+            break;
+        case EV_DROP_WEAPON:
+            DEBUGNAME("EV_DROP_WEAPON");
+            // [QL] auto-switch to next available weapon when local player drops
+            if (es->number == cg.snap->ps.clientNum) {
+                CG_NextWeapon_f();
+            }
             break;
         case EV_FIRE_WEAPON:
             DEBUGNAME("EV_FIRE_WEAPON");
@@ -1112,6 +1207,11 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
 
             break;
 
+        case EV_DROWN:
+            DEBUGNAME("EV_DROWN");
+            trap_S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*drown.wav"));
+            break;
+
         case EV_OBITUARY:
             DEBUGNAME("EV_OBITUARY");
             CG_Obituary(es);
@@ -1144,6 +1244,14 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
             }
             trap_S_StartSound(NULL, es->number, CHAN_ITEM, cgs.media.regenSound);
             break;
+        case EV_POWERUP_ARMORREGEN:
+            DEBUGNAME("EV_POWERUP_ARMORREGEN");
+            if (es->number == cg.snap->ps.clientNum) {
+                cg.powerupActive = PW_AMMOREGEN;
+                cg.powerupTime = cg.time;
+            }
+            trap_S_StartSound(NULL, es->number, CHAN_ITEM, cgs.media.armorRegenSound);
+            break;
 
         case EV_GIB_PLAYER:
             DEBUGNAME("EV_GIB_PLAYER");
@@ -1156,15 +1264,314 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
             CG_GibPlayer(cent->lerpOrigin);
             break;
 
-        case EV_STOPLOOPINGSOUND:
-            DEBUGNAME("EV_STOPLOOPINGSOUND");
-            trap_S_StopLoopingSound(es->number);
-            es->loopSound = 0;
-            break;
+        // [QL] EV_STOPLOOPINGSOUND removed from QL event enum.
 
         case EV_DEBUG_LINE:
             DEBUGNAME("EV_DEBUG_LINE");
             CG_Beam(cent);
+            break;
+
+        // ================================================================
+        // [QL] New events - ported from cgamex86.dll binary analysis
+        // ================================================================
+        case EV_FOOTSTEP_SNOW:
+            DEBUGNAME("EV_FOOTSTEP_SNOW");
+            if (cg_footsteps.integer) {
+                trap_S_StartSound(NULL, es->number, CHAN_BODY, cgs.media.footsteps[FOOTSTEP_SNOW][rand() & 3]);
+            }
+            break;
+        case EV_FOOTSTEP_WOOD:
+            DEBUGNAME("EV_FOOTSTEP_WOOD");
+            if (cg_footsteps.integer) {
+                trap_S_StartSound(NULL, es->number, CHAN_BODY, cgs.media.footsteps[FOOTSTEP_WOOD][rand() & 3]);
+            }
+            break;
+        case EV_ITEM_PICKUP_SPEC:
+            DEBUGNAME("EV_ITEM_PICKUP_SPEC");
+            // [QL] spectator item pickup notification - updates tracking table
+            {
+                int slot, freeSlot = -1;
+                // search for existing entry or free slot
+                for (slot = 0; slot < MAX_SPEC_PICKUPS; slot++) {
+                    if (cg.specPickups[slot].active &&
+                        cg.specPickups[slot].clientNum == es->eventParm) {
+                        freeSlot = slot;
+                        break;
+                    }
+                    if (!cg.specPickups[slot].active && freeSlot == -1) {
+                        freeSlot = slot;
+                    }
+                }
+                if (freeSlot >= 0) {
+                    cg.specPickups[freeSlot].active = qtrue;
+                    cg.specPickups[freeSlot].clientNum = es->eventParm;
+                    cg.specPickups[freeSlot].itemIndex = es->modelindex;
+                    cg.specPickups[freeSlot].amount = es->generic1;
+                    cg.specPickups[freeSlot].time = cg.time;
+                    VectorCopy(es->pos.trBase, cg.specPickups[freeSlot].origin);
+                }
+            }
+            break;
+        case EV_OVERTIME:
+            DEBUGNAME("EV_OVERTIME");
+            // [QL] overtime announcement
+            trap_S_StartSound(NULL, cg.snap->ps.clientNum, CHAN_AUTO, cgs.media.overtimeSound);
+            CG_CenterPrint(va("Overtime! %d seconds added", cgs.timelimit_overtime), 90, 0.5f);
+            break;
+        case EV_GAMEOVER:
+            DEBUGNAME("EV_GAMEOVER");
+            // [QL] game over - play win/loss music based on outcome
+            if (cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR) {
+                trap_S_StartBackgroundTrack("music/win", "");
+            } else if (cgs.gametype >= GT_TEAM) {
+                if (cg.snap->ps.persistant[PERS_TEAM] == TEAM_RED) {
+                    trap_S_StartBackgroundTrack(
+                        cgs.scores1 >= cgs.scores2 ? "music/win" : "music/loss", "");
+                } else {
+                    trap_S_StartBackgroundTrack(
+                        cgs.scores2 >= cgs.scores1 ? "music/win" : "music/loss", "");
+                }
+            } else {
+                // FFA/duel - compare local player score against top score
+                trap_S_StartBackgroundTrack(
+                    cg.snap->ps.persistant[PERS_SCORE] >= cgs.scores1 ? "music/win" : "music/loss",
+                    "");
+            }
+            break;
+        case EV_MISSILE_MISS_DMGTHROUGH:
+            DEBUGNAME("EV_MISSILE_MISS_DMGTHROUGH");
+            ByteToDir(es->eventParm, dir);
+            CG_MissileHitWall(es->weapon, 0, position, dir, IMPACTSOUND_DEFAULT);
+            break;
+        case EV_THAW_PLAYER:
+            DEBUGNAME("EV_THAW_PLAYER");
+            // [QL] freeze tag thaw - spawn 7 ice shard fragments
+            {
+                int shard;
+                for (shard = 0; shard < 7; shard++) {
+                    localEntity_t* le = CG_AllocLocalEntity();
+                    refEntity_t* re = &le->refEntity;
+                    le->leType = LE_FRAGMENT;
+                    le->startTime = cg.time;
+                    le->endTime = cg.time + 3000 + random() * 3000;
+                    re->hModel = cgs.media.iceShardModel;
+                    re->customShader = (shard & 1) ?
+                        cgs.media.iceShardShader2 : cgs.media.iceShardShader1;
+                    re->renderfx = 0;
+                    VectorCopy(cent->lerpOrigin, le->pos.trBase);
+                    le->pos.trBase[2] += 24;  // center height
+                    le->pos.trType = TR_GRAVITY;
+                    le->pos.trTime = cg.time;
+                    le->pos.trDelta[0] = crandom() * 150;
+                    le->pos.trDelta[1] = crandom() * 150;
+                    le->pos.trDelta[2] = 150 + random() * 100;
+                    AxisCopy(axisDefault, re->axis);
+                    le->bounceFactor = 0.3f;
+                    re->nonNormalizedAxes = qtrue;
+                    VectorScale(re->axis[0], 0.6f, re->axis[0]);
+                    VectorScale(re->axis[1], 0.6f, re->axis[1]);
+                    VectorScale(re->axis[2], 0.6f, re->axis[2]);
+                }
+            }
+            break;
+        case EV_THAW_TICK:
+            DEBUGNAME("EV_THAW_TICK");
+            trap_S_StartSound(NULL, es->number, CHAN_BODY, cgs.media.thawTickSound);
+            break;
+        case EV_SHOTGUN_KILL:
+            DEBUGNAME("EV_SHOTGUN_KILL");
+            // [QL] shotgun kill - spawns extra blood splatter at victim
+            {
+                int bursts = es->generic1 / 5;
+                int i;
+                vec3_t bloodOrigin;
+                for (i = 0; i < bursts; i++) {
+                    VectorCopy(cent->lerpOrigin, bloodOrigin);
+                    bloodOrigin[0] += (rand() & 31) - 16;
+                    bloodOrigin[1] += (rand() & 31) - 16;
+                    bloodOrigin[2] += (rand() % 24) + 8;
+                    CG_Bleed(bloodOrigin, es->number);
+                    CG_Bleed(bloodOrigin, es->number);
+                }
+            }
+            break;
+        case EV_POI:
+            DEBUGNAME("EV_POI");
+            // [QL] point of interest marker - floating 3D indicator for team modes
+            // es->powerups = duration in ms, es->generic1 = team
+            if (cg.numPoiPics < MAX_POI_PICS) {
+                int idx = cg.numPoiPics;
+                VectorCopy(es->pos.trBase, cg.poiPics[idx].origin);
+                cg.poiPics[idx].startTime = cg.time;
+                cg.poiPics[idx].length = es->powerups;
+                cg.poiPics[idx].team = es->generic1;
+                cg.numPoiPics++;
+            }
+            break;
+        case EV_LIGHTNING_DISCHARGE:
+            DEBUGNAME("EV_LIGHTNING_DISCHARGE");
+            // [QL] LG water discharge - electric sprite effect at player origin
+            {
+                localEntity_t *le = CG_AllocLocalEntity();
+                refEntity_t *re = &le->refEntity;
+                le->leType = LE_SPRITE_EXPLOSION;
+                le->startTime = cg.time;
+                le->endTime = cg.time + es->eventParm + 300;
+                le->lifeRate = 1.0f / (le->endTime - le->startTime);
+                VectorCopy(cent->lerpOrigin, re->origin);
+                re->radius = (float)(es->eventParm * 10 + 48) / 16.0f;
+                re->customShader = trap_R_RegisterShader("models/weaphits/electric");
+                re->shaderRGBA[0] = 0xff;
+                re->shaderRGBA[1] = 0xff;
+                re->shaderRGBA[2] = 0xff;
+                re->shaderRGBA[3] = 0xff;
+            }
+            break;
+        case EV_RACE_START:
+            DEBUGNAME("EV_RACE_START");
+            // [QL] race mode start - init race state for local player
+            if (cg.snap->ps.clientNum == es->number) {
+                cg.race.active = qtrue;
+                cg.race.startTime = es->pos.trTime;
+                cg.race.checkpointDiff = 0;
+                cg.race.hasDiff = qfalse;
+                cg.race.totalCheckpoints = es->otherEntityNum;
+                cg.race.bestSplit = es->powerups;
+                cg.race.checkpointCount = 1;
+                // play announcer countdown sound
+                trap_S_StartLocalSound(cgs.media.countFightSound, CHAN_ANNOUNCER);
+            }
+            break;
+        case EV_RACE_CHECKPOINT:
+            DEBUGNAME("EV_RACE_CHECKPOINT");
+            // [QL] race checkpoint - show split time center print
+            if (cg.snap->ps.clientNum == es->number) {
+                cg.race.totalCheckpoints = es->otherEntityNum;
+                cg.race.bestSplit = es->powerups;
+                cg.race.checkpointCount++;
+                if (es->generic1) {
+                    cg.race.checkpointDiff = es->pos.trTime;
+                    cg.race.hasDiff = qtrue;
+                } else {
+                    cg.race.checkpointDiff = 0;
+                    cg.race.hasDiff = qfalse;
+                }
+                // play checkpoint sound
+                trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
+                // show split time
+                {
+                    int remaining = cg.race.totalCheckpoints - cg.race.checkpointCount;
+                    char remainStr[64] = "";
+                    if (remaining < 4 && cg_drawCheckpointRemaining.integer) {
+                        Com_sprintf(remainStr, sizeof(remainStr), "^7%d remaining", remaining);
+                    }
+                    if (cg.race.hasDiff) {
+                        const char *color;
+                        int absDiff = cg.race.checkpointDiff < 0 ? -cg.race.checkpointDiff : cg.race.checkpointDiff;
+                        int ms = absDiff % 1000;
+                        int sec = (absDiff / 1000) % 60;
+                        int min = absDiff / 60000;
+                        if (cg.race.checkpointDiff < 0) color = "^2";       // ahead (green)
+                        else if (cg.race.checkpointDiff == 0) color = "^7"; // tied (white)
+                        else color = "^1";                                    // behind (red)
+                        if (min > 0) {
+                            CG_CenterPrint(va("%s%s%d:%02d.%03d\n%s",
+                                color, cg.race.checkpointDiff < 0 ? "-" : "+",
+                                min, sec, ms, remainStr), 120, SMALLCHAR_WIDTH);
+                        } else {
+                            CG_CenterPrint(va("%s%s%d.%03d\n%s",
+                                color, cg.race.checkpointDiff < 0 ? "-" : "+",
+                                sec, ms, remainStr), 120, SMALLCHAR_WIDTH);
+                        }
+                    } else {
+                        CG_CenterPrint(va("Checkpoint\n%s", remainStr), 120, SMALLCHAR_WIDTH);
+                    }
+                }
+            }
+            break;
+        case EV_RACE_FINISH:
+            DEBUGNAME("EV_RACE_FINISH");
+            // [QL] race finish - show final time, update personal best
+            if (cg.snap->ps.clientNum == es->number) {
+                cg.race.active = qfalse;
+                if (es->generic1 == 0) {
+                    // invalid finish (DNF)
+                    cg.race.hasDiff = qfalse;
+                    cg.race.checkpointDiff = 0;
+                } else {
+                    cg.race.finishTime = es->pos.trTime;
+                    if (cg.race.bestTime > 0) {
+                        // show split vs personal best
+                        int diff = cg.race.finishTime - cg.race.bestTime;
+                        int absDiff = diff < 0 ? -diff : diff;
+                        int ms = absDiff % 1000;
+                        int sec = (absDiff / 1000) % 60;
+                        int min = absDiff / 60000;
+                        const char *color;
+                        if (diff < 0) color = "^2";
+                        else if (diff == 0) color = "^7";
+                        else color = "^1";
+                        if (min > 0) {
+                            CG_CenterPrint(va("%s%s%d:%02d.%03d",
+                                color, diff < 0 ? "-" : "+", min, sec, ms), 120, SMALLCHAR_WIDTH);
+                        } else {
+                            CG_CenterPrint(va("%s%s%d.%03d",
+                                color, diff < 0 ? "-" : "+", sec, ms), 120, SMALLCHAR_WIDTH);
+                        }
+                        // update PB only if improved
+                        if (cg.race.finishTime < cg.race.bestTime) {
+                            cg.race.bestTime = cg.race.finishTime;
+                        }
+                    } else {
+                        // first finish - set as PB
+                        cg.race.bestTime = cg.race.finishTime;
+                    }
+                }
+                trap_S_StartLocalSound(cgs.media.raceFinishSound, CHAN_ANNOUNCER);
+            }
+            break;
+        case EV_DAMAGEPLUM:
+            DEBUGNAME("EV_DAMAGEPLUM");
+            // [QL] floating damage number - only show for local player's hits
+            if (cg_damagePlum.string[0] && cg.snap->ps.clientNum == es->otherEntityNum) {
+                CG_DamagePlum(es->pos.trTime, es->weapon, cent->lerpOrigin);
+            }
+            break;
+        case EV_AWARD:
+            DEBUGNAME("EV_AWARD");
+            // [QL] award notification - 10 types, uses existing reward display system
+            if (cg.snap->ps.clientNum == es->otherEntityNum) {
+                qhandle_t shader = 0;
+                int count = es->generic1;
+                switch (es->weapon) {
+                case 0: shader = cgs.media.medalComboKill; break;
+                case 1: shader = cgs.media.medalRampage; break;
+                case 2: shader = cgs.media.medalMidair; break;
+                case 3: shader = cgs.media.medalRevenge; break;
+                case 4: shader = cgs.media.medalPerforated; break;
+                case 5: shader = cgs.media.medalHeadshot; break;
+                case 6: shader = cgs.media.medalAccuracy; break;
+                case 7: shader = cgs.media.medalQuadGod; break;
+                case 8: shader = cgs.media.medalFirstFrag; count = 1; break;
+                case 9: shader = cgs.media.medalPerfect; break;
+                }
+                if (shader && cg.rewardStack < (MAX_REWARDSTACK - 1)) {
+                    cg.rewardSound[cg.rewardStack] = cgs.media.impressiveSound;
+                    cg.rewardShader[cg.rewardStack] = shader;
+                    cg.rewardCount[cg.rewardStack] = count;
+                    cg.rewardStack++;
+                    cg.rewardTime = cg.time;
+                }
+            }
+            break;
+        case EV_INFECTED:
+            DEBUGNAME("EV_INFECTED");
+            // [QL] infection mode - play announcement sound
+            trap_S_StartLocalSound(cgs.media.infectedSound, CHAN_ANNOUNCER);
+            break;
+        case EV_NEW_HIGH_SCORE:
+            DEBUGNAME("EV_NEW_HIGH_SCORE");
+            // [QL] new high score - no handler in binary (no-op)
             break;
 
         default:
