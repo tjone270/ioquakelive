@@ -2325,11 +2325,7 @@ void CL_Frame(int msec) {
     }
 #endif
 
-    if (cls.cddialog) {
-        // bring up the cd error dialog if needed
-        cls.cddialog = qfalse;
-        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_NEED_CD);
-    } else if (clc.state == CA_DISCONNECTED && !(Key_GetCatcher() & KEYCATCH_UI) && !com_sv_running->integer && uivm) {
+    if (clc.state == CA_DISCONNECTED && !(Key_GetCatcher() & KEYCATCH_UI) && !com_sv_running->integer && uivm) {
         // if disconnected, bring up the menu
         S_StopAllSounds();
         VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN);
@@ -2824,6 +2820,42 @@ void CL_Sayto_f(void) {
 
 /*
 ====================
+CL_Web_ChangeHash_f
+
+[QL] This would usually change the web path Awesomium is looking at, but 
+for us we're just going to hijack it and display the legacy menus.
+====================
+*/
+void CL_Web_ChangeHash_f(void) {
+    char* web_path;
+
+    if (clc.state < CA_CONNECTED || !uivm) {
+        Com_Printf("You must be in-game to use this command.");
+        return;
+    }
+
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Not enough arguments.\n");
+        return;
+    }
+
+    web_path = Cmd_Argv(1);
+
+	if (web_path[0] == "/") {
+		web_path++;
+	}
+    
+    if (Q_stristr(web_path, "settings")) {
+        Com_Printf("Opening in-game controls menu.\n");
+        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN_OPTIONS);
+    } else {
+        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_NONE);
+    }
+}
+
+
+/*
+====================
 CL_Init
 ====================
 */
@@ -2956,8 +2988,7 @@ void CL_Init(void) {
     Cvar_Get("snaps", "20", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
-    Cvar_Get("team_model", "james", CVAR_USERINFO | CVAR_ARCHIVE);
-    Cvar_Get("team_headmodel", "*james", CVAR_USERINFO | CVAR_ARCHIVE);
+
     Cvar_Get("color1", "4", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("color2", "5", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("handicap", "100", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -2999,6 +3030,7 @@ void CL_Init(void) {
     Cmd_AddCommand("model", CL_SetModel_f);
     Cmd_AddCommand("video", CL_Video_f);
     Cmd_AddCommand("stopvideo", CL_StopVideo_f);
+    Cmd_AddCommand("web_changeHash", CL_Web_ChangeHash_f);
     if (!com_dedicated->integer) {
         Cmd_AddCommand("sayto", CL_Sayto_f);
         Cmd_SetCommandCompletionFunc("sayto", CL_CompletePlayerName);

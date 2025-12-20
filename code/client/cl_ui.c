@@ -978,7 +978,7 @@ void CL_ShutdownUI(void) {
 CL_InitUI
 ====================
 */
-#define UI_OLD_API_VERSION 4
+#define UI_OLD_API_VERSION 6
 
 void CL_InitUI(void) {
     int v;

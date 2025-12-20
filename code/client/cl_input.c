@@ -842,6 +842,9 @@ void CL_WritePacket(void) {
     // write the last reliable message we received
     MSG_WriteLong(&buf, clc.serverCommandSequence);
 
+    // [QL] extra byte after header (read and discarded by server)
+    MSG_WriteByte(&buf, 0);
+
     // write any unacknowledged clientCommands
     for (i = clc.reliableAcknowledge + 1; i <= clc.reliableSequence; i++) {
         MSG_WriteByte(&buf, clc_clientCommand);

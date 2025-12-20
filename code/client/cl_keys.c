@@ -1394,7 +1394,7 @@ void Key_SetCatcher(int catcher) {
 
 // This must not exceed MAX_CMD_LINE
 #define MAX_CONSOLE_SAVE_BUFFER 1024
-#define CONSOLE_HISTORY_FILE "q3history"
+#define CONSOLE_HISTORY_FILE "consolehistory.txt"
 static char consoleSaveBuffer[MAX_CONSOLE_SAVE_BUFFER];
 static int consoleSaveBufferSize = 0;
 
