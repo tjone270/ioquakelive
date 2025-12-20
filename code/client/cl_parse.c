@@ -390,8 +390,7 @@ void CL_SystemInfoChanged(void) {
             // If this cvar may not be modified by a server discard the value.
             if (!(cvar_flags & (CVAR_SYSTEMINFO | CVAR_SERVER_CREATED | CVAR_USER_CREATED))) {
 #ifndef STANDALONE
-                if (Q_stricmp(key, "g_synchronousClients") && Q_stricmp(key, "pmove_fixed") &&
-                    Q_stricmp(key, "pmove_msec"))
+                if (Q_stricmp(key, "g_synchronousClients"))
 #endif
                 {
                     Com_Printf(S_COLOR_YELLOW "WARNING: server is not allowed to set %s=%s\n", key, value);
@@ -692,7 +691,7 @@ void CL_ParseServerMessage(msg_t* msg) {
         // other commands
         switch (cmd) {
             default:
-                Com_Error(ERR_DROP, "CL_ParseServerMessage: Illegible server message");
+                Com_Error(ERR_DROP, "CL_ParseServerMessage: Illegible server message %d\n", cmd);
                 break;
             case svc_nop:
                 break;

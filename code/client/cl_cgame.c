@@ -597,6 +597,10 @@ intptr_t CL_CgameSystemCalls(intptr_t* args) {
         case CG_KEY_GETKEY:
             return Key_GetKey(VMA(1));
 
+        case CG_KEY_KEYNUMTOSTRINGBUF:
+            Q_strncpyz(VMA(2), Key_KeynumToString(args[1]), args[3]);
+            return 0;
+
         case CG_MEMSET:
             Com_Memset(VMA(1), args[2], args[3]);
             return 0;
@@ -713,6 +717,9 @@ void CL_InitCGame(void) {
         Com_Error(ERR_DROP, "VM_Create on cgame failed");
     }
     clc.state = CA_LOADING;
+
+    // [QL] register cgame cvars before init
+    VM_Call(cgvm, CG_REGISTER_CVARS);
 
     // init for this gamestate
     // use the lastExecutedServerCommand instead of the serverCommandSequence
@@ -848,8 +855,10 @@ CL_FirstSnapshot
 void CL_FirstSnapshot(void) {
     // ignore snapshots that don't have entities
     if (cl.snap.snapFlags & SNAPFLAG_NOT_ACTIVE) {
+        Com_DPrintf("CL_FirstSnapshot: REJECTED (SNAPFLAG_NOT_ACTIVE), state=%d\n", clc.state);
         return;
     }
+    Com_DPrintf("CL_FirstSnapshot: SUCCESS, transitioning to CA_ACTIVE\n");
     clc.state = CA_ACTIVE;
 
     // set the timedelta so we are exactly on this first frame
