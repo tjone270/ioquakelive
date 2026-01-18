@@ -170,23 +170,33 @@ void UI_LoadArenasIntoMapList(void) {
     uiInfo.mapCount = 0;
 
     for (n = 0; n < ui_numArenas; n++) {
-        // determine type
-
         uiInfo.mapList[uiInfo.mapCount].cinematic = -1;
         uiInfo.mapList[uiInfo.mapCount].mapLoadName = String_Alloc(Info_ValueForKey(ui_arenaInfos[n], "map"));
         uiInfo.mapList[uiInfo.mapCount].mapName = String_Alloc(Info_ValueForKey(ui_arenaInfos[n], "longname"));
         uiInfo.mapList[uiInfo.mapCount].levelShot = -1;
-        uiInfo.mapList[uiInfo.mapCount].imageName = String_Alloc(va("levelshots/%s", uiInfo.mapList[uiInfo.mapCount].mapLoadName));
+        uiInfo.mapList[uiInfo.mapCount].imageName = String_Alloc(va("levelshots/preview/%s", uiInfo.mapList[uiInfo.mapCount].mapLoadName));
         uiInfo.mapList[uiInfo.mapCount].typeBits = 0;
 
         type = Info_ValueForKey(ui_arenaInfos[n], "type");
-        // if no type specified, it will be treated as "ffa"
+        // [QL] if no type specified, default to FFA
         if (*type) {
             if (strstr(type, "ffa")) {
                 uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_FFA);
             }
             if (strstr(type, "tourney")) {
-                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_TOURNAMENT);
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DUEL);
+            }
+            if (strstr(type, "duel")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DUEL);
+            }
+            if (strstr(type, "race")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_RACE);
+            }
+            if (strstr(type, "tdm")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_TEAM);
+            }
+            if (strstr(type, "ca")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_CA);
             }
             if (strstr(type, "ctf")) {
                 uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_CTF);
@@ -197,8 +207,23 @@ void UI_LoadArenasIntoMapList(void) {
             if (strstr(type, "overload")) {
                 uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_OBELISK);
             }
-            if (strstr(type, "harvester")) {
+            if (strstr(type, "hh")) {
                 uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_HARVESTER);
+            }
+            if (strstr(type, "har")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_HARVESTER);
+            }
+            if (strstr(type, "ft")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_FREEZE);
+            }
+            if (strstr(type, "dom")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_DOMINATION);
+            }
+            if (strstr(type, "ad")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_AD);
+            }
+            if (strstr(type, "rr")) {
+                uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_RR);
             }
         } else {
             uiInfo.mapList[uiInfo.mapCount].typeBits |= (1 << GT_FFA);
