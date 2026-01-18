@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __UI_PUBLIC_H__
 #define __UI_PUBLIC_H__
 
-#define UI_API_VERSION 6
+#define UI_API_VERSION 8
 
 typedef struct {
     connstate_t connState;
@@ -138,7 +138,7 @@ typedef enum {
     UIMENU_NONE,
     UIMENU_MAIN,
     UIMENU_INGAME,
-    UIMENU_NEED_CD,
+    UIMENU_MAIN_OPTIONS,
     UIMENU_BAD_CD_KEY,
     UIMENU_TEAM,
     UIMENU_POSTGAME
@@ -180,10 +180,25 @@ typedef enum {
 
     UI_DRAW_CONNECT_SCREEN,
     //	void	UI_DrawConnectScreen( qboolean overlay );
-    UI_HASUNIQUECDKEY
     // if !overlay, the background will be drawn, otherwise it will be
     // overlayed over whatever the cgame has drawn.
     // a GetClientState syscall will be made to get the current strings
+
+    UI_HASUNIQUECDKEY,
+
+    // [QL additions]
+    UI_REGISTER_CVARS,
+    //	void	UI_RegisterCvars( void );
+
+    UI_CHECK_ACTIVE_MENU,
+    //	qboolean UI_CheckActiveMenu( void );
+
+    UI_WALK_MENUS,
+    //	void	UI_WalkMenus( void (*callback)(void *menu) );
+
+    UI_DRAW_ADVERTISEMENT,
+    //	void	UI_DrawAdvertisement( void );
+
 } uiExport_t;
 
 #endif
