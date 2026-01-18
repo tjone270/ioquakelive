@@ -58,6 +58,7 @@ extern vmCvar_t ui_captureLimit;
 extern vmCvar_t ui_fragLimit;
 extern vmCvar_t ui_gameType;
 extern vmCvar_t ui_netGameType;
+extern vmCvar_t ui_cvgametype;
 extern vmCvar_t ui_actualNetGameType;
 extern vmCvar_t ui_joinGameType;
 extern vmCvar_t ui_netSource;
@@ -89,6 +90,75 @@ extern vmCvar_t ui_scoreTime;
 extern vmCvar_t ui_smallFont;
 extern vmCvar_t ui_bigFont;
 extern vmCvar_t ui_serverStatusTimeOut;
+
+// [QL additions] - player 2 duel scores
+extern vmCvar_t ui_scoreAccuracy2;
+extern vmCvar_t ui_scoreImpressives2;
+extern vmCvar_t ui_scoreExcellents2;
+extern vmCvar_t ui_scoreDefends2;
+extern vmCvar_t ui_scoreAssists2;
+extern vmCvar_t ui_scoreGauntlets2;
+extern vmCvar_t ui_scoreScore2;
+extern vmCvar_t ui_scorePerfect2;
+extern vmCvar_t ui_scoreTeam2;
+extern vmCvar_t ui_scoreBase2;
+extern vmCvar_t ui_scoreTimeBonus2;
+extern vmCvar_t ui_scoreSkillBonus2;
+extern vmCvar_t ui_scoreShutoutBonus2;
+extern vmCvar_t ui_scoreTime2;
+extern vmCvar_t ui_scoreCaptures2;
+
+// [QL additions] - model/skin customization
+extern vmCvar_t ui_forceTeamModel;
+extern vmCvar_t ui_forceTeamSkin;
+extern vmCvar_t ui_forceEnemyModel;
+extern vmCvar_t ui_forceEnemySkin;
+extern vmCvar_t ui_forceTeamModelBright;
+extern vmCvar_t ui_forceEnemyModelBright;
+extern vmCvar_t ui_teamColor;
+extern vmCvar_t ui_enemyColor;
+extern vmCvar_t ui_teamHeadColor;
+extern vmCvar_t ui_teamUpperColor;
+extern vmCvar_t ui_teamLowerColor;
+extern vmCvar_t ui_enemyHeadColor;
+extern vmCvar_t ui_enemyUpperColor;
+extern vmCvar_t ui_enemyLowerColor;
+
+// [QL additions] - game settings
+extern vmCvar_t ui_doWarmup;
+extern vmCvar_t ui_warmup;
+extern vmCvar_t ui_pure;
+extern vmCvar_t ui_friendlyFire;
+extern vmCvar_t ui_cvGameType;
+extern vmCvar_t ui_matchStartTime;
+extern vmCvar_t ui_saveCaptureLimit;
+extern vmCvar_t ui_saveFragLimit;
+extern vmCvar_t ui_votestring;
+extern vmCvar_t ui_intermission;
+
+// [QL additions] - browser
+extern vmCvar_t ui_browserSortKey;
+extern vmCvar_t ui_browserShowFull;
+extern vmCvar_t ui_browserShowEmpty;
+extern vmCvar_t ui_browserMaster;
+extern vmCvar_t ui_browserGameType;
+
+// [QL additions] - screen effects
+extern vmCvar_t ui_screenDamage;
+extern vmCvar_t ui_screenDamage_Team;
+extern vmCvar_t ui_bloomPreset;
+
+// [QL additions] - misc
+extern vmCvar_t ui_version;
+extern vmCvar_t ui_gibs;
+extern vmCvar_t ui_announcer;
+extern vmCvar_t ui_mainmenu;
+extern vmCvar_t ui_currentTier;
+extern vmCvar_t ui_opponentModel;
+extern vmCvar_t ui_mousePitch;
+extern vmCvar_t ui_favoriteName;
+extern vmCvar_t ui_favoriteAddress;
+
 
 //
 // ui_qmenu.c

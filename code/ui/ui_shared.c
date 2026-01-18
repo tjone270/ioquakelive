@@ -57,6 +57,9 @@ static itemDef_t* g_editItem = NULL;
 menuDef_t Menus[MAX_MENUS];  // defined menus
 int menuCount = 0;           // how many
 
+// [QL] widescreen rendering state - set before each item paint
+static int currentWidescreen = WIDESCREEN_STRETCH;
+
 menuDef_t* menuStack[MAX_OPEN_MENUS];
 int openMenuCount = 0;
 
@@ -75,9 +78,9 @@ itemDef_t* Menu_SetNextCursorItem(menuDef_t* menu);
 static qboolean Menu_OverActiveItem(menuDef_t* menu, float x, float y);
 
 #ifdef CGAME
-#define MEM_POOL_SIZE 128 * 1024
+#define MEM_POOL_SIZE  128 * 1024
 #else
-#define MEM_POOL_SIZE 1024 * 1024
+#define MEM_POOL_SIZE 4096 * 1024
 #endif
 
 static char memoryPool[MEM_POOL_SIZE];
@@ -193,7 +196,7 @@ const char* String_Alloc(const char* p) {
 
         str = UI_Alloc(sizeof(stringDef_t));
         if (!str) {
-            return NULL;
+            return &strPool[ph];
         }
         str->next = NULL;
         str->str = &strPool[ph];
@@ -808,6 +811,42 @@ qboolean Rect_ContainsPoint(rectDef_t* rect, float x, float y) {
     return qfalse;
 }
 
+// [QL] Widescreen-aware hit-testing: adjusts rect to match where it was
+// actually rendered (shifted/scaled into 4:3 box) before testing the point.
+static qboolean Rect_ContainsWidescreenPoint(const rectDef_t *rectIn, float x, float y, int widescreen) {
+    rectDef_t rect;
+    float aspect, width43, diff, diff640, newXScale;
+
+    if (!rectIn) {
+        return qfalse;
+    }
+
+    memcpy(&rect, rectIn, sizeof(rectDef_t));
+
+    aspect = (float)DC->glconfig.vidWidth / (float)DC->glconfig.vidHeight;
+
+    if (widescreen != WIDESCREEN_STRETCH && aspect > 1.34f) {
+        width43 = 4.0f * (DC->glconfig.vidHeight / 3.0f);
+        diff = (float)DC->glconfig.vidWidth - width43;
+        diff640 = 640.0f * diff / (float)DC->glconfig.vidWidth;
+        newXScale = width43 / (float)DC->glconfig.vidWidth;
+
+        if (widescreen == WIDESCREEN_LEFT) {
+            rect.w *= newXScale;
+        } else if (widescreen == WIDESCREEN_CENTER) {
+            rect.w *= newXScale;
+            rect.x *= newXScale;
+            rect.x += diff640 / 2.0f;
+        } else if (widescreen == WIDESCREEN_RIGHT) {
+            rect.w *= newXScale;
+            rect.x *= newXScale;
+            rect.x += diff640;
+        }
+    }
+
+    return Rect_ContainsPoint(&rect, x, y);
+}
+
 int Menu_ItemsMatchingGroup(menuDef_t* menu, const char* name) {
     int i;
     int count = 0;
@@ -1172,14 +1211,14 @@ void Script_SetFocus(itemDef_t* item, char** args) {
 void Script_SetPlayerModel(itemDef_t* item, char** args) {
     const char* name;
     if (String_Parse(args, &name)) {
-        DC->setCVar("team_model", name);
+        DC->setCVar("model", name);
     }
 }
 
 void Script_SetPlayerHead(itemDef_t* item, char** args) {
     const char* name;
     if (String_Parse(args, &name)) {
-        DC->setCVar("team_headmodel", name);
+        DC->setCVar("headmodel", name);
     }
 }
 
@@ -1311,6 +1350,57 @@ qboolean Item_EnableShowViaCvar(itemDef_t* item, int flag) {
     return qtrue;
 }
 
+// [QL] Additional cvar condition check - uses cvarTestN/enableCvarN with shared cvarFlags
+static qboolean Item_EnableShowViaCvarN(itemDef_t* item, int flag, const char* cvarTestN, const char* enableCvarN) {
+    char script[1024], *p;
+    memset(script, 0, sizeof(script));
+    if (item && enableCvarN && *enableCvarN && cvarTestN && *cvarTestN) {
+        char buff[1024];
+        DC->getCVarString(cvarTestN, buff, sizeof(buff));
+
+        Q_strcat(script, 1024, enableCvarN);
+        p = script;
+        while (1) {
+            const char* val;
+            // expect value then ; or NULL, NULL ends list
+            if (!String_Parse(&p, &val)) {
+                return (item->cvarFlags & flag) ? qfalse : qtrue;
+            }
+
+            if (val[0] == ';' && val[1] == '\0') {
+                continue;
+            }
+
+            // enable it if any of the values are true
+            if (item->cvarFlags & flag) {
+                if (Q_stricmp(buff, val) == 0) {
+                    return qtrue;
+                }
+            } else {
+                // disable it if any of the values are true
+                if (Q_stricmp(buff, val) == 0) {
+                    return qfalse;
+                }
+            }
+        }
+        return (item->cvarFlags & flag) ? qfalse : qtrue;
+    }
+    return qtrue;
+}
+
+// [QL] Convenience wrappers for cvar conditions 2-4 (all share primary cvarFlags)
+qboolean Item_EnableShowViaCvar2(itemDef_t* item, int flag) {
+    return Item_EnableShowViaCvarN(item, flag, item->cvarTest2, item->enableCvar2);
+}
+
+qboolean Item_EnableShowViaCvar3(itemDef_t* item, int flag) {
+    return Item_EnableShowViaCvarN(item, flag, item->cvarTest3, item->enableCvar3);
+}
+
+qboolean Item_EnableShowViaCvar4(itemDef_t* item, int flag) {
+    return Item_EnableShowViaCvarN(item, flag, item->cvarTest4, item->enableCvar4);
+}
+
 // will optionaly set focus to this item
 qboolean Item_SetFocus(itemDef_t* item, float x, float y) {
     int i;
@@ -1330,8 +1420,26 @@ qboolean Item_SetFocus(itemDef_t* item, float x, float y) {
     if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
         return qfalse;
     }
+    if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar2(item, CVAR_ENABLE)) {
+        return qfalse;
+    }
+    if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar3(item, CVAR_ENABLE)) {
+        return qfalse;
+    }
+    if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar4(item, CVAR_ENABLE)) {
+        return qfalse;
+    }
 
     if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
+        return qfalse;
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar2(item, CVAR_SHOW)) {
+        return qfalse;
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar3(item, CVAR_SHOW)) {
+        return qfalse;
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar4(item, CVAR_SHOW)) {
         return qfalse;
     }
 
@@ -1608,8 +1716,26 @@ void Item_MouseEnter(itemDef_t* item, float x, float y) {
         if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
             return;
         }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar2(item, CVAR_ENABLE)) {
+            return;
+        }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar3(item, CVAR_ENABLE)) {
+            return;
+        }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar4(item, CVAR_ENABLE)) {
+            return;
+        }
 
         if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
+            return;
+        }
+        if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar2(item, CVAR_SHOW)) {
+            return;
+        }
+        if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar3(item, CVAR_SHOW)) {
+            return;
+        }
+        if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar4(item, CVAR_SHOW)) {
             return;
         }
 
@@ -1656,7 +1782,7 @@ void Item_MouseLeave(itemDef_t* item) {
 itemDef_t* Menu_HitTest(menuDef_t* menu, float x, float y) {
     int i;
     for (i = 0; i < menu->itemCount; i++) {
-        if (Rect_ContainsPoint(&menu->items[i]->window.rect, x, y)) {
+        if (Rect_ContainsWidescreenPoint(&menu->items[i]->window.rect, x, y, menu->items[i]->widescreen)) {
             return menu->items[i];
         }
     }
@@ -2643,7 +2769,7 @@ void Menu_HandleKey(menuDef_t* menu, int key, qboolean down) {
     }
 
     // see if the mouse is within the window bounds and if so is this a mouse click
-    if (down && !(menu->window.flags & WINDOW_POPUP) && !Rect_ContainsPoint(&menu->window.rect, DC->cursorx, DC->cursory)) {
+    if (down && !(menu->window.flags & WINDOW_POPUP) && !Rect_ContainsWidescreenPoint(&menu->window.rect, DC->cursorx, DC->cursory, menu->widescreen)) {
         static qboolean inHandleKey = qfalse;
         if (!inHandleKey && (key == K_MOUSE1 || key == K_MOUSE2 || key == K_MOUSE3)) {
             inHandleKey = qtrue;
@@ -2783,18 +2909,18 @@ void Item_SetTextExtents(itemDef_t* item, int* width, int* height, const char* t
 
     // keeps us from computing the widths and heights more than once
     if (*width == 0 || (item->type == ITEM_TYPE_OWNERDRAW && item->textalignment == ITEM_ALIGN_CENTER)) {
-        int originalWidth = DC->textWidth(item->text, item->textscale, 0);
+        int originalWidth = DC->textWidth(item->text, item->textscale, 0, item->fontIndex);
 
         if (item->type == ITEM_TYPE_OWNERDRAW && (item->textalignment == ITEM_ALIGN_CENTER || item->textalignment == ITEM_ALIGN_RIGHT)) {
             originalWidth += DC->ownerDrawWidth(item->window.ownerDraw, item->textscale);
         } else if (item->type == ITEM_TYPE_EDITFIELD && item->textalignment == ITEM_ALIGN_CENTER && item->cvar) {
             char buff[256];
             DC->getCVarString(item->cvar, buff, 256);
-            originalWidth += DC->textWidth(buff, item->textscale, 0);
+            originalWidth += DC->textWidth(buff, item->textscale, 0, item->fontIndex);
         }
 
-        *width = DC->textWidth(textPtr, item->textscale, 0);
-        *height = DC->textHeight(textPtr, item->textscale, 0);
+        *width = DC->textWidth(textPtr, item->textscale, 0, item->fontIndex);
+        *height = DC->textHeight(textPtr, item->textscale, 0, item->fontIndex);
         item->textRect.w = *width;
         item->textRect.h = *height;
         item->textRect.x = item->textalignx;
@@ -2834,6 +2960,22 @@ void Item_TextColor(itemDef_t* item, vec4_t* newColor) {
 
     if (item->enableCvar && *item->enableCvar && item->cvarTest && *item->cvarTest) {
         if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
+            memcpy(newColor, &parent->disableColor, sizeof(vec4_t));
+        }
+    }
+    // [QL] additional cvar conditions (2-4)
+    if (item->enableCvar2 && *item->enableCvar2 && item->cvarTest2 && *item->cvarTest2) {
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar2(item, CVAR_ENABLE)) {
+            memcpy(newColor, &parent->disableColor, sizeof(vec4_t));
+        }
+    }
+    if (item->enableCvar3 && *item->enableCvar3 && item->cvarTest3 && *item->cvarTest3) {
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar3(item, CVAR_ENABLE)) {
+            memcpy(newColor, &parent->disableColor, sizeof(vec4_t));
+        }
+    }
+    if (item->enableCvar4 && *item->enableCvar4 && item->cvarTest4 && *item->cvarTest4) {
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar4(item, CVAR_ENABLE)) {
             memcpy(newColor, &parent->disableColor, sizeof(vec4_t));
         }
     }
@@ -2878,7 +3020,7 @@ void Item_Text_AutoWrapped_Paint(itemDef_t* item) {
             newLinePtr = p + 1;
             newLineWidth = textWidth;
         }
-        textWidth = DC->textWidth(buff, item->textscale, 0);
+        textWidth = DC->textWidth(buff, item->textscale, 0, item->fontIndex);
         if ((newLine && textWidth > item->window.rect.w) || *p == '\n' || *p == '\0') {
             if (len) {
                 if (item->textalignment == ITEM_ALIGN_LEFT) {
@@ -2892,7 +3034,7 @@ void Item_Text_AutoWrapped_Paint(itemDef_t* item) {
                 ToWindowCoords(&item->textRect.x, &item->textRect.y, &item->window);
                 //
                 buff[newLine] = '\0';
-                DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, buff, 0, 0, item->textStyle);
+                DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, buff, 0, 0, item->textStyle, item->fontIndex);
             }
             if (*p == '\0') {
                 break;
@@ -2945,12 +3087,12 @@ void Item_Text_Wrapped_Paint(itemDef_t* item) {
     while (p && *p) {
         strncpy(buff, start, p - start + 1);
         buff[p - start] = '\0';
-        DC->drawText(x, y, item->textscale, color, buff, 0, 0, item->textStyle);
+        DC->drawText(x, y, item->textscale, color, buff, 0, 0, item->textStyle, item->fontIndex);
         y += height + 5;
         start += p - start + 1;
         p = strchr(p + 1, '\r');
     }
-    DC->drawText(x, y, item->textscale, color, start, 0, 0, item->textStyle);
+    DC->drawText(x, y, item->textscale, color, start, 0, 0, item->textStyle, item->fontIndex);
 }
 
 void Item_Text_Paint(itemDef_t* item) {
@@ -3016,11 +3158,8 @@ void Item_Text_Paint(itemDef_t* item) {
     //		DC->drawText(item->textRect.x - 1, item->textRect.y + 1, item->textscale * 1.02, item->window.outlineColor, textPtr, adjust);
     //	}
 
-    DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, textPtr, 0, 0, item->textStyle);
+    DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, textPtr, 0, 0, item->textStyle, item->fontIndex);
 }
-
-// float			trap_Cvar_VariableValue( const char *var_name );
-// void			trap_Cvar_VariableStringBuffer( const char *var_name, char *buffer, int bufsize );
 
 void Item_TextField_Paint(itemDef_t* item) {
     char buff[1024];
@@ -3050,9 +3189,9 @@ void Item_TextField_Paint(itemDef_t* item) {
     offset = (item->text && *item->text) ? 8 : 0;
     if (item->window.flags & WINDOW_HASFOCUS && g_editingField) {
         char cursor = DC->getOverstrikeMode() ? '_' : '|';
-        DC->drawTextWithCursor(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset, cursor, editPtr->maxPaintChars, item->textStyle);
+        DC->drawTextWithCursor(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset, cursor, editPtr->maxPaintChars, item->textStyle, item->fontIndex);
     } else {
-        DC->drawText(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, editPtr->maxPaintChars, item->textStyle);
+        DC->drawText(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, editPtr->maxPaintChars, item->textStyle, item->fontIndex);
     }
 }
 
@@ -3075,9 +3214,9 @@ void Item_YesNo_Paint(itemDef_t* item) {
 
     if (item->text) {
         Item_Text_Paint(item);
-        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle);
+        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle, item->fontIndex);
     } else {
-        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle);
+        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle, item->fontIndex);
     }
 }
 
@@ -3097,12 +3236,15 @@ void Item_Multi_Paint(itemDef_t* item) {
     }
 
     text = Item_Multi_Setting(item);
+    if (text == NULL) {
+        text = "";
+    }
 
     if (item->text) {
         Item_Text_Paint(item);
-        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle);
+        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle, item->fontIndex);
     } else {
-        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle);
+        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle, item->fontIndex);
     }
 }
 
@@ -3396,9 +3538,9 @@ void Item_Bind_Paint(itemDef_t* item) {
     if (item->text) {
         Item_Text_Paint(item);
         BindingFromName(item->cvar);
-        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, g_nameBind1, 0, maxChars, item->textStyle);
+        DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, g_nameBind1, 0, maxChars, item->textStyle, item->fontIndex);
     } else {
-        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, "FIXME", 0, maxChars, item->textStyle);
+        DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, "FIXME", 0, maxChars, item->textStyle, item->fontIndex);
     }
 }
 
@@ -3496,11 +3638,35 @@ qboolean Item_Bind_HandleKey(itemDef_t* item, int key, qboolean down) {
 }
 
 void AdjustFrom640(float* x, float* y, float* w, float* h) {
-    //*x = *x * DC->scale + DC->bias;
-    *x *= DC->xscale;
-    *y *= DC->yscale;
-    *w *= DC->xscale;
-    *h *= DC->yscale;
+    // [QL] Widescreen coordinate adjustment: instead of stretching to fill
+    // the entire screen, position elements within a 4:3 box aligned left,
+    // center, or right based on the currentWidescreen mode.
+    if (currentWidescreen != WIDESCREEN_STRETCH) {
+        float aspect = (float)DC->glconfig.vidWidth / (float)DC->glconfig.vidHeight;
+        if (aspect > 1.34f) {
+            float width43 = 4.0f * DC->glconfig.vidHeight / 3.0f;
+            float diff = (float)DC->glconfig.vidWidth - width43;
+            float xscale43 = width43 / 640.0f;
+
+            if (w) *w *= xscale43;
+            if (x) {
+                *x *= xscale43;
+                if (currentWidescreen == WIDESCREEN_CENTER) {
+                    *x += diff / 2.0f;
+                } else if (currentWidescreen == WIDESCREEN_RIGHT) {
+                    *x += diff;
+                }
+            }
+            if (y) *y *= DC->yscale;
+            if (h) *h *= DC->yscale;
+            return;
+        }
+    }
+
+    if (x) *x *= DC->xscale;
+    if (y) *y *= DC->yscale;
+    if (w) *w *= DC->xscale;
+    if (h) *h *= DC->yscale;
 }
 
 void Item_Model_Paint(itemDef_t* item) {
@@ -3713,9 +3879,11 @@ void Item_ListBox_Paint(itemDef_t* item) {
                     for (j = 0; j < listPtr->numColumns; j++) {
                         text = DC->feederItemText(item->special, i, j, &optionalImage);
                         if (optionalImage >= 0) {
-                            DC->drawHandlePic(x + 4 + listPtr->columnInfo[j].pos, y - 1 + listPtr->elementHeight / 2, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
+                            // [QL] icon vertically centered with slight downward nudge
+                            DC->drawHandlePic(x + listPtr->columnInfo[j].pos, y + 2, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
                         } else if (text) {
-                            DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars, item->textStyle);
+                            // [QL] text baseline: ~80% of row height for vertical centering
+                            DC->drawText(x + listPtr->columnInfo[j].pos, y + listPtr->elementHeight * 4 / 5, item->textscale, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars, item->textStyle, item->fontIndex);
                         }
                     }
                 } else {
@@ -3723,7 +3891,7 @@ void Item_ListBox_Paint(itemDef_t* item) {
                     if (optionalImage >= 0) {
                         // DC->drawHandlePic(x + 4 + listPtr->elementHeight, y, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
                     } else if (text) {
-                        DC->drawText(x + 4, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle);
+                        DC->drawText(x + 4, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle, item->fontIndex);
                     }
                 }
 
@@ -3783,17 +3951,26 @@ void Item_OwnerDraw_Paint(itemDef_t* item) {
         if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
             Com_Memcpy(color, parent->disableColor, sizeof(vec4_t));
         }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar2(item, CVAR_ENABLE)) {
+            Com_Memcpy(color, parent->disableColor, sizeof(vec4_t));
+        }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar3(item, CVAR_ENABLE)) {
+            Com_Memcpy(color, parent->disableColor, sizeof(vec4_t));
+        }
+        if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar4(item, CVAR_ENABLE)) {
+            Com_Memcpy(color, parent->disableColor, sizeof(vec4_t));
+        }
 
         if (item->text) {
             Item_Text_Paint(item);
             if (item->text[0]) {
                 // +8 is an offset kludge to properly align owner draw items that have text combined with them
-                DC->ownerDrawItem(item->textRect.x + item->textRect.w + 8, item->window.rect.y, item->window.rect.w, item->window.rect.h, 0, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle);
+                DC->ownerDrawItem(item->textRect.x + item->textRect.w + 8, item->window.rect.y, item->window.rect.w, item->window.rect.h, 0, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle, item->fontIndex);
             } else {
-                DC->ownerDrawItem(item->textRect.x + item->textRect.w, item->window.rect.y, item->window.rect.w, item->window.rect.h, 0, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle);
+                DC->ownerDrawItem(item->textRect.x + item->textRect.w, item->window.rect.y, item->window.rect.w, item->window.rect.h, 0, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle, item->fontIndex);
             }
         } else {
-            DC->ownerDrawItem(item->window.rect.x, item->window.rect.y, item->window.rect.w, item->window.rect.h, item->textalignx, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle);
+            DC->ownerDrawItem(item->window.rect.x, item->window.rect.y, item->window.rect.w, item->window.rect.h, item->textalignx, item->textaligny, item->window.ownerDraw, item->window.ownerDrawFlags, item->alignment, item->special, item->textscale, color, item->window.background, item->textStyle, item->fontIndex);
         }
     }
 }
@@ -3810,6 +3987,16 @@ void Item_Paint(itemDef_t* item) {
     }
 
     parent = (menuDef_t*)item->parent;
+
+    // [QL] Set widescreen mode for this item's coordinate adjustments.
+    // Only override if the item explicitly set widescreen; otherwise inherit
+    // the parent menu's widescreen mode (matches binary behavior).
+    if (item->widescreenFlag) {
+        currentWidescreen = item->widescreen;
+        if (DC->setWidescreen) {
+            DC->setWidescreen(currentWidescreen);
+        }
+    }
 
     if (item->window.flags & WINDOW_ORBITING) {
         if (DC->realTime > item->window.nextTime) {
@@ -3912,8 +4099,8 @@ void Item_Paint(itemDef_t* item) {
         }
     }
 
-    if (item->window.ownerDrawFlags && DC->ownerDrawVisible) {
-        if (!DC->ownerDrawVisible(item->window.ownerDrawFlags)) {
+    if ((item->window.ownerDrawFlags || item->window.ownerDrawFlags2) && DC->ownerDrawVisible) {
+        if (!DC->ownerDrawVisible(item->window.ownerDrawFlags, item->window.ownerDrawFlags2)) {
             item->window.flags &= ~WINDOW_VISIBLE;
         } else {
             item->window.flags |= WINDOW_VISIBLE;
@@ -3922,6 +4109,21 @@ void Item_Paint(itemDef_t* item) {
 
     if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE)) {
         if (!Item_EnableShowViaCvar(item, CVAR_SHOW)) {
+            return;
+        }
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE)) {
+        if (!Item_EnableShowViaCvar2(item, CVAR_SHOW)) {
+            return;
+        }
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE)) {
+        if (!Item_EnableShowViaCvar3(item, CVAR_SHOW)) {
+            return;
+        }
+    }
+    if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE)) {
+        if (!Item_EnableShowViaCvar4(item, CVAR_SHOW)) {
             return;
         }
     }
@@ -3987,6 +4189,14 @@ void Item_Paint(itemDef_t* item) {
             break;
         default:
             break;
+    }
+
+    // [QL] Restore parent menu's widescreen mode after painting this item
+    if (item->widescreenFlag && parent) {
+        currentWidescreen = parent->widescreen;
+        if (DC->setWidescreen) {
+            DC->setWidescreen(currentWidescreen);
+        }
     }
 }
 
@@ -4135,16 +4345,34 @@ void Menu_HandleMouseMove(menuDef_t* menu, float x, float y) {
             if (menu->items[i]->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_ENABLE)) {
                 continue;
             }
+            if (menu->items[i]->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar2(menu->items[i], CVAR_ENABLE)) {
+                continue;
+            }
+            if (menu->items[i]->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar3(menu->items[i], CVAR_ENABLE)) {
+                continue;
+            }
+            if (menu->items[i]->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar4(menu->items[i], CVAR_ENABLE)) {
+                continue;
+            }
 
             if (menu->items[i]->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_SHOW)) {
                 continue;
             }
+            if (menu->items[i]->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar2(menu->items[i], CVAR_SHOW)) {
+                continue;
+            }
+            if (menu->items[i]->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar3(menu->items[i], CVAR_SHOW)) {
+                continue;
+            }
+            if (menu->items[i]->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar4(menu->items[i], CVAR_SHOW)) {
+                continue;
+            }
 
-            if (Rect_ContainsPoint(&menu->items[i]->window.rect, x, y)) {
+            if (Rect_ContainsWidescreenPoint(&menu->items[i]->window.rect, x, y, menu->items[i]->widescreen)) {
                 if (pass == 1) {
                     overItem = menu->items[i];
                     if (overItem->type == ITEM_TYPE_TEXT && overItem->text) {
-                        if (!Rect_ContainsPoint(Item_CorrectedTextRect(overItem), x, y)) {
+                        if (!Rect_ContainsWidescreenPoint(Item_CorrectedTextRect(overItem), x, y, overItem->widescreen)) {
                             continue;
                         }
                     }
@@ -4179,7 +4407,7 @@ void Menu_Paint(menuDef_t* menu, qboolean forcePaint) {
         return;
     }
 
-    if (menu->window.ownerDrawFlags && DC->ownerDrawVisible && !DC->ownerDrawVisible(menu->window.ownerDrawFlags)) {
+    if ((menu->window.ownerDrawFlags || menu->window.ownerDrawFlags2) && DC->ownerDrawVisible && !DC->ownerDrawVisible(menu->window.ownerDrawFlags, menu->window.ownerDrawFlags2)) {
         return;
     }
 
@@ -4187,14 +4415,31 @@ void Menu_Paint(menuDef_t* menu, qboolean forcePaint) {
         menu->window.flags |= WINDOW_FORCED;
     }
 
+    // [QL] Set widescreen mode for menu-level rendering (background, border)
+    currentWidescreen = menu->widescreen;
+    if (DC->setWidescreen) {
+        DC->setWidescreen(currentWidescreen);
+    }
+
     // draw the background if necessary
     if (menu->fullScreen) {
-        // implies a background shader
-        // FIXME: make sure we have a default shader if fullscreen is set with no background
-        DC->drawHandlePic(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background);
+        float bgW = menu->window.backgroundSize.w;
+        if (bgW <= 0.0f) {
+            // no backgroundSize - stretch to fill screen
+            DC->drawHandlePic(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background);
+        } else {
+            // [QL] backgroundSize specified - use drawStretchPic with aspect-correct
+            // texture coordinates so the image fills the screen height and crops
+            // horizontally to maintain the image's native aspect ratio.
+            float bgH = menu->window.backgroundSize.h;
+            float vidW = (float)DC->glconfig.vidWidth;
+            float vidH = (float)DC->glconfig.vidHeight;
+            float s1 = ((bgW - vidW * (bgH / vidH)) / bgW) * 0.5f;
+            float s2 = 1.0f - s1;
+            DC->drawStretchPic(0, 0, vidW, vidH, s1, 0, s2, 1.0f, menu->window.background);
+        }
     } else if (menu->window.background) {
-        // this allows a background shader without being full screen
-        // UI_DrawHandlePic(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, menu->backgroundShader);
+        DC->drawHandlePic(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, menu->window.background);
     }
 
     // paint the background and or border
@@ -4225,7 +4470,7 @@ void Item_ValidateTypeData(itemDef_t* item) {
     if (item->type == ITEM_TYPE_LISTBOX) {
         item->typeData = UI_Alloc(sizeof(listBoxDef_t));
         memset(item->typeData, 0, sizeof(listBoxDef_t));
-    } else if (item->type == ITEM_TYPE_EDITFIELD || item->type == ITEM_TYPE_NUMERICFIELD || item->type == ITEM_TYPE_YESNO || item->type == ITEM_TYPE_BIND || item->type == ITEM_TYPE_SLIDER || item->type == ITEM_TYPE_TEXT) {
+    } else if (item->type == ITEM_TYPE_EDITFIELD || item->type == ITEM_TYPE_NUMERICFIELD || item->type == ITEM_TYPE_YESNO || item->type == ITEM_TYPE_BIND || item->type == ITEM_TYPE_SLIDER || item->type == ITEM_TYPE_SLIDER_COLOR || item->type == ITEM_TYPE_TEXT) {
         item->typeData = UI_Alloc(sizeof(editFieldDef_t));
         memset(item->typeData, 0, sizeof(editFieldDef_t));
         if (item->type == ITEM_TYPE_EDITFIELD) {
@@ -4783,8 +5028,24 @@ qboolean ItemParse_cvarTest(itemDef_t* item, int handle) {
 }
 
 qboolean ItemParse_cvarTest2(itemDef_t* item, int handle) {
-    Com_Printf("MENU PARSING: cvarTest2 keyword item support not yet implemented. Doing cvarTest instead.\n");
+    // [QL] second cvar test condition - evaluated as AND with cvarTest
     if (!PC_String_Parse(handle, &item->cvarTest2)) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_cvarTest3(itemDef_t* item, int handle) {
+    // [QL] third cvar test condition
+    if (!PC_String_Parse(handle, &item->cvarTest3)) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_cvarTest4(itemDef_t* item, int handle) {
+    // [QL] fourth cvar test condition
+    if (!PC_String_Parse(handle, &item->cvarTest4)) {
         return qfalse;
     }
     return qtrue;
@@ -4827,14 +5088,19 @@ qboolean ItemParse_maxPaintChars(itemDef_t* item, int handle) {
     int maxChars;
 
     Item_ValidateTypeData(item);
-    if (!item->typeData)
-        return qfalse;
+    if (!item->typeData) { // FIXME don't know why not working
+        // return qfalse 
+        PC_Int_Parse(handle, &maxChars);
+        return qtrue;
+    }
 
     if (!PC_Int_Parse(handle, &maxChars)) {
-        return qfalse;
+        return qtrue;
     }
+
     editPtr = (editFieldDef_t*)item->typeData;
     editPtr->maxPaintChars = maxChars;
+
     return qtrue;
 }
 
@@ -4972,6 +5238,16 @@ qboolean ItemParse_ownerdrawFlag(itemDef_t* item, int handle) {
     return qtrue;
 }
 
+qboolean ItemParse_ownerdrawFlag2(itemDef_t* item, int handle) {
+    // [QL] second set of ownerdraw flags
+    int i;
+    if (!PC_Int_Parse(handle, &i)) {
+        return qfalse;
+    }
+    item->window.ownerDrawFlags2 |= i;
+    return qtrue;
+}
+
 qboolean ItemParse_enableCvar(itemDef_t* item, int handle) {
     if (PC_Script_Parse(handle, &item->enableCvar)) {
         item->cvarFlags = CVAR_ENABLE;
@@ -4996,6 +5272,30 @@ qboolean ItemParse_showCvar(itemDef_t* item, int handle) {
     return qfalse;
 }
 
+qboolean ItemParse_showCvar2(itemDef_t* item, int handle) {
+    // [QL] second show condition - stores comparison value only (shares cvarFlags with primary)
+    if (PC_Script_Parse(handle, &item->enableCvar2)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean ItemParse_showCvar3(itemDef_t* item, int handle) {
+    // [QL] third show condition
+    if (PC_Script_Parse(handle, &item->enableCvar3)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean ItemParse_showCvar4(itemDef_t* item, int handle) {
+    // [QL] fourth show condition
+    if (PC_Script_Parse(handle, &item->enableCvar4)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
 qboolean ItemParse_hideCvar(itemDef_t* item, int handle) {
     if (PC_Script_Parse(handle, &item->enableCvar)) {
         item->cvarFlags = CVAR_HIDE;
@@ -5005,21 +5305,193 @@ qboolean ItemParse_hideCvar(itemDef_t* item, int handle) {
 }
 
 qboolean ItemParse_hideCvar2(itemDef_t* item, int handle) {
-    Com_Printf("MENU PARSING: hideCvar2 keyword item support not yet implemented. Doing hideCvar instead.\n");
-    if (PC_Script_Parse(handle, &item->enableCvar)) {
-        item->cvarFlags = CVAR_HIDE;
+    // [QL] second hide condition - stores comparison value only (shares cvarFlags with primary)
+    if (PC_Script_Parse(handle, &item->enableCvar2)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean ItemParse_hideCvar3(itemDef_t* item, int handle) {
+    // [QL] third hide condition
+    if (PC_Script_Parse(handle, &item->enableCvar3)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean ItemParse_hideCvar4(itemDef_t* item, int handle) {
+    // [QL] fourth hide condition
+    if (PC_Script_Parse(handle, &item->enableCvar4)) {
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean ItemParse_cvara(itemDef_t* item, int handle) {
+    // [QL] "cvar archive" - behaves like cvar (the archive flag is handled elsewhere)
+    editFieldDef_t* editPtr;
+
+    Item_ValidateTypeData(item);
+    if (!PC_String_Parse(handle, &item->cvar)) {
+        return qfalse;
+    }
+    if (item->typeData) {
+        editPtr = (editFieldDef_t*)item->typeData;
+        editPtr->minVal = -1;
+        editPtr->maxVal = -1;
+        editPtr->defVal = -1;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_cvarInt(itemDef_t* item, int handle) {
+    editFieldDef_t* editPtr;
+
+    Item_ValidateTypeData(item);
+    if (!item->typeData) {
+		PC_SourceError(handle, "cvarInt - invalid type data");
+        return qfalse;
+    }
+
+    editPtr = (editFieldDef_t*)item->typeData;
+    if (PC_String_Parse(handle, &item->cvar) &&
+        PC_Float_Parse(handle, &editPtr->defVal) &&
+        PC_Float_Parse(handle, &editPtr->minVal) &&
+        PC_Float_Parse(handle, &editPtr->maxVal)) {
         return qtrue;
     }
     return qfalse;
 }
 
 qboolean ItemParse_font(itemDef_t* item, int handle) {
-    int fontVal;
-    PC_Int_Parse(handle, &fontVal);
-
-    Com_Printf("MENU PARSING: font keyword item support not yet implemented.\n");
-
+    // [QL] per-item font index
+    if (!PC_Int_Parse(handle, &item->fontIndex)) {
+        return qfalse;
+    }
     return qtrue;
+}
+
+qboolean ItemParse_precision(itemDef_t* item, int handle) {
+    if (!PC_Int_Parse(handle, &item->precision)) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_widescreen(itemDef_t* item, int handle) {
+    if (!PC_Int_Parse(handle, &item->widescreen)) {
+        return qfalse;
+    }
+
+    if (item->widescreen < WIDESCREEN_STRETCH || item->widescreen > WIDESCREEN_RIGHT) {
+        PC_SourceError(handle, "Invalid widescreen value %d", item->widescreen);
+        item->widescreen = WIDESCREEN_STRETCH;
+    }
+
+    item->widescreenFlag = 1;  // [QL] mark as explicitly set
+    return qtrue;
+}
+
+qboolean ItemParse_altrowcolor(itemDef_t* item, int handle) {
+    // [QL] alternate row color for listboxes
+    int i;
+    float f;
+    for (i = 0; i < 4; i++) {
+        if (!PC_Float_Parse(handle, &f)) {
+            return qfalse;
+        }
+        item->window.altRowColor[i] = f;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_selectedcolor(itemDef_t* item, int handle) {
+    // [QL] selected item highlight color
+    int i;
+    float f;
+    for (i = 0; i < 4; i++) {
+        if (!PC_Float_Parse(handle, &f)) {
+            return qfalse;
+        }
+        item->window.selectedColor[i] = f;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_elementcolor(itemDef_t* item, int handle) {
+    // [QL] element color
+    int i;
+    float f;
+    for (i = 0; i < 4; i++) {
+        if (!PC_Float_Parse(handle, &f)) {
+            return qfalse;
+        }
+        item->window.elementColor[i] = f;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_outlineimage(itemDef_t* item, int handle) {
+    // [QL] outline image shader
+    const char *temp;
+    if (!PC_String_Parse(handle, &temp)) {
+        return qfalse;
+    }
+    item->window.outlineImage = DC->registerShaderNoMip(temp);
+    return qtrue;
+}
+
+qboolean ItemParse_cellId(itemDef_t* item, int handle) {
+    // [QL] advertisement cell ID
+    if (!PC_Int_Parse(handle, &item->cellId)) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_defaultContent(itemDef_t* item, int handle) {
+    // [QL] default content string
+    if (!PC_String_Parse(handle, &item->defaultContent)) {
+        return qfalse;
+    }
+    return qtrue;
+}
+
+qboolean ItemParse_cvarPreset(itemDef_t* item, int handle) {
+    // [QL] cvar preset - binary parses { name value ; name value ; ... } into
+    // multiDef_t, identical to cvarFloatList. Clears count and strDef first.
+    Item_ValidateTypeData(item);
+    if (!item->typeData) {
+        // typeData not allocated (wrong item type) - consume and discard the block
+        pc_token_t token;
+        if (!trap_PC_ReadToken(handle, &token) || *token.string != '{')
+            return qfalse;
+        while (trap_PC_ReadToken(handle, &token)) {
+            if (*token.string == '}')
+                return qtrue;
+        }
+        return qfalse;
+    }
+    // Delegate to cvarFloatList - same binary logic
+    return ItemParse_cvarFloatList(item, handle);
+}
+
+qboolean ItemParse_cvarPresetList(itemDef_t* item, int handle) {
+    // [QL] cvar preset list - same as cvarStrList in binary
+    Item_ValidateTypeData(item);
+    if (!item->typeData) {
+        // typeData not allocated - consume and discard the block
+        pc_token_t token;
+        if (!trap_PC_ReadToken(handle, &token) || *token.string != '{')
+            return qfalse;
+        while (trap_PC_ReadToken(handle, &token)) {
+            if (*token.string == '}')
+                return qtrue;
+        }
+        return qfalse;
+    }
+    return ItemParse_cvarStrList(item, handle);
 }
 
 keywordHash_t itemParseKeywords[] = {
@@ -5060,6 +5532,10 @@ keywordHash_t itemParseKeywords[] = {
     {"forecolor", ItemParse_forecolor, NULL},
     {"bordercolor", ItemParse_bordercolor, NULL},
     {"outlinecolor", ItemParse_outlinecolor, NULL},
+    {"altrowcolor", ItemParse_altrowcolor, NULL},
+    {"selectedcolor", ItemParse_selectedcolor, NULL},
+    {"elementcolor", ItemParse_elementcolor, NULL},
+    {"outlineimage", ItemParse_outlineimage, NULL},
     {"background", ItemParse_background, NULL},
     {"onFocus", ItemParse_onFocus, NULL},
     {"leaveFocus", ItemParse_leaveFocus, NULL},
@@ -5078,16 +5554,32 @@ keywordHash_t itemParseKeywords[] = {
     {"cvarFloatList", ItemParse_cvarFloatList, NULL},
     {"addColorRange", ItemParse_addColorRange, NULL},
     {"ownerdrawFlag", ItemParse_ownerdrawFlag, NULL},
+    {"ownerdrawFlag2", ItemParse_ownerdrawFlag2, NULL},
     {"enableCvar", ItemParse_enableCvar, NULL},
     {"cvarTest", ItemParse_cvarTest, NULL},
     {"cvarTest2", ItemParse_cvarTest2, NULL},
+    {"cvarTest3", ItemParse_cvarTest3, NULL},
+    {"cvarTest4", ItemParse_cvarTest4, NULL},
     {"disableCvar", ItemParse_disableCvar, NULL},
     {"showCvar", ItemParse_showCvar, NULL},
+    {"showCvar2", ItemParse_showCvar2, NULL},
+    {"showCvar3", ItemParse_showCvar3, NULL},
+    {"showCvar4", ItemParse_showCvar4, NULL},
     {"hideCvar", ItemParse_hideCvar, NULL},
     {"hideCvar2", ItemParse_hideCvar2, NULL},
+    {"hideCvar3", ItemParse_hideCvar3, NULL},
+    {"hideCvar4", ItemParse_hideCvar4, NULL},
+    {"cvara", ItemParse_cvara, NULL},
+    {"cvarInt", ItemParse_cvarInt, NULL},
     {"cinematic", ItemParse_cinematic, NULL},
     {"doubleclick", ItemParse_doubleClick, NULL},
+    {"cellId", ItemParse_cellId, NULL},
+    {"defaultContent", ItemParse_defaultContent, NULL},
     {"font", ItemParse_font, NULL},
+    {"precision", ItemParse_precision, NULL},
+    {"widescreen", ItemParse_widescreen, NULL},
+    {"cvarPreset", ItemParse_cvarPreset, NULL},
+    {"cvarPresetList", ItemParse_cvarPresetList, NULL},
     {NULL, 0, NULL}};
 
 keywordHash_t* itemParseKeywordHash[KEYWORDHASH_SIZE];
@@ -5108,16 +5600,34 @@ void Item_SetupKeywordHash(void) {
 
 static const char* builtinResolutions[] =
     {
+        // [QL] mode table from quakelive_steam.exe binary (modes 0-27)
+        "320x240",
+        "400x300",
+        "512x384",
+        "640x360",
+        "640x400",
         "640x480",
+        "800x450",
+        "852x480",
+        "800x500",
         "800x600",
-        "960x720",
+        "1024x640",
+        "1024x576",
         "1024x768",
         "1152x864",
+        "1280x720",
+        "1280x768",
+        "1280x800",
         "1280x1024",
+        "1440x900",
+        "1600x900",
+        "1600x1000",
+        "1680x1050",
         "1600x1200",
         "1920x1080",
+        "1920x1200",
+        "1920x1440",
         "2048x1536",
-        "2560x1440",
         "2560x1600",
         NULL};
 
@@ -5166,17 +5676,6 @@ Hacks to fix issues with Team Arena menu scripts
 ===============
 */
 static void Item_ApplyHacks(itemDef_t* item) {
-    // Fix length of favorite address in createfavorite.menu
-    if (item->type == ITEM_TYPE_EDITFIELD && item->cvar && !Q_stricmp(item->cvar, "ui_favoriteAddress")) {
-        editFieldDef_t* editField = (editFieldDef_t*)item->typeData;
-
-        // enough to hold an IPv6 address plus null
-        if (editField->maxChars < 48) {
-            Com_Printf("Extended create favorite address edit field length to hold an IPv6 address\n");
-            editField->maxChars = 48;
-        }
-    }
-
     if (item->type == ITEM_TYPE_EDITFIELD && item->cvar && (!Q_stricmp(item->cvar, "ui_Name") || !Q_stricmp(item->cvar, "ui_findplayer"))) {
         editFieldDef_t* editField = (editFieldDef_t*)item->typeData;
 
@@ -5270,8 +5769,9 @@ static void Item_ApplyHacks(itemDef_t* item) {
                 multiPtr->count++;
             }
         }
-
+#ifdef _DEBUG
         Com_Printf("Found video mode list with %d modes, replaced list with %d modes\n", oldCount, multiPtr->count);
+#endif
     }
 }
 
@@ -5305,6 +5805,7 @@ qboolean Item_Parse(int handle, itemDef_t* item) {
             PC_SourceError(handle, "unknown menu item keyword %s", token.string);
             continue;
         }
+
         if (!key->func(item, handle)) {
             PC_SourceError(handle, "couldn't parse menu item keyword %s", token.string);
             return qfalse;
@@ -5529,7 +6030,31 @@ qboolean MenuParse_background(itemDef_t* item, int handle) {
     if (!PC_String_Parse(handle, &buff)) {
         return qfalse;
     }
+
     menu->window.background = DC->registerShaderNoMip(buff);
+    return qtrue;
+}
+
+qboolean MenuParse_backgroundSize(itemDef_t* item, int handle) {
+    menuDef_t* menu = (menuDef_t*)item;
+
+    if (!PC_Float_Parse(handle, &menu->window.backgroundSize.x)) {
+        return qfalse;
+    }
+
+    if (!PC_Float_Parse(handle, &menu->window.backgroundSize.y)) {
+        return qfalse;
+    }
+
+    if (!PC_Float_Parse(handle, &menu->window.backgroundSize.w)) {
+        return qfalse;
+    }
+
+    if (!PC_Float_Parse(handle, &menu->window.backgroundSize.h)) {
+        return qfalse;
+    }
+
+    // [QL] values stored as-is - the draw code uses w/h ratio for aspect correction
     return qtrue;
 }
 
@@ -5550,6 +6075,18 @@ qboolean MenuParse_ownerdrawFlag(itemDef_t* item, int handle) {
         return qfalse;
     }
     menu->window.ownerDrawFlags |= i;
+    return qtrue;
+}
+
+qboolean MenuParse_ownerdrawFlag2(itemDef_t* item, int handle) {
+    // [QL] second set of ownerdraw flags for menus
+    int i;
+    menuDef_t* menu = (menuDef_t*)item;
+
+    if (!PC_Int_Parse(handle, &i)) {
+        return qfalse;
+    }
+    menu->window.ownerDrawFlags2 |= i;
     return qtrue;
 }
 
@@ -5615,9 +6152,14 @@ qboolean MenuParse_fadeCycle(itemDef_t* item, int handle) {
 qboolean MenuParse_widescreen(itemDef_t* item, int handle) {
     menuDef_t* menu = (menuDef_t*)item;
 
-    int widescreenVal;
-    PC_Int_Parse(handle, &widescreenVal);
-    Com_Printf("MENU PARSING: widescreen support not yet implemented.\n");
+    if (!PC_Int_Parse(handle, &menu->widescreen)) {
+        return qfalse;
+    }
+
+    if (menu->widescreen < WIDESCREEN_STRETCH || menu->widescreen > WIDESCREEN_RIGHT) {
+        PC_SourceError(handle, "MENU PARSING - invalid widescreen value: %d\n", menu->widescreen);
+        menu->widescreen = WIDESCREEN_STRETCH;
+    }
 
     return qtrue;
 }
@@ -5660,6 +6202,7 @@ keywordHash_t menuParseKeywords[] = {
     {"background", MenuParse_background, NULL},
     {"ownerdraw", MenuParse_ownerdraw, NULL},
     {"ownerdrawFlag", MenuParse_ownerdrawFlag, NULL},
+    {"ownerdrawFlag2", MenuParse_ownerdrawFlag2, NULL},
     {"outOfBoundsClick", MenuParse_outOfBounds, NULL},
     {"soundLoop", MenuParse_soundLoop, NULL},
     {"itemDef", MenuParse_itemDef, NULL},
@@ -5668,6 +6211,7 @@ keywordHash_t menuParseKeywords[] = {
     {"fadeClamp", MenuParse_fadeClamp, NULL},
     {"fadeCycle", MenuParse_fadeCycle, NULL},
     {"fadeAmount", MenuParse_fadeAmount, NULL},
+    {"backgroundSize", MenuParse_backgroundSize, NULL},
     {"widescreen", MenuParse_widescreen, NULL},
     {NULL, 0, NULL}};
 
@@ -5759,7 +6303,7 @@ void Menu_PaintAll(void) {
 
     if (debugMode) {
         vec4_t v = {1, 1, 1, 1};
-        DC->drawText(5, 25, .5, v, va("fps: %f", DC->FPS), 0, 0, 0);
+        DC->drawText(5, 25, .5, v, va("fps: %f", DC->FPS), 0, 0, 0, 0);
     }
 }
 
@@ -5777,7 +6321,7 @@ void* Display_CaptureItem(int x, int y) {
     for (i = 0; i < menuCount; i++) {
         // turn off focus each item
         // menu->items[i].window.flags &= ~WINDOW_HASFOCUS;
-        if (Rect_ContainsPoint(&Menus[i].window.rect, x, y)) {
+        if (Rect_ContainsWidescreenPoint(&Menus[i].window.rect, x, y, Menus[i].widescreen)) {
             return &Menus[i];
         }
     }
@@ -5815,7 +6359,7 @@ int Display_CursorType(int x, int y) {
         r2.x = Menus[i].window.rect.x - 3;
         r2.y = Menus[i].window.rect.y - 3;
         r2.w = r2.h = 7;
-        if (Rect_ContainsPoint(&r2, x, y)) {
+        if (Rect_ContainsWidescreenPoint(&r2, x, y, Menus[i].widescreen)) {
             return CURSOR_SIZER;
         }
     }
@@ -5870,7 +6414,7 @@ void Display_CacheAll(void) {
 
 static qboolean Menu_OverActiveItem(menuDef_t* menu, float x, float y) {
     if (menu && menu->window.flags & (WINDOW_VISIBLE | WINDOW_FORCED)) {
-        if (Rect_ContainsPoint(&menu->window.rect, x, y)) {
+        if (Rect_ContainsWidescreenPoint(&menu->window.rect, x, y, menu->widescreen)) {
             int i;
             for (i = 0; i < menu->itemCount; i++) {
                 // turn off focus each item
@@ -5884,10 +6428,10 @@ static qboolean Menu_OverActiveItem(menuDef_t* menu, float x, float y) {
                     continue;
                 }
 
-                if (Rect_ContainsPoint(&menu->items[i]->window.rect, x, y)) {
+                if (Rect_ContainsWidescreenPoint(&menu->items[i]->window.rect, x, y, menu->items[i]->widescreen)) {
                     itemDef_t* overItem = menu->items[i];
                     if (overItem->type == ITEM_TYPE_TEXT && overItem->text) {
-                        if (Rect_ContainsPoint(Item_CorrectedTextRect(overItem), x, y)) {
+                        if (Rect_ContainsWidescreenPoint(Item_CorrectedTextRect(overItem), x, y, overItem->widescreen)) {
                             return qtrue;
                         } else {
                             continue;

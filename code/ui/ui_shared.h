@@ -28,13 +28,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../../ui/menudef.h"
 
-#define MAX_MENUNAME 32
-#define MAX_ITEMTEXT 64
-#define MAX_ITEMACTION 64
+#define MAX_MENUNAME 64
+#define MAX_ITEMTEXT 128
+#define MAX_ITEMACTION 256
 #define MAX_MENUDEFFILE 4096
-#define MAX_MENUFILE 32768
-#define MAX_MENUS 64
-#define MAX_MENUITEMS 96
+#define MAX_MENUFILE 65536
+#define MAX_MENUS 512
+#define MAX_MENUITEMS 2048
 #define MAX_COLOR_RANGES 10
 #define MAX_OPEN_MENUS 16
 
@@ -69,11 +69,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CURSOR_SIZER 0x00000004
 
 #ifdef CGAME
-#define STRING_POOL_SIZE 128 * 1024
+#define STRING_POOL_SIZE  128 * 1024
 #else
-#define STRING_POOL_SIZE 384 * 1024
+#define STRING_POOL_SIZE 1024 * 1024
 #endif
-#define MAX_STRING_HANDLES 4096
+#define MAX_STRING_HANDLES 8192
 
 #define MAX_SCRIPT_ARGS 12
 #define MAX_EDITFIELD 256
@@ -129,17 +129,24 @@ typedef struct {
     int border;                 //
     int ownerDraw;              // ownerDraw style
     int ownerDrawFlags;         // show flags for ownerdraw items
+    int ownerDrawFlags2;        // [QL] second set of ownerdraw flags
     float borderSize;           //
     int flags;                  // visible, focus, mouseover, cursor
     Rectangle rectEffects;      // for various effects
     Rectangle rectEffects2;     // for various effects
     int offsetTime;             // time based value for various effects
     int nextTime;               // time next effect should cycle
+    int pad_74;                 // [QL] unknown field (binary offset 0x74)
     vec4_t foreColor;           // text color
     vec4_t backColor;           // border color
     vec4_t borderColor;         // border color
-    vec4_t outlineColor;        // border color
+    vec4_t outlineColor;        // outline color
+    vec4_t altRowColor;         // [QL] alternate row color for listboxes
+    vec4_t elementColor;        // [QL] element color
+    vec4_t selectedColor;       // [QL] selected item color
     qhandle_t background;       // background asset
+    qhandle_t outlineImage;     // [QL] outline shader
+    Rectangle backgroundSize;   // background asset size
 } windowDef_t;
 
 typedef windowDef_t Window;
@@ -160,7 +167,7 @@ typedef struct {
 // the benefits of c++ in DOOM will greatly help crap like this
 // FIXME: need to put a type ptr that points to specific type info per type
 //
-#define MAX_LB_COLUMNS 16
+#define MAX_LB_COLUMNS 32
 
 typedef struct columnInfo_s {
     int pos;
@@ -224,6 +231,7 @@ typedef struct itemDef_s {
     int textalignment;           // ( optional ) alignment for text within rect based on text width
     float textalignx;            // ( optional ) text alignment x coord
     float textaligny;            // ( optional ) text alignment x coord
+    int fontIndex;               // [QL] per-item font index (0 = default)
     float textscale;             // scale percentage from 72pts
     int textStyle;               // ( optional ) style, normal and shadowed are it for now
     const char* text;            // display text
@@ -238,15 +246,26 @@ typedef struct itemDef_s {
     const char* leaveFocus;      // select script
     const char* cvar;            // associated cvar
     const char* cvarTest;        // associated cvar for enable actions
-    const char* cvarTest2;       // associated cvar for enable actions (FIXME Quake Live uses this)
+    const char* cvarTest2;       // [QL] second cvar test condition (AND with primary)
+    const char* cvarTest3;       // [QL] third cvar test condition
+    const char* cvarTest4;       // [QL] fourth cvar test condition
     const char* enableCvar;      // enable, disable, show, or hide based on value, this can contain a list
+    const char* enableCvar2;     // [QL] second enable/show/hide value list (paired with cvarTest2)
+    const char* enableCvar3;     // [QL] third enable/show/hide value list (paired with cvarTest3)
+    const char* enableCvar4;     // [QL] fourth enable/show/hide value list (paired with cvarTest4)
     int cvarFlags;               //	what type of action to take on cvarenables
+    int precision;               // [QL] numeric precision for display
+    int cvarInt;                 // [QL] 1 = integer slider mode
     sfxHandle_t focusSound;
-    int numColors;  // number of color ranges
+    int numColors;               // number of color ranges
     colorRangeDef_t colorRanges[MAX_COLOR_RANGES];
-    float special;   // used for feeder id's etc.. diff per type
-    int cursorPos;   // cursor position in characters
-    void* typeData;  // type specific data ptr's
+    float special;               // used for feeder id's etc.. diff per type
+    int cursorPos;               // cursor position in characters
+    void* typeData;              // type specific data ptr's
+    int cellId;                  // [QL] advertisement cell ID
+    const char* defaultContent;  // [QL] default content string
+    int widescreen;              // [QL] widescreen mode (0-3)
+    int widescreenFlag;          // [QL] 1 if widescreen was explicitly set
 } itemDef_t;
 
 typedef struct {
@@ -267,6 +286,7 @@ typedef struct {
     vec4_t focusColor;                // focus color for items
     vec4_t disableColor;              // focus color for items
     itemDef_t* items[MAX_MENUITEMS];  // items this menu contains
+    int widescreen;         // quake live
 } menuDef_t;
 
 typedef struct {
@@ -276,6 +296,7 @@ typedef struct {
     fontInfo_t textFont;
     fontInfo_t smallFont;
     fontInfo_t bigFont;
+    fontInfo_t extraFonts[3]; // [QL] indexed fonts: 0=textFont, 1=bigFont, 2=smallFont
     qhandle_t cursor;
     qhandle_t gradientBar;
     qhandle_t scrollBarArrowUp;
@@ -319,9 +340,9 @@ typedef struct {
     void (*setColor)(const vec4_t v);
     void (*drawHandlePic)(float x, float y, float w, float h, qhandle_t asset);
     void (*drawStretchPic)(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t hShader);
-    void (*drawText)(float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit, int style);
-    int (*textWidth)(const char* text, float scale, int limit);
-    int (*textHeight)(const char* text, float scale, int limit);
+    void (*drawText)(float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit, int style, int fontIndex);
+    float (*textWidth)(const char* text, float scale, int limit, int fontIndex);
+    float (*textHeight)(const char* text, float scale, int limit, int fontIndex);
     qhandle_t (*registerModel)(const char* p);
     void (*modelBounds)(qhandle_t model, vec3_t min, vec3_t max);
     void (*fillRect)(float x, float y, float w, float h, const vec4_t color);
@@ -332,15 +353,15 @@ typedef struct {
     void (*addRefEntityToScene)(const refEntity_t* re);
     void (*renderScene)(const refdef_t* fd);
     void (*registerFont)(const char* pFontname, int pointSize, fontInfo_t* font);
-    void (*ownerDrawItem)(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle);
+    void (*ownerDrawItem)(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle, int fontIndex);
     float (*getValue)(int ownerDraw);
-    qboolean (*ownerDrawVisible)(int flags);
+    qboolean (*ownerDrawVisible)(int flags, int flags2);
     void (*runScript)(char** p);
     void (*getTeamColor)(vec4_t* color);
     void (*getCVarString)(const char* cvar, char* buffer, int bufsize);
     float (*getCVarValue)(const char* cvar);
     void (*setCVar)(const char* cvar, const char* value);
-    void (*drawTextWithCursor)(float x, float y, float scale, vec4_t color, const char* text, int cursorPos, char cursor, int limit, int style);
+    void (*drawTextWithCursor)(float x, float y, float scale, vec4_t color, const char* text, int cursorPos, char cursor, int limit, int style, int fontIndex);
     void (*setOverstrikeMode)(qboolean b);
     qboolean (*getOverstrikeMode)(void);
     void (*startLocalSound)(sfxHandle_t sfx, int channelNum);
@@ -364,6 +385,7 @@ typedef struct {
     void (*stopCinematic)(int handle);
     void (*drawCinematic)(int handle, float x, float y, float w, float h);
     void (*runCinematicFrame)(int handle);
+    void (*setWidescreen)(int mode);             // [QL] set widescreen mode for coordinate adjustment
 
     float yscale;
     float xscale;
