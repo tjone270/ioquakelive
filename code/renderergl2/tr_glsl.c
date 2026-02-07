@@ -1363,7 +1363,7 @@ void GLSL_InitGPUShaders(void) {
 
     endTime = ri.Milliseconds();
 
-    ri.Printf(PRINT_ALL, "loaded %i GLSL shaders (%i gen %i light %i etc) in %5.2f seconds\n",
+    ri.Printf(PRINT_ALL, "loaded %i GLSL shaders (%i gen, %i light, %i etc) in %5.2f seconds\n",
               numGenShaders + numLightShaders + numEtcShaders, numGenShaders, numLightShaders,
               numEtcShaders, (endTime - startTime) / 1000.0);
 }
