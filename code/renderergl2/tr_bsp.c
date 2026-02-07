@@ -475,7 +475,7 @@ void R_LoadAdvertisements(lump_t* l) {
     s_worldData.numAds = 0;
     Com_Memset(s_worldData.adShaders, 0, sizeof(s_worldData.adShaders));
 
-    ri.Printf(PRINT_ALL, "%d ads in map\n", count);
+    //ri.Printf(PRINT_ALL, "%d ads in map\n", count);
 
     if (count > MAX_MAP_ADVERTISEMENTS) {
         ri.Printf(PRINT_ALL, "count > MAX_MAP_ADVERTISEMENTS\n");
@@ -523,6 +523,7 @@ void R_LoadAdvertisements(lump_t* l) {
         s_worldData.ads[i].rect[3][2] = LittleFloat(ads->rect[3][2]);
 
         Q_strncpyz(s_worldData.ads[i].model, ads->model, sizeof(s_worldData.ads[i].model));
+        Q_strncpyz(s_worldData.adShaders[i], ads->model, MAX_QPATH);
 
         int width, height;
         float scale;
@@ -538,7 +539,7 @@ void R_LoadAdvertisements(lump_t* l) {
         } else {
             scale = 0;
         }
-        ri.Printf(PRINT_ALL, "  %d x %d   (%f)\n", width, height, scale);
+        //ri.Printf(PRINT_ALL, "  %d x %d   (%f)\n", width, height, scale);
     }
 }
 
