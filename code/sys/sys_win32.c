@@ -49,7 +49,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Used to determine where to store user-specific files
 static char homePath[MAX_OSPATH] = {0};
 
-// Used to store the Steam Quake 3 installation path
+// Used to store the Steam Quake Live installation path
 static char steamPath[MAX_OSPATH] = {0};
 
 #ifndef DEDICATED
@@ -171,6 +171,14 @@ char* Sys_SteamPath(void) {
             pathLen--;
 
         steamPath[pathLen] = '\0';
+
+        // Steam stores SteamPath with forward slashes - normalize to backslashes
+        {
+            char *s;
+            for (s = steamPath; *s; s++) {
+                if (*s == '/') *s = '\\';
+            }
+        }
 
         if (finishPath)
             Q_strcat(steamPath, MAX_OSPATH, "\\SteamApps\\common\\" STEAMPATH_NAME);
