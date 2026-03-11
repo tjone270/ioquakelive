@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source "$(dirname "$0")/make-macosx-common.sh"
+
 # Let's make the user give us a target to work with.
 # architecture is assumed universal if not specified, and is optional.
 # if arch is defined, it we will store the .app bundle in the target arch build directory
@@ -36,15 +38,7 @@ CURRENT_ARCH=""
 
 # validate the architecture if it was specified
 if [ "$2" != "" ]; then
-	if [ "$2" == "x86" ]; then
-		CURRENT_ARCH="x86"
-	elif [ "$2" == "x86_64" ]; then
-		CURRENT_ARCH="x86_64"
-	elif [ "$2" == "ppc" ]; then
-		CURRENT_ARCH="ppc"
-	elif [ "$2" == "arm64" ]; then
-		CURRENT_ARCH="arm64"
-	else
+	if ! macosx_validate_arch "$2"; then
 		echo "Invalid architecture: $2"
 		echo "Valid architectures are:"
 		echo " x86"
@@ -54,6 +48,7 @@ if [ "$2" != "" ]; then
 		echo
 		exit 1
 	fi
+	CURRENT_ARCH="$2"
 fi
 
 # symlinkArch() creates a symlink with the architecture suffix.
@@ -131,8 +126,7 @@ HAS_CP=`command -v cp`
 
 # if lipo is not available, we cannot make a universal binary, print a warning
 if [ ! -x "${HAS_LIPO}" ] && [ "${CURRENT_ARCH}" == "" ]; then
-	CURRENT_ARCH=`uname -m`
-	if [ "${CURRENT_ARCH}" == "i386" ]; then CURRENT_ARCH="x86"; fi
+	CURRENT_ARCH="$(macosx_detect_host_arch)"
 	echo "$0 cannot make a universal binary, falling back to architecture ${CURRENT_ARCH}"
 fi
 

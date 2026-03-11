@@ -370,20 +370,6 @@ static void SV_ClearServer(void) {
 
 /*
 ================
-SV_TouchFile
-================
-*/
-static void SV_TouchFile(const char* filename) {
-    fileHandle_t f;
-
-    FS_FOpenFileRead(filename, &f, qfalse);
-    if (f) {
-        FS_FCloseFile(f);
-    }
-}
-
-/*
-================
 SV_SpawnServer
 
 Change the server to a new map, taking all connected

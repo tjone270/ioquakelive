@@ -1,6 +1,8 @@
 #!/bin/bash
 #
 
+source "$(dirname "$0")/make-macosx-common.sh"
+
 # Let's make the user give us a target build system
 
 if [ $# -ne 1 ]; then
@@ -12,28 +14,18 @@ if [ $# -ne 1 ]; then
 	exit 1
 fi
 
-if [ "$1" == "x86" ]; then
-	BUILDARCH=x86
-elif [ "$1" == "x86_64" ]; then
-	BUILDARCH=x86_64
-elif [ "$1" == "ppc" ]; then
-	BUILDARCH=ppc
-elif [ "$1" == "arm64" ]; then
-	BUILDARCH=arm64
-else
+if ! macosx_validate_arch "$1"; then
 	echo "Invalid architecture: $1"
 	echo "Valid architectures are arm64, x86_64, x86, or ppc"
 	exit 1
 fi
 
+BUILDARCH="$1"
+
 CC=gcc-4.0
 DESTDIR=build/release-darwin-${BUILDARCH}
 
-cd `dirname $0`
-if [ ! -f Makefile ]; then
-	echo "This script must be run from the ioquake3 build directory"
-	exit 1
-fi
+macosx_enter_repo_root "$0"
 
 # we want to use the oldest available SDK for max compatibility. However 10.4 and older
 # can not build 64bit binaries, making 10.5 the minimum version.   This has been tested 
@@ -105,20 +97,7 @@ if [ ! -d $DESTDIR ]; then
 	mkdir -p $DESTDIR
 fi
 
-# For parallel make on multicore boxes...
-SYSCTL_PATH=`command -v sysctl 2> /dev/null`
-if [ -n "$SYSCTL_PATH" ]; then
-	NCPU=`sysctl -n hw.ncpu`
-else
-	# osxcross on linux
-	NCPU=`nproc`
-fi
-
-# intel client and server
-#if [ -d build/release-darwin-${BUILDARCH} ]; then
-#	rm -r build/release-darwin-${BUILDARCH}
-#fi
-(PLATFORM=darwin ARCH=${BUILDARCH} CFLAGS=$ARCH_CFLAGS MACOSX_VERSION_MIN=$ARCH_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "${BUILDARCH}" "$ARCH_CFLAGS" "$ARCH_MACOSX_VERSION_MIN" "$CC"
 
 # use the following shell script to build an application bundle
 export MACOSX_DEPLOYMENT_TARGET="${ARCH_MACOSX_VERSION_MIN}"
@@ -126,4 +105,4 @@ export MACOSX_DEPLOYMENT_TARGET_PPC=
 export MACOSX_DEPLOYMENT_TARGET_X86=
 export MACOSX_DEPLOYMENT_TARGET_X86_64=
 export MACOSX_DEPLOYMENT_TARGET_ARM64=
-"./make-macosx-app.sh" release ${BUILDARCH}
+macosx_invoke_app_bundle release "${BUILDARCH}"

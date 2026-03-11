@@ -40,8 +40,6 @@ struct mdfour {
    It assumes that an int is at least 32 bits long
 */
 
-static struct mdfour* m;
-
 #define F(X, Y, Z) (((X) & (Y)) | ((~(X)) & (Z)))
 #define G(X, Y, Z) (((X) & (Y)) | ((X) & (Z)) | ((Y) & (Z)))
 #define H(X, Y, Z) ((X) ^ (Y) ^ (Z))
@@ -52,7 +50,7 @@ static struct mdfour* m;
 #define ROUND3(a, b, c, d, k, s) a = lshift(a + H(b, c, d) + X[k] + 0x6ED9EBA1, s)
 
 /* this applies md4 to 64 byte chunks */
-static void mdfour64(uint32_t* M) {
+static void mdfour64(struct mdfour *md, uint32_t* M) {
     int j;
     uint32_t AA, BB, CC, DD;
     uint32_t X[16];
@@ -61,10 +59,10 @@ static void mdfour64(uint32_t* M) {
     for (j = 0; j < 16; j++)
         X[j] = M[j];
 
-    A = m->A;
-    B = m->B;
-    C = m->C;
-    D = m->D;
+    A = md->A;
+    B = md->B;
+    C = md->C;
+    D = md->D;
     AA = A;
     BB = B;
     CC = C;
@@ -129,10 +127,10 @@ static void mdfour64(uint32_t* M) {
     for (j = 0; j < 16; j++)
         X[j] = 0;
 
-    m->A = A;
-    m->B = B;
-    m->C = C;
-    m->D = D;
+    md->A = A;
+    md->B = B;
+    md->C = C;
+    md->D = D;
 }
 
 static void copy64(uint32_t* M, byte* in) {
@@ -161,14 +159,14 @@ void mdfour_begin(struct mdfour* md) {
     md->totalN = 0;
 }
 
-static void mdfour_tail(byte* in, int n) {
+static void mdfour_tail(struct mdfour *md, byte* in, int n) {
     byte buf[128];
     uint32_t M[16];
     uint32_t b;
 
-    m->totalN += n;
+    md->totalN += n;
 
-    b = m->totalN * 8;
+    b = md->totalN * 8;
 
     Com_Memset(buf, 0, 128);
     if (n)
@@ -178,33 +176,31 @@ static void mdfour_tail(byte* in, int n) {
     if (n <= 55) {
         copy4(buf + 56, b);
         copy64(M, buf);
-        mdfour64(M);
+        mdfour64(md, M);
     } else {
         copy4(buf + 120, b);
         copy64(M, buf);
-        mdfour64(M);
+        mdfour64(md, M);
         copy64(M, buf + 64);
-        mdfour64(M);
+        mdfour64(md, M);
     }
 }
 
 static void mdfour_update(struct mdfour* md, byte* in, int n) {
     uint32_t M[16];
 
-    m = md;
-
     if (n == 0)
-        mdfour_tail(in, n);
+        mdfour_tail(md, in, n);
 
     while (n >= 64) {
         copy64(M, in);
-        mdfour64(M);
+        mdfour64(md, M);
         in += 64;
         n -= 64;
-        m->totalN += 64;
+        md->totalN += 64;
     }
 
-    mdfour_tail(in, n);
+    mdfour_tail(md, in, n);
 }
 
 static void mdfour_result(struct mdfour* md, byte* out) {

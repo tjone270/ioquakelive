@@ -1,0 +1,831 @@
+#include "ui/menudef.h"
+
+{
+    assetGlobalDef {
+        font            "fonts/font" 16
+        smallFont       "fonts/smallfont" 12
+        bigFont         "fonts/bigfont" 20
+        cursor          "ui/assets/3_cursor3"
+        gradientBar     "ui/assets/gradientbar2.tga"
+        itemFocusSound  "sound/misc/menu2.wav"
+        fadeClamp       1.0
+        fadeCycle       1
+        fadeAmount      0.1
+        shadowColor     0.1 0.1 0.1 0.25
+    }
+
+    // =============================================
+    // MAIN TITLE SCREEN
+    // =============================================
+    menuDef {
+        name "main"
+        background "ui/assets/backscreen_smoke"
+        backgroundSize 0 0 1920 1080
+        fullScreen MENU_TRUE
+        rect 0 0 640 480
+        visible MENU_TRUE
+        focusColor 1 .75 0 1
+
+        onOpen {
+            setitemcolor fadebox backcolor 0 0 0 1 ;
+            fadeout fadebox ;
+            uiScript stopRefresh ;
+            uiScript loadGameInfo
+        }
+
+        onESC {
+            open quit_popmenu
+        }
+
+        // NEW GAME
+        itemDef {
+            name browserbar
+            group mainnav
+            style WINDOW_STYLE_GRADIENT
+            rect -155 280 310 30
+            backcolor 0.5 0.1 0 .25
+            border 4
+            bordercolor 0.5 0.5 0.5 1
+            bordersize 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            name browser
+            group mainnav
+            text "NEW GAME"
+            type 1
+            textstyle 6
+            rect 0 280 310 30
+            textalignx 10
+            textaligny 24
+            textscale .416
+            textalign ITEM_ALIGN_LEFT
+            forecolor 1 1 1 1
+            visible 1
+            action { close main ; open createserver }
+            mouseEnter { setitemcolor browserbar backcolor .75 0 0 .25 }
+            mouseExit { setitemcolor browserbar backcolor 0.5 0.1 0 .25 }
+        }
+
+        // DEMOS
+        itemDef {
+            name demobar
+            group mainnav
+            style WINDOW_STYLE_GRADIENT
+            rect -155 320 310 30
+            backcolor 0.5 0.1 0 .25
+            border 4
+            bordercolor 0.5 0.5 0.5 1
+            bordersize 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            name demos
+            group mainnav
+            text "DEMOS"
+            type 1
+            textstyle 6
+            rect 0 320 310 30
+            textalignx 10
+            textaligny 24
+            textscale .416
+            textalign ITEM_ALIGN_LEFT
+            forecolor 1 1 1 1
+            visible 1
+            action { hide mainnav ; open demo }
+            mouseEnter { setitemcolor demobar backcolor .75 0 0 .25 }
+            mouseExit { setitemcolor demobar backcolor 0.5 0.1 0 .25 }
+        }
+
+        // OPTIONS
+        itemDef {
+            name optionsbar
+            group mainnav
+            style WINDOW_STYLE_GRADIENT
+            rect -155 360 310 30
+            backcolor 0.5 0.1 0 .25
+            border 4
+            bordercolor 0.5 0.5 0.5 1
+            bordersize 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            name options
+            group mainnav
+            text "OPTIONS"
+            type 1
+            textstyle 6
+            rect 0 360 320 30
+            textalignx 10
+            textaligny 24
+            textscale .416
+            textalign ITEM_ALIGN_LEFT
+            forecolor 1 1 1 1
+            visible 1
+            action { hide mainnav ; open main_options ; open ingame_controls }
+            mouseEnter { setitemcolor optionsbar backcolor .75 0 0 .25 }
+            mouseExit { setitemcolor optionsbar backcolor 0.5 0.1 0 .25 }
+        }
+
+        // QUIT
+        itemDef {
+            name quitbar
+            group mainnav
+            style WINDOW_STYLE_GRADIENT
+            rect 485 400 310 30
+            backcolor 0.5 0.1 0 .25
+            border 4
+            bordercolor 0.5 0.5 0.5 1
+            bordersize 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            name quit
+            group mainnav
+            text "QUIT"
+            type 1
+            textstyle 6
+            rect 485 400 320 30
+            textalignx 95
+            textaligny 24
+            textscale .416
+            textalign ITEM_ALIGN_LEFT
+            forecolor 1 1 1 1
+            visible 1
+            action { open quit_popmenu }
+            mouseEnter { setitemcolor quitbar backcolor .75 0 0 .25 }
+            mouseExit { setitemcolor quitbar backcolor 0.5 0.1 0 .25 }
+        }
+
+        // CREDITS
+        itemDef {
+            name copyright
+            text "Quake Live (tm) Copyright 2015 Id Software LLC, a ZeniMax Media company. All Rights Reserved."
+            textscale .25
+            rect 0 440 640 40
+            textalign ITEM_ALIGN_CENTER
+            textaligny 32
+            textalignx 320
+            forecolor .75 0 0 .75
+            visible 1
+            decoration
+        }
+
+        itemDef {
+            name fadebox
+            style WINDOW_STYLE_FILLED
+            background "ui/assets/fadebox.tga"
+            forecolor 0 0 0 1
+            backcolor 0 0 0 1
+            rect 0 0 640 480
+            visible 1
+            decoration
+        }
+    }
+
+    // =============================================
+    // CREATE SERVER
+    // =============================================
+    menuDef {
+        name "createserver"
+        fullScreen MENU_TRUE
+        rect 0 0 640 480
+        visible MENU_FALSE
+        focusColor 1 .75 0 1
+        style WINDOW_STYLE_FILLED
+        backcolor 0.05 0.05 0.08 1
+
+        onOpen { uiScript loadArenas }
+        onESC { close createserver ; open main }
+
+        // ---- TITLE BAR ----
+        itemDef {
+            style WINDOW_STYLE_FILLED
+            rect 0 0 640 22
+            backcolor 0.5 0.1 0 0.6
+            visible 1
+            decoration
+        }
+        itemDef {
+            text "CREATE SERVER"
+            textstyle 6
+            textscale .28
+            rect 10 2 200 20
+            textaligny 16
+            forecolor 1 1 1 1
+            visible 1
+            decoration
+        }
+
+        // ---- TAB BUTTONS ----
+        itemDef {
+            name tab_map
+            text "Map"
+            type 1
+            textscale .22
+            rect 10 26 75 18
+            textalign ITEM_ALIGN_CENTER
+            textalignx 37
+            textaligny 14
+            forecolor 1 1 1 1
+            visible 1
+            action {
+                hide grpRules ;
+                hide grpPhysics ;
+                hide grpWeapons ;
+                show grpMapSelect
+            }
+        }
+        itemDef {
+            name tab_rules
+            text "Rules"
+            type 1
+            textscale .22
+            rect 90 26 75 18
+            textalign ITEM_ALIGN_CENTER
+            textalignx 37
+            textaligny 14
+            forecolor 1 1 1 1
+            visible 1
+            action {
+                hide grpMapSelect ;
+                hide grpPhysics ;
+                hide grpWeapons ;
+                show grpRules
+            }
+        }
+        itemDef {
+            name tab_physics
+            text "Physics"
+            type 1
+            textscale .22
+            rect 170 26 75 18
+            textalign ITEM_ALIGN_CENTER
+            textalignx 37
+            textaligny 14
+            forecolor 1 1 1 1
+            visible 1
+            action {
+                hide grpMapSelect ;
+                hide grpRules ;
+                hide grpWeapons ;
+                show grpPhysics
+            }
+        }
+        itemDef {
+            name tab_weapons
+            text "Weapons"
+            type 1
+            textscale .22
+            rect 250 26 80 18
+            textalign ITEM_ALIGN_CENTER
+            textalignx 40
+            textaligny 14
+            forecolor 1 1 1 1
+            visible 1
+            action {
+                hide grpMapSelect ;
+                hide grpRules ;
+                hide grpPhysics ;
+                show grpWeapons
+            }
+        }
+
+        // Separator line
+        itemDef {
+            style WINDOW_STYLE_FILLED
+            rect 10 44 620 1
+            backcolor 0.5 0.5 0.5 0.5
+            visible 1
+            decoration
+        }
+
+        // ---- Bottom buttons (always visible) ----
+        itemDef {
+            name startbtn
+            text "START"
+            type 1
+            textscale .28
+            textstyle 6
+            rect 500 452 120 24
+            textalign ITEM_ALIGN_CENTER
+            textalignx 60
+            textaligny 19
+            forecolor 1 1 1 1
+            visible 1
+            action { uiScript StartServer }
+            mouseEnter { setitemcolor startbtn forecolor 1 .75 0 1 }
+            mouseExit { setitemcolor startbtn forecolor 1 1 1 1 }
+        }
+        itemDef {
+            name backbtn
+            text "BACK"
+            type 1
+            textscale .28
+            textstyle 6
+            rect 390 452 100 24
+            textalign ITEM_ALIGN_CENTER
+            textalignx 50
+            textaligny 19
+            forecolor 1 1 1 1
+            visible 1
+            action { close createserver ; open main }
+            mouseEnter { setitemcolor backbtn forecolor 1 .75 0 1 }
+            mouseExit { setitemcolor backbtn forecolor 1 1 1 1 }
+        }
+
+        // ======================================================
+        // TAB: MAP SELECT
+        // ======================================================
+
+        // Gametype label
+        itemDef {
+            group grpMapSelect
+            text "Game Type:"
+            textscale .2
+            rect 10 50 80 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        // Gametype selector
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "ui_netGameType"
+            cvarFloatList { "Free For All" 0 "Duel" 1 "Race" 2 "Team DM" 3 "Clan Arena" 4 "CTF" 5 "1-Flag CTF" 6 "Overload" 7 "Harvester" 8 "Freeze Tag" 9 "Domination" 10 "Attack/Defend" 11 "Red Rover" 12 }
+            rect 90 50 150 15
+            textaligny 12
+            textalignx 2
+            textscale .2
+            forecolor 1 1 1 1
+            visible 1
+            action { uiScript loadArenas }
+        }
+
+        // Map list
+        itemDef {
+            name maplist
+            group grpMapSelect
+            rect 10 70 220 370
+            type ITEM_TYPE_LISTBOX
+            elementwidth 200
+            elementheight 16
+            font FONT_SANS
+            textscale .18
+            elementtype LISTBOX_TEXT
+            feeder FEEDER_ALLMAPS
+            border 1
+            bordercolor 0.4 0.4 0.4 0.5
+            forecolor 1 1 1 1
+            backcolor 0 0 0 0.3
+            outlinecolor 0.5 0.5 0.5 0.5
+            visible 1
+            columns 1 2 24 210
+        }
+
+        // Map preview background
+        itemDef {
+            group grpMapSelect
+            style WINDOW_STYLE_FILLED
+            rect 244 70 240 240
+            backcolor 0 0 0 0.5
+            visible 1
+            decoration
+        }
+        // Map preview image (square)
+        itemDef {
+            group grpMapSelect
+            rect 249 75 230 230
+            visible 1
+            decoration
+            ownerdraw UI_MAPPREVIEW
+        }
+
+        // Server settings below the preview
+        itemDef {
+            group grpMapSelect
+            text "Max Players:"
+            textscale .2
+            rect 250 320 80 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "sv_maxClients"
+            cvarFloatList { "2" 2 "4" 4 "6" 6 "8" 8 "10" 10 "12" 12 "16" 16 }
+            rect 340 320 60 15
+            textaligny 12
+            textalignx 2
+            textscale .2
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        itemDef {
+            group grpMapSelect
+            text "Dedicated:"
+            textscale .2
+            rect 410 320 60 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_YESNO
+            text ""
+            cvar "ui_dedicated"
+            rect 475 320 50 15
+            textaligny 12
+            textalignx 2
+            textscale .2
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        itemDef {
+            group grpMapSelect
+            text "Hostname:"
+            textscale .2
+            rect 250 340 80 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_EDITFIELD
+            text ""
+            cvar "sv_hostname"
+            rect 335 340 190 15
+            textaligny 12
+            textalignx 2
+            textscale .2
+            forecolor 1 1 1 1
+            border 1
+            bordercolor 0.4 0.4 0.4 0.5
+            maxchars 32
+            visible 1
+        }
+
+        // Right-side quick settings
+        itemDef {
+            group grpMapSelect
+            text "Bot Skill:"
+            textscale .2
+            rect 500 70 60 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "g_spSkill"
+            cvarFloatList { "Easy" 1 "Medium" 2 "Normal" 3 "Hard" 4 "Nightmare" 5 }
+            rect 565 70 65 15
+            textaligny 12
+            textalignx 2
+            textscale .18
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        itemDef {
+            group grpMapSelect
+            text "Time Limit:"
+            textscale .2
+            rect 500 90 60 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "timelimit"
+            cvarFloatList { "None" 0 "5" 5 "10" 10 "15" 15 "20" 20 "30" 30 }
+            rect 565 90 65 15
+            textaligny 12
+            textalignx 2
+            textscale .18
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        itemDef {
+            group grpMapSelect
+            text "Frag Limit:"
+            textscale .2
+            rect 500 110 60 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "fraglimit"
+            cvarFloatList { "None" 0 "10" 10 "25" 25 "50" 50 "100" 100 "200" 200 }
+            rect 565 110 65 15
+            textaligny 12
+            textalignx 2
+            textscale .18
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        itemDef {
+            group grpMapSelect
+            text "Cap Limit:"
+            textscale .2
+            rect 500 130 60 15
+            textaligny 12
+            forecolor 0.8 0.8 0.8 1
+            visible 1
+            decoration
+        }
+        itemDef {
+            group grpMapSelect
+            type ITEM_TYPE_MULTI
+            text ""
+            cvar "capturelimit"
+            cvarFloatList { "None" 0 "3" 3 "5" 5 "8" 8 "10" 10 "15" 15 }
+            rect 565 130 65 15
+            textaligny 12
+            textalignx 2
+            textscale .18
+            forecolor 1 1 1 1
+            visible 1
+        }
+
+        // ======================================================
+        // TAB: GAME RULES
+        // ======================================================
+
+        // -- Left column --
+        itemDef {
+            group grpRules
+            text "Match Rules"
+            textscale .22
+            textstyle 6
+            rect 10 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        // Round Limit
+        itemDef { group grpRules  text "Round Limit:"  textscale .2  rect 20 70 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "roundlimit"  cvarFloatList { "None" 0 "3" 3 "5" 5 "7" 7 "9" 9 "11" 11 "15" 15 }  rect 150 70 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Team Size
+        itemDef { group grpRules  text "Team Size:"  textscale .2  rect 20 90 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_teamsize"  cvarFloatList { "No Limit" 0 "1v1" 1 "2v2" 2 "3v3" 3 "4v4" 4 "5v5" 5 "6v6" 6 "8v8" 8 }  rect 150 90 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Overtime
+        itemDef { group grpRules  text "Overtime (sec):"  textscale .2  rect 20 110 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_overtime"  cvarFloatList { "None" 0 "30" 30 "60" 60 "120" 120 "180" 180 }  rect 150 110 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Loadout
+        itemDef { group grpRules  text "Loadout:"  textscale .2  rect 20 130 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_YESNO  text ""  cvar "g_loadout"  rect 150 130 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Item Timers
+        itemDef { group grpRules  text "Item Timers:"  textscale .2  rect 20 150 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_YESNO  text ""  cvar "g_itemTimers"  rect 150 150 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Item Height
+        itemDef { group grpRules  text "Item Height:"  textscale .2  rect 20 170 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_itemHeight"  cvarFloatList { "Ground" 0 "Floating" 36 }  rect 150 170 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Weapon Respawn
+        itemDef { group grpRules  text "Weapon Respawn:"  textscale .2  rect 20 190 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_weaponRespawn"  cvarFloatList { "5s" 5 "10s" 10 "15s" 15 "20s" 20 "30s" 30 }  rect 150 190 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Gravity
+        itemDef { group grpRules  text "Gravity:"  textscale .2  rect 20 210 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_gravity"  cvarFloatList { "Moon (200)" 200 "Low (400)" 400 "Normal (800)" 800 "High (1200)" 1200 }  rect 150 210 100 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Quad Factor
+        itemDef { group grpRules  text "Quad Factor:"  textscale .2  rect 20 230 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_quadDamageFactor"  cvarFloatList { "2x" 2 "3x" 3 "4x" 4 }  rect 150 230 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // -- Right column: Spawn --
+        itemDef {
+            group grpRules
+            text "Spawn Settings"
+            textscale .22
+            textstyle 6
+            rect 300 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        // Starting Health
+        itemDef { group grpRules  text "Starting Health:"  textscale .2  rect 310 70 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_startingHealth"  cvarFloatList { "50" 50 "100" 100 "125" 125 "150" 150 "200" 200 }  rect 440 70 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Health Bonus
+        itemDef { group grpRules  text "Health Bonus:"  textscale .2  rect 310 90 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_startingHealthBonus"  cvarFloatList { "0" 0 "25" 25 "50" 50 "100" 100 }  rect 440 90 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Starting Armor
+        itemDef { group grpRules  text "Starting Armor:"  textscale .2  rect 310 110 120 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpRules  type ITEM_TYPE_MULTI  text ""  cvar "g_startingArmor"  cvarFloatList { "0" 0 "25" 25 "50" 50 "100" 100 "150" 150 "200" 200 }  rect 440 110 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // ======================================================
+        // TAB: PHYSICS
+        // ======================================================
+
+        // -- Left column --
+        itemDef {
+            group grpPhysics
+            text "Movement"
+            textscale .22
+            textstyle 6
+            rect 10 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpPhysics  text "Air Control (CPM):"  textscale .2  rect 20 70 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_AirControl"  rect 170 70 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Double Jump:"  textscale .2  rect 20 90 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_DoubleJump"  rect 170 90 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Crouch Slide:"  textscale .2  rect 20 110 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_CrouchSlide"  rect 170 110 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Bunny Hop:"  textscale .2  rect 20 130 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_BunnyHop"  rect 170 130 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Auto Hop:"  textscale .2  rect 20 150 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_AutoHop"  rect 170 150 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Ramp Jump:"  textscale .2  rect 20 170 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_YESNO  text ""  cvar "pmove_RampJump"  rect 170 170 50 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Speed Settings
+        itemDef {
+            group grpPhysics
+            text "Speed"
+            textscale .22
+            textstyle 6
+            rect 10 195 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpPhysics  text "Jump Velocity:"  textscale .2  rect 20 215 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_JumpVelocity"  cvarFloatList { "252 (Q3)" 252 "270 (QL)" 270 "290" 290 "310" 310 }  rect 170 215 100 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Walk Speed:"  textscale .2  rect 20 235 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_WishSpeed"  cvarFloatList { "320 (Q3)" 320 "400 (QL)" 400 "450" 450 "500" 500 }  rect 170 235 100 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Air Accel:"  textscale .2  rect 20 255 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_AirAccel"  cvarFloatList { "1" 1 "2" 2 "5" 5 "10" 10 "50" 50 "100" 100 }  rect 170 255 100 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // -- Right column --
+        itemDef {
+            group grpPhysics
+            text "Weapon Handling"
+            textscale .22
+            textstyle 6
+            rect 300 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpPhysics  text "Weapon Raise (ms):"  textscale .2  rect 310 70 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_WeaponRaiseTime"  cvarFloatList { "0" 0 "100" 100 "200" 200 "250" 250 "400" 400 }  rect 465 70 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Weapon Drop (ms):"  textscale .2  rect 310 90 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_WeaponDropTime"  cvarFloatList { "0" 0 "100" 100 "200" 200 "300" 300 }  rect 465 90 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Hook Pull Speed:"  textscale .2  rect 310 110 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_HookPullVelocity"  cvarFloatList { "600" 600 "800" 800 "1000" 1000 "1200" 1200 }  rect 465 110 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpPhysics  text "Step Height:"  textscale .2  rect 310 130 140 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpPhysics  type ITEM_TYPE_MULTI  text ""  cvar "pmove_StepHeight"  cvarFloatList { "18 (QL)" 18 "22 (Q3)" 22 "26" 26 }  rect 465 130 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // ======================================================
+        // TAB: WEAPONS
+        // ======================================================
+
+        // -- Left column --
+        itemDef {
+            group grpWeapons
+            text "Starting Weapons"
+            textscale .22
+            textstyle 6
+            rect 10 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpWeapons  text "Weapons:"  textscale .2  rect 20 70 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingWeapons"  cvarFloatList { "G+MG" 3 "All" 32766 "Gauntlet" 1 "MG" 2 "SG+MG" 6 "RL+MG" 34 "LG+MG" 66 "RG+MG" 130 }  rect 130 70 100 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // Bitmask reference
+        itemDef { group grpWeapons  text "1=G 2=MG 4=SG 8=GL 16=RL 32=LG 64=RG 128=PG"  textscale .15  rect 20 88 280 12  textaligny 10  forecolor 0.5 0.5 0.5 0.8  visible 0  decoration }
+        itemDef { group grpWeapons  text "256=BFG 512=GH 1024=NG 2048=PL 4096=CG 8192=HMG"  textscale .15  rect 20 99 280 12  textaligny 10  forecolor 0.5 0.5 0.5 0.8  visible 0  decoration }
+
+        // Starting Ammo header
+        itemDef {
+            group grpWeapons
+            text "Starting Ammo"
+            textscale .22
+            textstyle 6
+            rect 10 115 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpWeapons  text "Machine Gun:"  textscale .2  rect 20 135 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_mg"  cvarFloatList { "50" 50 "100" 100 "150" 150 "200" 200 "999" 999 }  rect 130 135 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Shotgun:"  textscale .2  rect 20 155 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_sg"  cvarFloatList { "5" 5 "10" 10 "25" 25 "50" 50 "999" 999 }  rect 130 155 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Grenade:"  textscale .2  rect 20 175 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_gl"  cvarFloatList { "5" 5 "10" 10 "25" 25 "50" 50 "999" 999 }  rect 130 175 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Rocket:"  textscale .2  rect 20 195 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_rl"  cvarFloatList { "3" 3 "5" 5 "10" 10 "25" 25 "999" 999 }  rect 130 195 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Lightning:"  textscale .2  rect 20 215 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_lg"  cvarFloatList { "50" 50 "100" 100 "150" 150 "200" 200 "999" 999 }  rect 130 215 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Railgun:"  textscale .2  rect 20 235 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_rg"  cvarFloatList { "3" 3 "5" 5 "10" 10 "25" 25 "999" 999 }  rect 130 235 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Plasma:"  textscale .2  rect 20 255 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_pg"  cvarFloatList { "25" 25 "50" 50 "100" 100 "150" 150 "999" 999 }  rect 130 255 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        // -- Right column --
+        itemDef {
+            group grpWeapons
+            text "More Ammo"
+            textscale .22
+            textstyle 6
+            rect 300 50 200 16
+            textaligny 13
+            forecolor 1 0.75 0 1
+            visible 0
+            decoration
+        }
+
+        itemDef { group grpWeapons  text "BFG:"  textscale .2  rect 310 70 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_bfg"  cvarFloatList { "5" 5 "10" 10 "25" 25 "50" 50 "999" 999 }  rect 420 70 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Chaingun:"  textscale .2  rect 310 90 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_cg"  cvarFloatList { "50" 50 "100" 100 "150" 150 "200" 200 "999" 999 }  rect 420 90 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Heavy MG:"  textscale .2  rect 310 110 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_hmg"  cvarFloatList { "25" 25 "50" 50 "100" 100 "150" 150 "999" 999 }  rect 420 110 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Nailgun:"  textscale .2  rect 310 130 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_ng"  cvarFloatList { "5" 5 "10" 10 "25" 25 "50" 50 "999" 999 }  rect 420 130 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Prox Mine:"  textscale .2  rect 310 150 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_pl"  cvarFloatList { "3" 3 "5" 5 "10" 10 "25" 25 "999" 999 }  rect 420 150 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+
+        itemDef { group grpWeapons  text "Grapple:"  textscale .2  rect 310 170 100 15  textaligny 12  forecolor 0.8 0.8 0.8 1  visible 0  decoration }
+        itemDef { group grpWeapons  type ITEM_TYPE_MULTI  text ""  cvar "g_startingAmmo_gh"  cvarFloatList { "Infinite" -1 "Off" 0 "10" 10 "50" 50 }  rect 420 170 80 15  textaligny 12  textalignx 2  textscale .2  forecolor 1 1 1 1  visible 0 }
+    }
+}

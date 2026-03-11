@@ -55,4 +55,8 @@ profile
 /code/tools
 *.lib
 *.pdb
-*.lib
+*.dll
+*.ilk
+*.idb
+*.exp
+*.pk3
