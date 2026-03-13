@@ -25,7 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // [QL] widescreen rendering mode - set by DC->setWidescreen() before each item paints
 // 0=stretch, 1=left, 2=center, 3=right
-static int cg_currentWidescreen = 0;
+int cg_currentWidescreen = 0;
 
 void CG_SetWidescreen(int mode) {
     cg_currentWidescreen = mode;

@@ -212,6 +212,93 @@ void CG_DrawTextWithCursor_DC(float x, float y, float scale, vec4_t color, const
 	CG_Text_Paint_Font(x, y, scale, color, text, 0, limit, style, font);
 }
 
+// [QL] CG_DrawText - matching binary's 0x10008440 in cgamex86.dll.
+// Does bulk widescreen adjustment on x,y coords, then renders all glyphs at
+// screen-space coordinates. Shadow pass is done as a separate full-string pass
+// (not per-character like CG_Text_Paint_Font).
+static void CG_DrawText_Glyphs(float x, float y, float useScale,
+                                float xscale, float yscale,
+                                const char *text, float adjust, int maxChars,
+                                fontInfo_t *font) {
+	int count = 0, len = strlen(text);
+	vec4_t newColor;
+	const char *s = text;
+	if (maxChars > 0 && len > maxChars) len = maxChars;
+
+	while (s && *s && count < len) {
+		if (Q_IsColorString(s)) {
+			memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
+			trap_R_SetColor(newColor);
+			s += 2;
+			continue;
+		}
+		glyphInfo_t *glyph = &font->glyphs[*s & 255];
+		float w = glyph->imageWidth * useScale * xscale;
+		float h = glyph->imageHeight * useScale * yscale;
+		float gx = x + (useScale * glyph->left) * xscale;
+		float gy = y - (useScale * glyph->top) * yscale;
+		trap_R_DrawStretchPic(gx, gy, w, h,
+		                      glyph->s, glyph->t, glyph->s2, glyph->t2,
+		                      glyph->glyph);
+		x += (glyph->xSkip * useScale + adjust) * xscale;
+		s++;
+		count++;
+	}
+}
+
+void CG_DrawText(float x, float y, int fontIndex, float scale, vec4_t color,
+                 const char *text, float adjust, int maxChars, int textStyle) {
+	float xscale, yscale, xbias;
+	int ws;
+	fontInfo_t *font;
+	float useScale;
+
+	if (!text || !*text) return;
+	if (maxChars == 0) maxChars = -1;
+
+	font = CG_FontForIndex(fontIndex);
+	useScale = scale * font->glyphScale;
+
+	// Compute widescreen-adjusted screen coordinates
+	xbias = 0;
+	ws = cg_currentWidescreen;
+
+	if (cgs.widescreenBias > 0.0f &&
+	    (ws != 0 || (trap_Key_GetCatcher() & KEYCATCH_CGAME))) {
+		xscale = (cgs.glconfig.vidHeight * 4.0f / 3.0f) / 640.0f;
+		yscale = cgs.screenYScale;
+		if (ws == 2 || (trap_Key_GetCatcher() & KEYCATCH_CGAME))
+			xbias = cgs.widescreenBias;
+		else if (ws == 3)
+			xbias = cgs.widescreenBias * 2.0f;
+	} else {
+		xscale = cgs.screenXScale;
+		yscale = cgs.screenYScale;
+	}
+
+	// Shadow pass
+	if (textStyle == ITEM_TEXTSTYLE_SHADOWED || textStyle == ITEM_TEXTSTYLE_SHADOWEDMORE) {
+		float ofs = (textStyle == ITEM_TEXTSTYLE_SHADOWED) ? 1.0f : 2.0f;
+		vec4_t shadowColor;
+		shadowColor[0] = shadowColor[1] = shadowColor[2] = 0;
+		shadowColor[3] = color[3];
+		trap_R_SetColor(shadowColor);
+		CG_DrawText_Glyphs((x + ofs) * xscale + xbias, (y + ofs) * yscale,
+		                    useScale, xscale, yscale, text, adjust, maxChars, font);
+	}
+
+	// Main pass
+	trap_R_SetColor(color);
+	CG_DrawText_Glyphs(x * xscale + xbias, y * yscale,
+	                    useScale, xscale, yscale, text, adjust, maxChars, font);
+	trap_R_SetColor(NULL);
+}
+
+int CG_DrawTextWidth(const char *text, float scale, int limit, int fontIndex) {
+	fontInfo_t *font = CG_FontForIndex(fontIndex);
+	return CG_Text_Width_Font(text, scale, limit, font);
+}
+
 // Scale-based versions (unchanged) - used by ~90 direct call sites in cg_newdraw.c, cg_info.c, etc.
 int CG_Text_Width(const char* text, float scale, int limit) {
 	int count, len;
