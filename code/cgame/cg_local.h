@@ -1537,6 +1537,9 @@ void CG_Text_Paint_Font(float x, float y, float scale, vec4_t color, const char*
 float CG_Text_Width_Font(const char* text, float scale, int limit, fontInfo_t* font);
 float CG_Text_Height_Font(const char* text, float scale, int limit, fontInfo_t* font);
 void CG_DrawText_DC(float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit, int style, int fontIndex);
+void CG_DrawText(float x, float y, int fontIndex, float scale, vec4_t color, const char *text, float adjust, int maxChars, int textStyle);
+int CG_DrawTextWidth(const char *text, float scale, int limit, int fontIndex);
+extern int cg_currentWidescreen;
 float CG_TextWidth_DC(const char* text, float scale, int limit, int fontIndex);
 float CG_TextHeight_DC(const char* text, float scale, int limit, int fontIndex);
 void CG_DrawTextWithCursor_DC(float x, float y, float scale, vec4_t color, const char* text, int cursorPos, char cursor, int limit, int style, int fontIndex);
