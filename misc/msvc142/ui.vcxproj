@@ -67,8 +67,8 @@
     <_ProjectFileVersion>12.0.30501.0</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>..\..\build\$(Configuration)\$(PlatformTarget)\baseq3</OutDir>
-    <IntDir>..\..\build\$(Configuration)\$(PlatformTarget)\baseq3\$(ProjectName)</IntDir>
+    <OutDir>..\..\build\$(Configuration)\$(PlatformTarget)\baseq3\</OutDir>
+    <IntDir>..\..\build\$(Configuration)\$(PlatformTarget)\baseq3\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
     <TargetName>$(ProjectName)$(PlatformShortName)</TargetName>
   </PropertyGroup>
@@ -79,8 +79,8 @@
     <TargetName>$(ProjectName)$(PlatformShortName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>..\..\build\$(Configuration)\x64\baseq3</OutDir>
-    <IntDir>..\..\build\$(Configuration)\x64\baseq3\$(ProjectName)</IntDir>
+    <OutDir>..\..\build\$(Configuration)\x64\baseq3\</OutDir>
+    <IntDir>..\..\build\$(Configuration)\x64\baseq3\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
     <TargetName>$(ProjectName)x86_64</TargetName>
   </PropertyGroup>
@@ -156,7 +156,7 @@
       <BrowseInformation>true</BrowseInformation>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
     <ResourceCompile>
