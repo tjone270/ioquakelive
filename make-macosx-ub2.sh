@@ -1,10 +1,8 @@
 #!/bin/bash
 
-cd `dirname $0`
-if [ ! -f Makefile ]; then
-	echo "This script must be run from the ioquake3 build directory"
-	exit 1
-fi
+source "$(dirname "$0")/make-macosx-common.sh"
+
+macosx_enter_repo_root "$0"
 
 # This script is to build a Universal 2 binary
 # (Apple's term for an x86_64 and arm64 binary)
@@ -27,28 +25,11 @@ if [ "$1" == "" ]; then
 	echo "Run script with a 'notarize' flag to perform signing and notarization."
 fi
 
-# For parallel make on multicore boxes...
-SYSCTL_PATH=`command -v sysctl 2> /dev/null`
-if [ -n "$SYSCTL_PATH" ]; then
-	NCPU=`sysctl -n hw.ncpu`
-else
-	# osxcross on linux
-	NCPU=`nproc`
-fi
-
-# x86_64 client and server
-#if [ -d build/release-release-x86_64 ]; then
-#	rm -r build/release-darwin-x86_64
-#fi
-(PLATFORM=darwin ARCH=x86_64 CFLAGS=$X86_64_CFLAGS MACOSX_VERSION_MIN=$X86_64_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "x86_64" "$X86_64_CFLAGS" "$X86_64_MACOSX_VERSION_MIN" ""
 
 echo;echo
 
-# arm64 client and server
-#if [ -d build/release-release-arm64 ]; then
-#	rm -r build/release-darwin-arm64
-#fi
-(PLATFORM=darwin ARCH=arm64 CFLAGS=$ARM64_CFLAGS MACOSX_VERSION_MIN=$ARM64_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "arm64" "$ARM64_CFLAGS" "$ARM64_MACOSX_VERSION_MIN" ""
 
 echo
 
@@ -60,7 +41,7 @@ export MACOSX_DEPLOYMENT_TARGET_ARM64="$ARM64_MACOSX_VERSION_MIN"
 if [ -d build/release-darwin-universal2 ]; then
 	rm -r build/release-darwin-universal2
 fi
-"./make-macosx-app.sh" release
+macosx_invoke_app_bundle release ""
 
 if [ "$1" == "notarize" ]; then
 	# user-specific values

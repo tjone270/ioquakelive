@@ -1,11 +1,10 @@
 #!/bin/bash
+
+source "$(dirname "$0")/make-macosx-common.sh"
+
 CC=gcc-4.0
 
-cd `dirname $0`
-if [ ! -f Makefile ]; then
-	echo "This script must be run from the ioquake3 build directory"
-	exit 1
-fi
+macosx_enter_repo_root "$0"
 
 # we want to use the oldest available SDK for max compatibility. However 10.4 and older
 # can not build 64bit binaries, making 10.5 the minimum version.   This has been tested 
@@ -72,36 +71,15 @@ echo "Building X86 Client/Dedicated Server against \"$X86_SDK\""
 echo "Building PPC Client/Dedicated Server against \"$PPC_SDK\""
 echo
 
-# For parallel make on multicore boxes...
-SYSCTL_PATH=`command -v sysctl 2> /dev/null`
-if [ -n "$SYSCTL_PATH" ]; then
-	NCPU=`sysctl -n hw.ncpu`
-else
-	# osxcross on linux
-	NCPU=`nproc`
-fi
-
-# x86_64 client and server
-#if [ -d build/release-release-x86_64 ]; then
-#	rm -r build/release-darwin-x86_64
-#fi
-(PLATFORM=darwin ARCH=x86_64 CC=gcc-4.0 CFLAGS=$X86_64_CFLAGS MACOSX_VERSION_MIN=$X86_64_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "x86_64" "$X86_64_CFLAGS" "$X86_64_MACOSX_VERSION_MIN" "$CC"
 
 echo;echo
 
-# x86 client and server
-#if [ -d build/release-darwin-x86 ]; then
-#	rm -r build/release-darwin-x86
-#fi
-(PLATFORM=darwin ARCH=x86 CC=gcc-4.0 CFLAGS=$X86_CFLAGS MACOSX_VERSION_MIN=$X86_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "x86" "$X86_CFLAGS" "$X86_MACOSX_VERSION_MIN" "$CC"
 
 echo;echo
 
-# PPC client and server
-#if [ -d build/release-darwin-ppc ]; then
-#	rm -r build/release-darwin-ppc
-#fi
-(PLATFORM=darwin ARCH=ppc CC=gcc-4.0 CFLAGS=$PPC_CFLAGS MACOSX_VERSION_MIN=$PPC_MACOSX_VERSION_MIN make -j$NCPU) || exit 1;
+macosx_run_make "ppc" "$PPC_CFLAGS" "$PPC_MACOSX_VERSION_MIN" "$CC"
 
 echo
 
@@ -110,4 +88,4 @@ export MACOSX_DEPLOYMENT_TARGET="10.5"
 export MACOSX_DEPLOYMENT_TARGET_PPC="$PPC_MACOSX_VERSION_MIN"
 export MACOSX_DEPLOYMENT_TARGET_X86="$X86_MACOSX_VERSION_MIN"
 export MACOSX_DEPLOYMENT_TARGET_X86_64="$X86_64_MACOSX_VERSION_MIN"
-"./make-macosx-app.sh" release
+macosx_invoke_app_bundle release ""
