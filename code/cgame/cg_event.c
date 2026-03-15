@@ -440,6 +440,12 @@ static void CG_Obituary(entityState_t* ent) {
 
     // we don't know what it was
     CG_Printf("%s died.\n", targetName);
+
+    // QL binary: cg_followKiller.integer auto-follows the killer (vmCvar 0x10A64800)
+    if (cg_followKiller.integer && target == cg.snap->ps.clientNum &&
+        attacker != target && attacker >= 0 && attacker < MAX_CLIENTS) {
+        trap_SendConsoleCommand(va("follow %d\n", attacker));
+    }
 }
 
 //==========================================================================
@@ -841,9 +847,13 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
         //
         case EV_NOAMMO:
             DEBUGNAME("EV_NOAMMO");
-            //		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.noAmmoSound );
             if (es->number == cg.snap->ps.clientNum) {
-                CG_OutOfAmmoChange();
+                // QL binary: cg_switchOnEmpty.integer gates auto-switch (vmCvar 0x10A673E0)
+                if (cg_switchOnEmpty.integer) {
+                    CG_OutOfAmmoChange();
+                } else {
+                    trap_S_StartSound(NULL, es->number, CHAN_AUTO, cgs.media.noAmmoSound);
+                }
             }
             break;
         case EV_CHANGE_WEAPON:
@@ -1430,34 +1440,39 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
         case EV_RACE_START:
             DEBUGNAME("EV_RACE_START");
             // [QL] race mode start - init race state for local player
-            if (cg.snap->ps.clientNum == es->number) {
+            if (cg.snap->ps.clientNum == es->clientNum) {
                 cg.race.active = qtrue;
-                cg.race.startTime = es->pos.trTime;
+                cg.race.startTime = es->otherEntityNum;
                 cg.race.checkpointDiff = 0;
                 cg.race.hasDiff = qfalse;
-                cg.race.totalCheckpoints = es->otherEntityNum;
-                cg.race.bestSplit = es->powerups;
-                cg.race.checkpointCount = 1;
-                // play announcer countdown sound
+                cg.race.totalCheckpoints = es->eventParm;  // total checkpoint count
+                cg.race.bestSplit = 0;
+                cg.race.checkpointCount = 0;
+                cg.race.nextCheckpointEnt = es->otherEntityNum2;  // entity number of first checkpoint
+                cg.race.currentCheckpointEnt = -1;
                 trap_S_StartLocalSound(cgs.media.countFightSound, CHAN_ANNOUNCER);
             }
             break;
         case EV_RACE_CHECKPOINT:
             DEBUGNAME("EV_RACE_CHECKPOINT");
             // [QL] race checkpoint - show split time center print
-            if (cg.snap->ps.clientNum == es->number) {
-                cg.race.totalCheckpoints = es->otherEntityNum;
-                cg.race.bestSplit = es->powerups;
+            if (cg.snap->ps.clientNum == es->clientNum) {
+                cg.race.totalCheckpoints = es->otherEntityNum2;
+                cg.race.bestSplit = es->eventParm;
                 cg.race.checkpointCount++;
-                if (es->generic1) {
-                    cg.race.checkpointDiff = es->pos.trTime;
+                cg.race.currentCheckpointEnt = cent->currentState.number;
+                // es->generic1 contains next checkpoint entity number
+                cg.race.nextCheckpointEnt = es->generic1 ? es->generic1 : -1;
+                // Delta time only makes sense if player has a previous best time
+                if (cg.race.bestTime > 0 && es->time > 0) {
+                    cg.race.checkpointDiff = es->time;
                     cg.race.hasDiff = qtrue;
                 } else {
                     cg.race.checkpointDiff = 0;
                     cg.race.hasDiff = qfalse;
                 }
-                // play checkpoint sound
-                trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
+                // play checkpoint sound (QL uses countdown sounds based on cg_raceCountdownSounds)
+                trap_S_StartLocalSound(cgs.media.count1Sound, CHAN_ANNOUNCER);
                 // show split time
                 {
                     int remaining = cg.race.totalCheckpoints - cg.race.checkpointCount;
@@ -1492,14 +1507,16 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
         case EV_RACE_FINISH:
             DEBUGNAME("EV_RACE_FINISH");
             // [QL] race finish - show final time, update personal best
-            if (cg.snap->ps.clientNum == es->number) {
+            if (cg.snap->ps.clientNum == es->clientNum) {
                 cg.race.active = qfalse;
-                if (es->generic1 == 0) {
+                cg.race.nextCheckpointEnt = -1;
+                cg.race.currentCheckpointEnt = -1;
+                if (es->powerups == 0) {
                     // invalid finish (DNF)
                     cg.race.hasDiff = qfalse;
                     cg.race.checkpointDiff = 0;
                 } else {
-                    cg.race.finishTime = es->pos.trTime;
+                    cg.race.finishTime = es->time;
                     if (cg.race.bestTime > 0) {
                         // show split vs personal best
                         int diff = cg.race.finishTime - cg.race.bestTime;

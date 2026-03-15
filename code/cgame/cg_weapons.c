@@ -250,7 +250,8 @@ void CG_RailTrail(clientInfo_t* ci, vec3_t start, vec3_t end) {
 
     AxisClear(re->axis);
 
-    if (cg_oldRail.integer) {
+    // QL binary: cg_railStyle.integer == 2 enables ring spiral (vmCvar 0x10A62400)
+    if (cg_railStyle.integer != 2) {
         // nudge down a bit so it isn't exactly in center
         re->origin[2] -= 8;
         re->oldorigin[2] -= 8;
@@ -462,7 +463,8 @@ static void CG_PlasmaTrail(centity_t* cent, const weaponInfo_t* wi) {
 
     float waterScale = 1.0f;
 
-    if (cg_noProjectileTrail.integer || cg_oldPlasma.integer) {
+    // QL binary: cg_plasmaStyle.integer == 2 enables plasma trail (vmCvar 0x10ABB0A0)
+    if (cg_noProjectileTrail.integer || cg_plasmaStyle.integer != 2) {
         return;
     }
 
@@ -1259,14 +1261,19 @@ void CG_AddPlayerWeapon(refEntity_t* parent, playerState_t* ps, centity_t* cent,
     }
 
     CG_PositionRotatedEntityOnTag(&flash, &gun, weapon->weaponModel, "tag_flash");
-    trap_R_AddRefEntityToScene(&flash);
+    // QL binary: cg_muzzleFlash.integer gates flash sprite (vmCvar 0x10A644A0)
+    if (!ps || cg_muzzleFlash.integer) {
+        trap_R_AddRefEntityToScene(&flash);
+    }
 
     if (ps || cg.renderingThirdPerson ||
         cent->currentState.number != cg.predictedPlayerState.clientNum) {
         // add lightning bolt
         CG_LightningBolt(nonPredictedCent, flash.origin);
 
-        if (weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2]) {
+        // QL binary: cg_muzzleFlash.integer also gates the dlight
+        if ((!ps || cg_muzzleFlash.integer) &&
+            (weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2])) {
             trap_R_AddLightToScene(flash.origin, 300 + (rand() & 31), weapon->flashDlightColor[0],
                                    weapon->flashDlightColor[1], weapon->flashDlightColor[2]);
         }
@@ -1747,6 +1754,11 @@ void CG_Weapon_f(void) {
         return;  // don't have the weapon
     }
 
+    // QL binary: cg_switchToEmpty.integer allows selecting weapons with no ammo (vmCvar 0x10B6FD00)
+    if (!cg.snap->ps.ammo[num] && !cg_switchToEmpty.integer) {
+        return;  // no ammo and switching to empty is disabled
+    }
+
     cg.weaponSelect = num;
 }
 
@@ -1929,7 +1941,8 @@ void CG_MissileHitWall(int weapon, int clientNum, vec3_t origin, vec3_t dir, imp
             lightColor[0] = 1;
             lightColor[1] = 0.75;
             lightColor[2] = 0.0;
-            if (cg_oldRocket.integer == 0) {
+            // QL binary: uses cg_rocketStyle.integer == 2 (vmCvar 0x10A38300)
+            if (cg_rocketStyle.integer == 2) {
                 // explosion sprite animation
                 VectorMA(origin, 24, dir, sprOrg);
                 VectorScale(dir, 64, sprVel);
@@ -2043,7 +2056,21 @@ CG_MissileHitPlayer
 =================
 */
 void CG_MissileHitPlayer(int weapon, vec3_t origin, vec3_t dir, int entityNum) {
-    CG_Bleed(origin, entityNum);
+    // QL binary: calls CG_BloodSplatEffect twice (not CG_Bleed), skips self
+    if (entityNum != cg.snap->ps.clientNum) {
+        int i;
+        for (i = 0; i < 2; i++) {
+            CG_BloodSplatEffect(origin, entityNum);
+        }
+        // QL binary: impact sparks (vmCvar 0x10B6FBE0, 0x10A63CC0, 0x10A67AA0, 0x10A66D20)
+        if (cg_impactSparks.integer) {
+            vec3_t vel = { 0, 0, cg_impactSparksVelocity.value };
+            CG_SpawnParticleEffect(vel, (float)cg_impactSparksSize.integer,
+                1.0f, 1.0f, 1.0f, 1.0f,
+                (float)cg_impactSparksLifetime.integer,
+                cg.time, 1, cgs.media.sparkParticleShader);
+        }
+    }
 
     // some weapons will make an explosion with the blood, while
     // others will just make the blood
@@ -2052,9 +2079,6 @@ void CG_MissileHitPlayer(int weapon, vec3_t origin, vec3_t dir, int entityNum) {
         case WP_ROCKET_LAUNCHER:
         case WP_PLASMAGUN:
         case WP_BFG:
-        case WP_NAILGUN:
-        case WP_CHAINGUN:
-        case WP_PROX_LAUNCHER:
             CG_MissileHitWall(weapon, 0, origin, dir, IMPACTSOUND_FLESH);
             break;
         default:
@@ -2130,7 +2154,7 @@ hit splashes
 */
 static void CG_ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, int otherEntNum) {
     int i;
-    float r, u;
+    float r, u, angle, ringRadius;
     vec3_t end;
     vec3_t forward, right, up;
 
@@ -2140,10 +2164,23 @@ static void CG_ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, int other
     PerpendicularVector(right, forward);
     CrossProduct(forward, right, up);
 
-    // generate the "random" spread pattern
-    for (i = 0; i < DEFAULT_SHOTGUN_COUNT; i++) {
-        r = Q_crandom(&seed) * DEFAULT_SHOTGUN_SPREAD * 16;
-        u = Q_crandom(&seed) * DEFAULT_SHOTGUN_SPREAD * 16;
+    // [QL] ring-based pattern - must match server ShotgunPattern in g_weapon.c
+    // 3 rings: inner(6 pellets), middle(6), outer(8) = 20 total
+    for (i = 0; i < 20; i++) {
+        if (i < 6) {
+            ringRadius = 8;
+            angle = (float)(i - 20) * (M_PI / 3.0f);
+        } else if (i < 12) {
+            ringRadius = 16;
+            angle = (float)i * (M_PI / 3.0f) + (30.0f * M_PI / 180.0f);
+        } else {
+            ringRadius = 24;
+            angle = (float)i * (M_PI / 4.0f);
+        }
+
+        r = cos(angle) * ringRadius;
+        u = sin(angle) * ringRadius;
+
         VectorMA(origin, 8192 * 16, forward, end);
         VectorMA(end, r, right, end);
         VectorMA(end, u, up, end);
@@ -2161,21 +2198,18 @@ void CG_ShotgunFire(entityState_t* es) {
     vec3_t v;
     int contents;
 
-    VectorSubtract(es->origin2, es->pos.trBase, v);
-    VectorNormalize(v);
-    VectorScale(v, 32, v);
-    VectorAdd(es->pos.trBase, v, v);
-    if (cgs.glconfig.hardwareType != GLHW_RAGEPRO) {
-        // ragepro can't alpha fade, so don't even bother with smoke
-        vec3_t up;
-
+    CG_ShotgunPattern(es->pos.trBase, es->origin2, es->eventParm, es->otherEntityNum);
+    // QL binary: cg_smoke_SG.integer gates shotgun smoke puff (vmCvar 0x10A62D00)
+    if (cg_smoke_SG.integer) {
         contents = CG_PointContents(es->pos.trBase, 0);
-        if (!(contents & CONTENTS_WATER)) {
+        if (!(contents & CONTENTS_WATER) && cgs.glconfig.hardwareType != GLHW_RAGEPRO) {
+            vec3_t up;
+            VectorSubtract(es->origin2, es->pos.trBase, v);
+            VectorNormalize(v);
             VectorSet(up, 0, 0, 8);
             CG_SmokePuff(v, up, 32, 1, 1, 1, 0.33f, 900, cg.time, 0, LEF_PUFF_DONT_SCALE, cgs.media.shotgunSmokePuffShader);
         }
     }
-    CG_ShotgunPattern(es->pos.trBase, es->origin2, es->eventParm, es->otherEntityNum);
 }
 
 /*
@@ -2345,7 +2379,21 @@ void CG_Bullet(vec3_t end, int sourceEntityNum, vec3_t normal, qboolean flesh, i
 
     // impact splash and mark
     if (flesh) {
-        CG_Bleed(end, fleshEntityNum);
+        // QL binary: CG_BloodSplatEffect x2 + spark effect (not CG_Bleed), skip self
+        if (fleshEntityNum != cg.snap->ps.clientNum) {
+            int i;
+            for (i = 0; i < 2; i++) {
+                CG_BloodSplatEffect(end, fleshEntityNum);
+            }
+            // QL binary: impact sparks (vmCvar 0x10B6FBE0)
+            if (cg_impactSparks.integer) {
+                vec3_t vel = { 0, 0, cg_impactSparksVelocity.value };
+                CG_SpawnParticleEffect(vel, (float)cg_impactSparksSize.integer,
+                    1.0f, 1.0f, 1.0f, 1.0f,
+                    (float)cg_impactSparksLifetime.integer,
+                    cg.time, 1, cgs.media.sparkParticleShader);
+            }
+        }
     } else {
         CG_MissileHitWall(WP_MACHINEGUN, 0, end, normal, IMPACTSOUND_DEFAULT);
     }
