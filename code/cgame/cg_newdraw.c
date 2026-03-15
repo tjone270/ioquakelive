@@ -1999,15 +1999,24 @@ static void CG_DrawArmorBar200(rectDef_t *rect, qhandle_t shader) {
 
 // [QL] Race status and times
 static void CG_DrawRaceStatus(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+    // [QL binary-verified] CG_DrawRespawnMessage case 0x34
+    // Draws at rect->x, rect->y directly - menu alignment handles positioning
+    const char *s;
     if (cg.race.active) {
-        CG_OwnerDrawText(rect->x, rect->y, scale, color, "CURRENT RUN", 0, 0, textStyle);
+        s = "CURRENT RUN";
     } else if (cg.race.finishTime) {
-        CG_OwnerDrawText(rect->x, rect->y, scale, color, "LAST TIME", 0, 0, textStyle);
+        s = "LAST TIME";
+    } else {
+        return;
     }
+    CG_OwnerDrawText(rect->x, rect->y, scale, colorYellow, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 }
 
 static void CG_DrawRaceTimes(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+    // [QL binary-verified] CG_DrawRespawnMessage case 0x35
+    // Draws at rect->x, rect->y directly - menu alignment handles positioning
     int ms;
+    const char *s;
     if (cg.race.active && cg.race.startTime) {
         ms = cg.time - cg.race.startTime;
     } else if (cg.race.finishTime) {
@@ -2015,8 +2024,8 @@ static void CG_DrawRaceTimes(rectDef_t *rect, float scale, vec4_t color, int tex
     } else {
         return;
     }
-    CG_OwnerDrawText(rect->x, rect->y, scale, color,
-        va("%d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000), 0, 0, textStyle);
+    s = va("%d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000);
+    CG_OwnerDrawText(rect->x, rect->y, scale, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 }
 
 // [QL] Speedometer ownerdraw - text-only display from speed history

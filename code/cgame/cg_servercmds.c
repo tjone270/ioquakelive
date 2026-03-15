@@ -1225,7 +1225,10 @@ static void CG_ServerCommand(void) {
         if (cgs.gametype >= GT_TEAM && cg_teamChatsOnly.integer) {
             return;
         }
-        trap_S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
+        // QL binary: cg_chatbeep.integer gates the chat sound (vmCvar 0x10A6A9E0)
+        if (cg_chatbeep.integer) {
+            trap_S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
+        }
         Q_strncpyz(text, CG_Argv(1), MAX_SAY_TEXT);
         CG_RemoveChatEscapeChar(text);
         CG_Printf("%s\n", text);
@@ -1274,7 +1277,10 @@ static void CG_ServerCommand(void) {
     }
 
     if (!strcmp(cmd, "tchat")) {
-        trap_S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
+        // QL binary: cg_chatbeep.integer gates the chat sound
+        if (cg_chatbeep.integer) {
+            trap_S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
+        }
         Q_strncpyz(text, CG_Argv(1), MAX_SAY_TEXT);
         CG_RemoveChatEscapeChar(text);
         CG_AddToTeamChat(text);
@@ -1356,6 +1362,8 @@ static void CG_ServerCommand(void) {
     if (!strcmp(cmd, "race_init")) {
         // reset race state
         memset(&cg.race, 0, sizeof(cg.race));
+        cg.race.nextCheckpointEnt = -1;
+        cg.race.currentCheckpointEnt = -1;
         return;
     }
 

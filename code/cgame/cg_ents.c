@@ -162,8 +162,83 @@ static void CG_General(centity_t* cent) {
 
     memset(&ent, 0, sizeof(ent));
 
-    // set frame
+    // [QL] Race checkpoint rendering (binary-verified from cgamex86.dll CG_General)
+    if (cgs.gametype == GT_RACE) {
+        qhandle_t flagModel = cgs.gameModels[s1->modelindex];
+        qboolean isRaceFlag = (flagModel == cgs.media.raceFlagD ||
+                               flagModel == cgs.media.raceFlagB ||
+                               flagModel == cgs.media.raceFlagF ||
+                               flagModel == cgs.media.raceFlagG);
 
+        if (isRaceFlag) {
+            // Next checkpoint: tracked by race events OR marked by server via generic1
+            qboolean isNextCheckpoint = (s1->number == cg.race.nextCheckpointEnt) || (s1->generic1 != 0);
+            qhandle_t displayModel = flagModel;
+
+            // [QL] Model swapping for active checkpoint:
+            //   Start checkpoint (g_flag3/green) - stays green always
+            //   Finish checkpoint (f_flag3/red) - stays red always
+            //   Intermediate checkpoint (d_flag3/default):
+            //     - When it's the NEXT target: swap to b_flag3 (blue glow model)
+            //     - Otherwise: stays as d_flag3 (unlit default)
+            if (isNextCheckpoint && flagModel == cgs.media.raceFlagD) {
+                displayModel = cgs.media.raceFlagB;  // blue glow model
+            }
+
+            // Pedestal (domination point model beneath the flag)
+            {
+                refEntity_t pedestal;
+                memset(&pedestal, 0, sizeof(pedestal));
+
+                pedestal.hModel = cgs.media.domPointModel;
+                if (flagModel == cgs.media.raceFlagF) {
+                    pedestal.customSkin = cgs.media.domSkinRed;
+                } else if (flagModel == cgs.media.raceFlagG) {
+                    pedestal.customSkin = cgs.media.domSkinBlue;
+                } else {
+                    pedestal.customSkin = cgs.media.domSkinNeutral;
+                }
+
+                VectorCopy(cent->lerpOrigin, pedestal.origin);
+                VectorCopy(pedestal.origin, pedestal.oldorigin);
+                AnglesToAxis(vec3_origin, pedestal.axis);
+                pedestal.renderfx |= RF_MINLIGHT;
+
+                trap_R_AddRefEntityToScene(&pedestal);
+            }
+
+            // Bobbing animation
+            {
+                float bobPhase = (float)(cg.time & 0x3FF);
+                float bob = sin(bobPhase * M_PI * 2.0f / 1024.0f) * 6.0f + 4.0f;
+                cent->lerpOrigin[2] += bob;
+            }
+
+            VectorCopy(cent->lerpOrigin, ent.origin);
+            VectorCopy(cent->lerpOrigin, ent.oldorigin);
+
+            // Auto-rotation
+            VectorCopy(cg.autoAngles, cent->lerpAngles);
+            AxisCopy(cg.autoAxis, ent.axis);
+
+            ent.hModel = displayModel;
+
+            // Frame animation for flag waving
+            {
+                int frameTime = 100;
+                ent.frame = (cg.time / frameTime) % 16;
+                ent.oldframe = (ent.frame > 0) ? ent.frame - 1 : 15;
+                ent.backlerp = 1.0f - (float)(cg.time % frameTime) / (float)frameTime;
+            }
+
+            ent.renderfx |= RF_MINLIGHT;
+
+            trap_R_AddRefEntityToScene(&ent);
+            return;
+        }
+    }
+
+    // Standard general entity rendering
     ent.frame = s1->frame;
     ent.oldframe = ent.frame;
     ent.backlerp = 0;
@@ -173,15 +248,12 @@ static void CG_General(centity_t* cent) {
 
     ent.hModel = cgs.gameModels[s1->modelindex];
 
-    // player model
     if (s1->number == cg.snap->ps.clientNum) {
-        ent.renderfx |= RF_THIRD_PERSON;  // only draw from mirrors
+        ent.renderfx |= RF_THIRD_PERSON;
     }
 
-    // convert angles to axis
     AnglesToAxis(cent->lerpAngles, ent.axis);
 
-    // add to refresh list
     trap_R_AddRefEntityToScene(&ent);
 }
 
@@ -308,12 +380,9 @@ static void CG_Item(centity_t* cent) {
         frac = 1.0;
     }
 
-    // items without glow textures need to keep a minimum light value
-    // so they are always visible
-    if ((item->giType == IT_WEAPON) ||
-        (item->giType == IT_ARMOR)) {
-        ent.renderfx |= RF_MINLIGHT;
-    }
+    // [QL] all items get minimum light so they are always visible
+    // (Q3 only applied this to weapons and armor)
+    ent.renderfx |= RF_MINLIGHT;
 
     // increase the size of the weapons when they are presented as items
     if (item->giType == IT_WEAPON) {
