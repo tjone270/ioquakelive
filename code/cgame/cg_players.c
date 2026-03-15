@@ -1584,9 +1584,9 @@ static void CG_PlayerPowerups(centity_t* cent, refEntity_t* torso) {
     }
 
     ci = &cgs.clientinfo[cent->currentState.clientNum];
-    // redflag
+    // redflag - [QL] cg_flagStyle: 1=flapping (default), 2=trailing
     if (powerups & (1 << PW_REDFLAG)) {
-        if (ci->newAnims) {
+        if (cg_flagStyle.integer != 2 && ci->newAnims) {
             CG_PlayerFlag(cent, cgs.media.redFlagFlapSkin, torso);
         } else {
             CG_TrailItem(cent, cgs.media.redFlagModel);
@@ -1596,7 +1596,7 @@ static void CG_PlayerPowerups(centity_t* cent, refEntity_t* torso) {
 
     // blueflag
     if (powerups & (1 << PW_BLUEFLAG)) {
-        if (ci->newAnims) {
+        if (cg_flagStyle.integer != 2 && ci->newAnims) {
             CG_PlayerFlag(cent, cgs.media.blueFlagFlapSkin, torso);
         } else {
             CG_TrailItem(cent, cgs.media.blueFlagModel);
@@ -1606,7 +1606,7 @@ static void CG_PlayerPowerups(centity_t* cent, refEntity_t* torso) {
 
     // neutralflag
     if (powerups & (1 << PW_NEUTRALFLAG)) {
-        if (ci->newAnims) {
+        if (cg_flagStyle.integer != 2 && ci->newAnims) {
             CG_PlayerFlag(cent, cgs.media.neutralFlagFlapSkin, torso);
         } else {
             CG_TrailItem(cent, cgs.media.neutralFlagModel);
@@ -1993,6 +1993,11 @@ void CG_Player(centity_t* cent) {
     memset(&torso, 0, sizeof(torso));
     memset(&head, 0, sizeof(head));
 
+    // TODO: QL binary calls CG_PlayerTeamSkins(&legs, &torso, &head) here
+    // which uses cg_enemyUpperColor (vmCvar 0x10A6EFA0), cg_enemyHeadColor (vmCvar 0x10A6D5C0),
+    // cg_teamHeadColor (vmCvar 0x10A63180), and cg_deadBodyDarken (vmCvar 0x10ABB880)
+    // to override skin colors for enemy/team models and darken dead bodies
+
     // get the rotation information
     CG_PlayerAngles(cent, legs.axis, torso.axis, head.axis);
 
@@ -2016,6 +2021,17 @@ void CG_Player(centity_t* cent) {
     if (cgs.gametype == GT_HARVESTER) {
         CG_PlayerTokens(cent, renderfx);
     }
+    // QL binary: cg_scalePlayerModelsToBB.integer enables bounding box scaling (vmCvar 0x10A6DB60)
+    if (cg_scalePlayerModelsToBB.integer && ci->modelScale != 1.0f) {
+        int k;
+        float s = ci->modelScale;
+        for (k = 0; k < 3; k++) {
+            VectorScale(legs.axis[k], s, legs.axis[k]);
+            VectorScale(torso.axis[k], s, torso.axis[k]);
+            VectorScale(head.axis[k], s, head.axis[k]);
+        }
+    }
+
     //
     // add the legs
     //
@@ -2027,6 +2043,11 @@ void CG_Player(centity_t* cent) {
     VectorCopy(cent->lerpOrigin, legs.lightingOrigin);
     legs.shadowPlane = shadowPlane;
     legs.renderfx = renderfx;
+    // QL binary: adjust z-origin for model scale
+    if (cg_scalePlayerModelsToBB.integer && ci->modelScale != 1.0f) {
+        legs.origin[2] -= (24.0f - ci->modelScale * 24.0f);
+        legs.lightingOrigin[2] = legs.origin[2];
+    }
     VectorCopy(legs.origin, legs.oldorigin);  // don't positionally lerp at all
 
     CG_AddRefEntityWithPowerups(&legs, &cent->currentState, ci->team);

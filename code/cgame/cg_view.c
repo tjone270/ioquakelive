@@ -429,6 +429,17 @@ static void CG_OffsetFirstPersonView(void) {
 //======================================================================
 
 void CG_ZoomDown_f(void) {
+    // QL binary: cg_zoomToggle.integer makes zoom a toggle (vmCvar 0x10A61E60)
+    if (cg_zoomToggle.integer) {
+        if (cg.zoomed) {
+            cg.zoomed = qfalse;
+            cg.zoomTime = cg.time;
+        } else {
+            cg.zoomed = qtrue;
+            cg.zoomTime = cg.time;
+        }
+        return;
+    }
     if (cg.zoomed) {
         return;
     }
@@ -437,6 +448,10 @@ void CG_ZoomDown_f(void) {
 }
 
 void CG_ZoomUp_f(void) {
+    // QL binary: cg_zoomToggle.integer - ZoomUp is a no-op in toggle mode
+    if (cg_zoomToggle.integer) {
+        return;
+    }
     if (!cg.zoomed) {
         return;
     }
@@ -467,6 +482,10 @@ static int CG_CalcFov(void) {
     if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
         // if in intermission, use a fixed value
         fov_x = 90;
+    } else if (cg.predictedPlayerState.stats[STAT_HEALTH] > 0 && cg_specFov.integer &&
+               (cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.stats[STAT_HEALTH] > 0) {
+        // QL binary: cg_specFov.integer uses the followed player's FOV (vmCvar 0x10A671A0)
+        fov_x = (float)cg.snap->ps.stats[STAT_HEALTH];  // server sends FOV in a stat field when spectating
     } else {
         fov_x = cg_fov.value;
         if (fov_x < 1) {
@@ -488,12 +507,20 @@ static int CG_CalcFov(void) {
             if (f > 1.0) {
                 fov_x = zoomFov;
             } else {
-                fov_x = fov_x + f * (zoomFov - fov_x);
+                // QL binary: cg_zoomScaling.integer gates interpolation (vmCvar 0x10A69120)
+                if (cg_zoomScaling.integer) {
+                    fov_x = fov_x + f * (zoomFov - fov_x);
+                } else {
+                    fov_x = zoomFov;
+                }
             }
         } else {
             f = (cg.time - cg.zoomTime) / (float)ZOOM_TIME;
             if (f <= 1.0) {
-                fov_x = zoomFov + f * (fov_x - zoomFov);
+                // QL binary: cg_zoomScaling.integer gates interpolation
+                if (cg_zoomScaling.integer) {
+                    fov_x = zoomFov + f * (fov_x - zoomFov);
+                }
             }
         }
     }

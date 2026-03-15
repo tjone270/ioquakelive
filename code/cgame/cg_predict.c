@@ -608,3 +608,19 @@ void CG_PredictPlayerState(void) {
         }
     }
 }
+
+/*
+===============
+CG_SpecAutoFollow
+
+QL binary: auto-follows a player based on cg_followPowerup (vmCvar 0x10A6F420).
+Called from score events when spectating.
+===============
+*/
+void CG_SpecAutoFollow(int clientNum, int mode) {
+    if (!cg_followPowerup.integer) {
+        return;
+    }
+    // TODO: implement full QL auto-follow logic based on binary analysis
+    // Binary checks powerup status of the given client and issues follow command
+}
