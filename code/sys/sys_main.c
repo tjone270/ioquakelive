@@ -588,11 +588,10 @@ void Sys_ParseArgs(int argc, char** argv) {
     if (argc == 2) {
         if (!strcmp(argv[1], "--version") ||
             !strcmp(argv[1], "-v")) {
-            const char* date = PRODUCT_DATE;
 #ifdef DEDICATED
-            fprintf(stdout, FULL_PRODUCT_VERSION " dedicated server (%s)\n", date);
+            fprintf(stdout, FULL_PRODUCT_VERSION " dedicated server\n");
 #else
-            fprintf(stdout, FULL_PRODUCT_VERSION " client (%s)\n", date);
+            fprintf(stdout, FULL_PRODUCT_VERSION " client\n");
 #endif
             Sys_Exit(0);
         }

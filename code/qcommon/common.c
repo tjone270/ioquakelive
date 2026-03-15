@@ -2439,7 +2439,7 @@ void Com_Init(char* commandLine) {
     char* s;
     int qport;
 
-    Com_Printf("%s %s %s\n", FULL_PRODUCT_VERSION, PLATFORM_STRING, PRODUCT_DATE);
+    Com_Printf("%s %s\n", FULL_PRODUCT_VERSION, PLATFORM_STRING);
 
     if (setjmp(abortframe)) {
         Sys_Error("Error during initialization");
