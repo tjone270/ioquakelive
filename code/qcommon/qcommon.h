@@ -183,8 +183,7 @@ void NET_JoinMulticast6(void);
 void NET_LeaveMulticast6(void);
 void NET_Sleep(int msec);
 
-#define MAX_MSGLEN 16384  // max length of a message, which may
-// be fragmented into multiple packets
+#define MAX_MSGLEN 32768  // [QL] max length of a message (Q3 used 16384)
 
 #define MAX_DOWNLOAD_WINDOW 48     // ACK window of 48 download chunks. Cannot set this higher, or clients
                                    // will overflow the reliable commands buffer
@@ -196,10 +195,7 @@ void NET_Sleep(int msec);
 Netchan handles packet fragmentation and out of order / duplicate suppression
 */
 
-// [QL] Netchan uses 32KB buffers instead of Q3's 16KB (MAX_MSGLEN)
-#ifndef MAX_NETCHAN_MSGLEN
-#define MAX_NETCHAN_MSGLEN 32768
-#endif
+// [QL] Netchan buffers now use MAX_MSGLEN (32KB) directly
 
 typedef struct {
     netsrc_t sock;
@@ -216,14 +212,14 @@ typedef struct {
     // incoming fragment assembly buffer
     int fragmentSequence;
     int fragmentLength;
-    byte fragmentBuffer[MAX_NETCHAN_MSGLEN];
+    byte fragmentBuffer[MAX_MSGLEN];
 
     // outgoing fragment buffer
     // we need to space out the sending of large fragmented messages
     qboolean unsentFragments;
     int unsentFragmentStart;
     int unsentLength;
-    byte unsentBuffer[MAX_NETCHAN_MSGLEN];
+    byte unsentBuffer[MAX_MSGLEN];
 
     int challenge;
     int lastSentTime;

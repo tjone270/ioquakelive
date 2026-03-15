@@ -655,13 +655,23 @@ void Con_DrawSolidConsole(float frac) {
 
     // draw the border line
     color[0] = 1;
+#ifdef _DEBUG
+    color[1] = 1;
+#else
     color[1] = 0;
+#endif
     color[2] = 0;
     color[3] = 1;
+
+
     SCR_FillRect(0, y, SCREEN_WIDTH, 2, color);
 
     // draw the version number
+#ifdef _DEBUG
+    re.SetColor(g_color_table[ColorIndex(COLOR_YELLOW)]);
+#else 
     re.SetColor(g_color_table[ColorIndex(COLOR_RED)]);
+#endif 
 
     i = strlen(FULL_PRODUCT_VERSION);
 

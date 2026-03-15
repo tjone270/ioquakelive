@@ -30,15 +30,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // LEGACY_PROTOCOL removed - Quake Live only
 // END Thomas changes
 
-#define PRODUCT_NAME "Quake Live"
-#define BASEGAME     "baseqz"  // [QL] protocol/game name (sent over network)
-#define BASEGAME_DIR "baseq3"  // filesystem directory for game data
-#define CLIENT_WINDOW_TITLE "Quake Live"
+#define PRODUCT_NAME            "Quake Live"
+#define BASEGAME                "baseqz"  // [QL] protocol/game name (sent over network)
+#define BASEGAME_DIR            "baseq3"  // filesystem directory for game data
+#define CLIENT_WINDOW_TITLE     "Quake Live"
 #define CLIENT_WINDOW_MIN_TITLE "QL"
-#define HOMEPATH_NAME_UNIX ".quakelive"
-#define HOMEPATH_NAME_WIN "quakelive"
-#define HOMEPATH_NAME_MACOSX HOMEPATH_NAME_WIN
-#define PROTOCOL_HANDLER "quakelive"
+#define HOMEPATH_NAME_UNIX      ".quakelive"
+#define HOMEPATH_NAME_WIN       "quakelive"
+#define HOMEPATH_NAME_MACOSX    HOMEPATH_NAME_WIN
+#define PROTOCOL_HANDLER        "quakelive"
 #define STEAMPATH_NAME			"Quake Live"
 #define STEAMPATH_APPID         "282440"
 
@@ -50,7 +50,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PRODUCT_DATE __DATE__
 #endif
 
-#define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " - " PRODUCT_DATE
+#ifndef PRODUCT_TIME
+#define PRODUCT_TIME __TIME__
+#endif
+
+#define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " - " PRODUCT_DATE " @ " PRODUCT_TIME
+
 
 #define MAX_TEAMNAME 32
 
