@@ -108,7 +108,9 @@ typedef enum {
 #define CS_SCORES1PLAYER 659  // 1st place player's name
 #define CS_SCORES2PLAYER 660  // 2nd place player's name
 #define CS_ROUND_WARMUP 661
+#define CS_ROUND_STATUS CS_ROUND_WARMUP  // alias used by round state machines
 #define CS_ROUND_START_TIME 662
+#define CS_ROUND_TIME CS_ROUND_START_TIME  // alias used by round state machines
 #define CS_TEAMCOUNT_RED 663
 #define CS_TEAMCOUNT_BLUE 664
 #define CS_SHADERSTATE 665
@@ -151,13 +153,14 @@ typedef enum {
 #define CS_CUSTOM_SETTINGS 702
 #define CS_ROTATIONMAPS 703
 #define CS_ROTATIONVOTES 704
-#define CS_DISABLE_VOTE_UI 705
-#define CS_ALLREADY_TIME 706
-#define CS_INFECTED_SURVIVOR_MINSPEED 707
-#define CS_RACE_POINTS 708
-#define CS_DISABLE_LOADOUT 709
-// 710, 711 reserved/unused
-#define CS_MATCH_GUID 712         // also sent in the ZMQ stats
+#define CS_INTERMISSION_VOTE_MAPS 705  // map vote data infostring (set in BeginIntermission)
+#define CS_INTERMISSION_VOTE_STATE 706 // map vote state/tracking (set in BeginIntermission)
+#define CS_DISABLE_VOTE_UI 707         // cleared alongside vote CS in ClearVote; triggers ui_voteactive
+#define CS_ALLREADY_TIME 708           // allready countdown time (used in CG_DrawWarmupMessages)
+#define CS_INFECTED_SURVIVOR_MINSPEED 709 // g_rrInfectedSurvivorMinSpeed float (Red Rover infected mode)
+#define CS_RACE_POINTS 710             // race checkpoint count (set in ClientBegin_Race)
+#define CS_DISABLE_LOADOUT 711         // bitmask of disabled loadout weapons (set in SP_worldspawn + G_UpdateCvars)
+#define CS_MATCH_GUID 712              // also sent in the ZMQ stats
 #define CS_STARTING_WEAPONS 713   // bitmask of weapons identical to g_startingWeapons
 #define CS_STEAM_ID 714           // the server's steam ID (64)
 #define CS_STEAM_WORKSHOP_IDS 715 // space separated list of workshop IDs for the client to load
@@ -340,15 +343,15 @@ typedef enum {
     PERS_SPAWN_COUNT,     // incremented every respawn
     PERS_PLAYEREVENTS,    // 16 bits that can be flipped for events
     PERS_ATTACKER,        // clientnum of last damage inflicter
-    PERS_ATTACKEE_ARMOR,  // health/armor of last person we attacked
-    PERS_KILLED,          // count of the number of times you died
+    PERS_KILLED,          // 7  count of the number of times you died [QL moved from 8]
     // player awards tracking
-    PERS_IMPRESSIVE_COUNT,     // two railgun hits in a row
-    PERS_EXCELLENT_COUNT,      // two successive kills in a short amount of time
-    PERS_DEFEND_COUNT,         // defend awards
-    PERS_ASSIST_COUNT,         // assist awards
-    PERS_GAUNTLET_FRAG_COUNT,  // kills with the guantlet
-    PERS_CAPTURES              // captures
+    PERS_IMPRESSIVE_COUNT,     // 8  two railgun hits in a row
+    PERS_EXCELLENT_COUNT,      // 9  two successive kills in a short amount of time
+    PERS_DEFEND_COUNT,         // 10 defend awards
+    PERS_ASSIST_COUNT,         // 11 assist awards
+    PERS_GAUNTLET_FRAG_COUNT,  // 12 kills with the guantlet
+    PERS_CAPTURES,             // 13 captures
+    PERS_ATTACKEE_ARMOR        // 14 health/armor of last person we attacked [QL moved from 7]
 } persEnum_t;
 
 // entityState_t->eFlags
@@ -385,8 +388,8 @@ typedef enum {
     PW_QUAD,                        // 4  [QL moved from 1]
     PW_BATTLESUIT,                  // 5  [QL moved from 2]
     PW_HASTE,                       // 6  [QL moved from 3]
-    PW_INVIS,                       // 7  [QL moved from 4]
-    PW_REGEN,                       // 8  [QL moved from 5]
+    PW_REGEN,                       // 7  [QL moved from 5]
+    PW_INVIS,                       // 8  [QL moved from 4]
     PW_FLIGHT,                      // 9  [QL moved from 6]
     PW_INVULNERABILITY,             // 10 [QL moved from 14]
     PW_SCOUT,                       // 11
@@ -596,8 +599,28 @@ typedef enum {
     GTS_TEAMS_ARE_TIED,
     GTS_KAMIKAZE,
     GTS_REDTEAM_WON,       // 14 [QL]
-    GTS_BLUETEAM_WON        // 15 [QL]
+    GTS_BLUETEAM_WON,       // 15 [QL]
+    GTS_RED_WINS_ROUND,     // 16 [QL]
+    GTS_BLUE_WINS_ROUND,    // 17 [QL]
+    GTS_LAST_STANDING,      // 18 [QL] last man standing announcement
+    GTS_DRAW_ROUND,         // 19 [QL]
+    GTS_ROUND_OVER          // 20 [QL]
 } global_team_sound_t;
+
+// [QL] Award indices for EV_AWARD events (eventParm)
+typedef enum {
+    AWARD_COMBOKILL,        // 0
+    AWARD_RAMPAGE,          // 1
+    AWARD_MIDAIR,           // 2
+    AWARD_REVENGE,          // 3
+    AWARD_PERFORATED,       // 4
+    AWARD_HEADSHOT,         // 5
+    AWARD_ACCURACY,         // 6
+    AWARD_QUADGOD,          // 7
+    AWARD_FIRSTFRAG,        // 8
+    AWARD_PERFECT,          // 9
+    AWARD_NUM_AWARDS
+} award_t;
 
 // animations
 typedef enum {
