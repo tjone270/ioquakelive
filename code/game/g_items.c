@@ -426,24 +426,122 @@ int Pickup_Health(gentity_t* ent, gentity_t* other) {
 //======================================================================
 
 int Pickup_Armor(gentity_t* ent, gentity_t* other) {
-    int upperBound;
+    int max;
+    int giTag;
 
-    other->client->ps.stats[STAT_ARMOR] += ent->item->quantity;
+    max = other->client->ps.stats[STAT_MAX_HEALTH] * 2;
+    giTag = ent->item->giTag;
 
-    if (other->client && bg_itemlist[other->client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD) {
-        upperBound = other->client->ps.stats[STAT_MAX_HEALTH];
-    } else {
-        upperBound = other->client->ps.stats[STAT_MAX_HEALTH] * 2;
+    if (armor_tiered.integer == 0) {
+        // Classic armor: just add quantity
+        other->client->ps.stats[STAT_ARMOR] += ent->item->quantity;
+        if (other->client->ps.stats[STAT_ARMOR] > max) {
+            other->client->ps.stats[STAT_ARMOR] = max;
+        }
+        return RESPAWN_ARMOR;
     }
 
-    if (other->client->ps.stats[STAT_ARMOR] > upperBound) {
-        other->client->ps.stats[STAT_ARMOR] = upperBound;
+    // [QL] Tiered armor system
+    if (giTag == 1) {  // Red armor
+        other->client->ps.stats[STAT_ARMOR] += 150;
+        if (other->client->ps.stats[STAT_ARMOR] > 200)
+            other->client->ps.stats[STAT_ARMOR] = 200;
+        other->client->ps.stats[STAT_ARMORTYPE] = 2;
+    } else if (giTag == 2) {  // Yellow armor
+        other->client->ps.stats[STAT_ARMOR] += 100;
+        if (other->client->ps.stats[STAT_ARMOR] > 150)
+            other->client->ps.stats[STAT_ARMOR] = 150;
+        other->client->ps.stats[STAT_ARMORTYPE] = 1;
+    } else if (giTag == 3) {  // Green armor
+        other->client->ps.stats[STAT_ARMOR] += 50;
+        if (other->client->ps.stats[STAT_ARMOR] > 100)
+            other->client->ps.stats[STAT_ARMOR] = 100;
+        other->client->ps.stats[STAT_ARMORTYPE] = 0;
+    } else {  // Armor shard
+        if (other->client->ps.stats[STAT_ARMOR] < 1)
+            other->client->ps.stats[STAT_ARMORTYPE] = 0;
+        other->client->ps.stats[STAT_ARMOR] += ent->item->quantity;
+    }
+
+    if (other->client->ps.stats[STAT_ARMOR] > max) {
+        other->client->ps.stats[STAT_ARMOR] = max;
     }
 
     return RESPAWN_ARMOR;
 }
 
 //======================================================================
+
+/*
+===============
+[QL] Quad Hog - touch handler, respawn, and think
+===============
+*/
+void G_QG_Touch_Item(gentity_t *ent, gentity_t *other, trace_t *trace) {
+    if (!other->client)
+        return;
+    trap_SendServerCommand(-1,
+        va("cp \"%s is the ^5Quad Hog!\"", other->client->pers.netname));
+    Touch_Item(ent, other, trace);
+}
+
+gentity_t *G_QG_RespawnQuad(vec3_t origin) {
+    gentity_t *ent;
+    gitem_t *quadItem;
+
+    quadItem = BG_FindItemForPowerup(PW_QUAD);
+    if (!quadItem)
+        return NULL;
+
+    ent = G_Spawn();
+    ent->s.eType = ET_ITEM;
+    ent->s.modelindex = quadItem - bg_itemlist;
+    ent->s.modelindex2 = 1;
+    ent->classname = quadItem->classname;
+    ent->item = quadItem;
+    VectorSet(ent->r.mins, -15, -15, -15);
+    VectorSet(ent->r.maxs, 15, 15, 15);
+    ent->r.contents = CONTENTS_TRIGGER;
+    ent->touch = G_QG_Touch_Item;
+    VectorCopy(origin, ent->s.pos.trBase);
+    VectorCopy(origin, ent->r.currentOrigin);
+    ent->s.pos.trType = TR_STATIONARY;
+    ent->nextthink = level.time + g_quadHogTime.integer * 1000;
+    ent->think = G_FreeEntity;
+    trap_LinkEntity(ent);
+
+    return ent;
+}
+
+void G_QG_Think(void) {
+    gentity_t *spot;
+    int count, pick;
+
+    if (!g_quadHog.integer)
+        return;
+    if (level.intermissionQueued || level.intermissionTime)
+        return;
+
+    // Pick random spawn point
+    count = 0;
+    spot = NULL;
+    while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
+        count++;
+    }
+    if (count < 1)
+        return;
+
+    pick = rand() % count;
+    spot = NULL;
+    while (pick-- >= 0) {
+        spot = G_Find(spot, FOFS(classname), "info_player_deathmatch");
+    }
+    if (!spot)
+        return;
+
+    G_QG_RespawnQuad(spot->r.currentOrigin);
+    trap_SendServerCommand(-1, "cp \" ^5Quad ^7respawned!\"");
+}
 
 /*
 ===============
@@ -482,6 +580,11 @@ void RespawnItem(gentity_t* ent) {
     ent->r.contents = CONTENTS_TRIGGER;
     ent->s.eFlags &= ~EF_NODRAW;
     ent->r.svFlags &= ~SVF_NOCLIENT;
+
+    // [QL] Clear item timer fields on respawn
+    ent->s.time = 0;
+    ent->s.time2 = 0;
+
     trap_LinkEntity(ent);
 
     if (ent->item->giType == IT_POWERUP) {
@@ -681,6 +784,15 @@ void Touch_Item(gentity_t* ent, gentity_t* other, trace_t* trace) {
         ent->nextthink = 0;
         ent->think = 0;
     } else {
+        // [QL] Item timer: broadcast respawn time to spectators/clients
+        if (g_itemTimers.integer && ent->item &&
+            (ent->item->giType == IT_ARMOR || ent->item->giType == IT_POWERUP ||
+             (ent->item->giType == IT_HEALTH && ent->item->quantity >= 100))) {
+            ent->s.time2 = respawn * 1000;
+            ent->s.time = level.time + respawn * 1000;
+            ent->r.svFlags &= ~SVF_NOCLIENT;
+            ent->s.generic1 = (ent->team != NULL) ? 1 : 0;
+        }
         ent->nextthink = level.time + respawn * 1000;
         ent->think = RespawnItem;
     }
@@ -846,75 +958,13 @@ void G_CheckTeamItems(void) {
     // Set up team stuff
     Team_InitGame();
 
-    if (g_gametype.integer == GT_CTF) {
-        gitem_t* item;
-
-        // check for the two flags
-        item = BG_FindItem("Red Flag");
-        if (!item || !itemRegistered[item - bg_itemlist]) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_CTF_redflag in map\n");
-        }
-        item = BG_FindItem("Blue Flag");
-        if (!item || !itemRegistered[item - bg_itemlist]) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_CTF_blueflag in map\n");
-        }
-    }
-    if (g_gametype.integer == GT_1FCTF) {
-        gitem_t* item;
-
-        // check for all three flags
-        item = BG_FindItem("Red Flag");
-        if (!item || !itemRegistered[item - bg_itemlist]) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_CTF_redflag in map\n");
-        }
-        item = BG_FindItem("Blue Flag");
-        if (!item || !itemRegistered[item - bg_itemlist]) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_CTF_blueflag in map\n");
-        }
-        item = BG_FindItem("Neutral Flag");
-        if (!item || !itemRegistered[item - bg_itemlist]) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_CTF_neutralflag in map\n");
-        }
-    }
-
-    if (g_gametype.integer == GT_OBELISK) {
-        gentity_t* ent;
-
-        // check for the two obelisks
-        ent = NULL;
-        ent = G_Find(ent, FOFS(classname), "team_redobelisk");
-        if (!ent) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_redobelisk in map\n");
-        }
-
-        ent = NULL;
-        ent = G_Find(ent, FOFS(classname), "team_blueobelisk");
-        if (!ent) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_blueobelisk in map\n");
-        }
-    }
-
-    if (g_gametype.integer == GT_HARVESTER) {
-        gentity_t* ent;
-
-        // check for all three obelisks
-        ent = NULL;
-        ent = G_Find(ent, FOFS(classname), "team_redobelisk");
-        if (!ent) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_redobelisk in map\n");
-        }
-
-        ent = NULL;
-        ent = G_Find(ent, FOFS(classname), "team_blueobelisk");
-        if (!ent) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_blueobelisk in map\n");
-        }
-
-        ent = NULL;
-        ent = G_Find(ent, FOFS(classname), "team_neutralobelisk");
-        if (!ent) {
-            G_Printf(S_COLOR_YELLOW "WARNING: No team_neutralobelisk in map\n");
-        }
+    // Gametype-specific entity checks (implementations in g_gametype_*.c)
+    switch (g_gametype.integer) {
+        case GT_CTF:        CTF_CheckTeamItems(); break;
+        case GT_1FCTF:      OneFCTF_CheckTeamItems(); break;
+        case GT_OBELISK:    Obelisk_CheckTeamItems(); break;
+        case GT_HARVESTER:  Harvester_CheckTeamItems(); break;
+        default: break;
     }
 }
 
@@ -930,8 +980,7 @@ void ClearRegisteredItems(void) {
     RegisterItem(BG_FindItemForWeapon(WP_MACHINEGUN));
     RegisterItem(BG_FindItemForWeapon(WP_GAUNTLET));
     if (g_gametype.integer == GT_HARVESTER) {
-        RegisterItem(BG_FindItem("Red Cube"));
-        RegisterItem(BG_FindItem("Blue Cube"));
+        Harvester_RegisterItems();
     }
 }
 

@@ -22,7 +22,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "g_local.h"
 
-#define MISSILE_PRESTEP_TIME 50
+// Binary uses 1000/sv_fps.integer instead of hardcoded 50ms
+#define MISSILE_PRESTEP_TIME (1000 / sv_fps.integer)
 
 /*
 ================
@@ -420,11 +421,35 @@ void G_MissileImpact(gentity_t* ent, trace_t* trace) {
 
     G_SetOrigin(ent, trace->endpos);
 
-    // splash damage (doesn't apply to person directly hit)
-    if (ent->splashDamage) {
-        if (G_RadiusDamage(trace->endpos, ent, ent->parent, ent->splashDamage, ent->splashRadius,
-                           other, 0, ent->splashMethodOfDeath)) {
-            if (!hitClient) {
+    // [QL] Rocket splash-through-walls check
+    {
+        int isRocketSplashThrough = 0;
+        if (ent->s.weapon == WP_ROCKET_LAUNCHER &&
+            (g_forceDmgThroughSurface.integer || (trace->surfaceFlags & SURF_NOMARKS))) {
+            // check angular threshold: dot product of surface normal against downward
+            float dot = -trace->plane.normal[2];
+            if (dot <= g_dmgThroughSurfaceAngularThreshold.value) {
+                vec3_t testStart;
+                trace_t tr2;
+                VectorMA(trace->endpos, g_dmgThroughSurfaceDistance.value, trace->plane.normal, testStart);
+                trap_Trace(&tr2, testStart, NULL, NULL, trace->endpos, ENTITYNUM_NONE, MASK_SHOT);
+                if (tr2.fraction < 1.0f && !tr2.startsolid && !tr2.allsolid) {
+                    isRocketSplashThrough = 1;
+                }
+            }
+        }
+
+        // splash damage (doesn't apply to person directly hit)
+        if (ent->splashDamage) {
+            int hit;
+            if (isRocketSplashThrough) {
+                hit = G_RadiusDamageThrough(trace->endpos, ent, ent->parent, ent->splashDamage, ent->splashRadius,
+                                            other, 0, ent->splashMethodOfDeath);
+            } else {
+                hit = G_RadiusDamage(trace->endpos, ent, ent->parent, ent->splashDamage, ent->splashRadius,
+                                     other, 0, ent->splashMethodOfDeath);
+            }
+            if (hit && !hitClient) {
                 g_entities[ent->r.ownerNum].client->accuracy_hits++;
                 if (ent->s.weapon < 16) {
                     g_entities[ent->r.ownerNum].client->expandedStats.shotsHit[ent->s.weapon]++;
@@ -532,7 +557,7 @@ gentity_t* fire_plasma(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashRadius = g_splashradius_pg.integer;
     bolt->methodOfDeath = MOD_PLASMA;
     bolt->splashMethodOfDeath = MOD_PLASMA_SPLASH;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
     bolt->s.pos.trType = weapon_gravity_pg.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
     bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;  // move a bit on the very first frame
@@ -573,7 +598,7 @@ gentity_t* fire_grenade(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashRadius = g_splashradius_gl.integer;
     bolt->methodOfDeath = MOD_GRENADE;
     bolt->splashMethodOfDeath = MOD_GRENADE_SPLASH;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
 
     bolt->s.pos.trType = TR_GRAVITY;
@@ -613,7 +638,7 @@ gentity_t* fire_bfg(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashRadius = g_splashradius_bfg.integer;
     bolt->methodOfDeath = MOD_BFG;
     bolt->splashMethodOfDeath = MOD_BFG_SPLASH;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
 
     bolt->s.pos.trType = weapon_gravity_bfg.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
@@ -666,7 +691,7 @@ gentity_t* fire_rocket(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashRadius = g_splashradius_rl.integer;
     bolt->methodOfDeath = MOD_ROCKET;
     bolt->splashMethodOfDeath = MOD_ROCKET_SPLASH;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
 
     bolt->s.pos.trType = weapon_gravity_rl.integer ? TR_GRAVITY : TR_LINEAR;  // [QL]
@@ -704,7 +729,7 @@ gentity_t* fire_grapple(gentity_t* self, vec3_t start, vec3_t dir) {
     hook->s.weapon = WP_GRAPPLING_HOOK;
     hook->r.ownerNum = self->s.number;
     hook->methodOfDeath = MOD_GRAPPLE;
-    hook->clipmask = MASK_SHOT;
+    hook->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     hook->parent = self;
     hook->target_ent = NULL;
     hook->s.pos.trType = TR_LINEAR;
@@ -743,7 +768,7 @@ gentity_t* fire_nail(gentity_t* self, vec3_t start, vec3_t forward, vec3_t right
     bolt->parent = self;
     bolt->damage = g_damage_ng.integer;
     bolt->methodOfDeath = MOD_NAIL;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
     bolt->s.otherEntityNum = self->s.number;  // [QL]
 
@@ -801,7 +826,7 @@ gentity_t* fire_prox(gentity_t* self, vec3_t start, vec3_t dir) {
     bolt->splashRadius = g_splashradius_pl.integer;
     bolt->methodOfDeath = MOD_PROXIMITY_MINE;
     bolt->splashMethodOfDeath = MOD_PROXIMITY_MINE;
-    bolt->clipmask = MASK_SHOT;
+    bolt->clipmask = pmove_NoPlayerClip.integer ? CONTENTS_SOLID : MASK_SHOT;  //
     bolt->target_ent = NULL;
     // count is used to check if the prox mine left the player bbox
     // if count == 1 then the prox mine left the player bbox and can attack to it

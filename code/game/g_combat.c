@@ -667,6 +667,17 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
     }
 
     trap_LinkEntity(self);
+
+    // [QL] Gametype-specific death hooks
+    if (g_gametype.integer == GT_RACE) {
+        Race_ResetCheckpoints(self);
+    } else if (g_gametype.integer == GT_FREEZE) {
+        Freeze_PlayerFrozen(self);
+    } else if (g_gametype.integer == GT_RR) {
+        RR_OnPlayerDeath(self);
+    } else if (g_gametype.integer == GT_CA || g_gametype.integer == GT_AD) {
+        CA_PlayerDied(self);
+    }
 }
 
 /*
@@ -678,6 +689,7 @@ int CheckArmor(gentity_t* ent, int damage, int dflags) {
     gclient_t* client;
     int save;
     int count;
+    double armorProtection;
 
     if (!damage)
         return 0;
@@ -690,9 +702,24 @@ int CheckArmor(gentity_t* ent, int damage, int dflags) {
     if (dflags & DAMAGE_NO_ARMOR)
         return 0;
 
-    // armor
+    // [QL] Guard powerup: 75% protection
+    if (client->ps.stats[STAT_PERSISTANT_POWERUP] == 4) {
+        armorProtection = 0.75;
+    } else if (!armor_tiered.integer || g_gametype.integer == GT_CA) {
+        // Non-tiered or CA: standard 66%
+        armorProtection = 0.66;
+    } else {
+        // Tiered armor based on STAT_ARMORTYPE
+        switch (client->ps.stats[STAT_ARMORTYPE]) {
+            case 0:  armorProtection = 0.50; break;  // green / none
+            case 1:  armorProtection = 0.66; break;  // yellow
+            case 2:  armorProtection = 0.75; break;  // red
+            default: armorProtection = 0.66; break;
+        }
+    }
+
+    save = (int)ceil((double)damage * armorProtection);
     count = client->ps.stats[STAT_ARMOR];
-    save = ceil(damage * ARMOR_PROTECTION);
     if (save >= count)
         save = count;
 
@@ -700,6 +727,11 @@ int CheckArmor(gentity_t* ent, int damage, int dflags) {
         return 0;
 
     client->ps.stats[STAT_ARMOR] -= save;
+
+    // [QL] Clear armor type when armor is depleted
+    if (client->ps.stats[STAT_ARMOR] < 1) {
+        client->ps.stats[STAT_ARMORTYPE] = 0;
+    }
 
     return save;
 }
@@ -1015,6 +1047,15 @@ void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t
     asave = CheckArmor(targ, take, dflags);
     take -= asave;
 
+    // [QL] CA/AD damage filtering - suppress damage outside playing state, track score-per-damage
+    if (!(dflags & DAMAGE_NO_PROTECTION)) {
+        if (g_gametype.integer == GT_CA || g_gametype.integer == GT_AD) {
+            if (!CA_AccuracyMessage(targ, attacker, &take, &knockback)) {
+                return;
+            }
+        }
+    }
+
     // [QL] dmflags: self-damage suppression (not for CA/AD which have their own AdjustDamage)
     if (g_dmflags.integer && targ == attacker) {
         if ((g_dmflags.integer & DF_NO_SELF_DAMAGE) && mod != MOD_KAMIKAZE) {
@@ -1285,6 +1326,197 @@ qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker
                 dir[2] += g_knockback_z.value;
             }
             G_Damage(ent, inflictor, attacker, dir, effectiveOrigin, (int)points, dflags | DAMAGE_RADIUS, mod);
+        }
+    }
+
+    return hitClient;
+}
+
+/*
+============
+G_RadiusDamageThrough
+[QL] Like G_RadiusDamage but also damages through walls at reduced range.
+If CanDamage fails from effectiveOrigin, tries rocketOffsetOrigin.
+If both fail (rockets only), checks reduced radius and applies through-wall damage.
+============
+*/
+qboolean G_RadiusDamageThrough(vec3_t origin, gentity_t* inflictor, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int dflags, int mod) {
+    float points, dist;
+    gentity_t* ent;
+    int entityList[MAX_GENTITIES];
+    int numListedEntities;
+    vec3_t mins, maxs;
+    vec3_t v;
+    vec3_t dir;
+    vec3_t effectiveOrigin;
+    vec3_t rocketOffsetOrigin;
+    int i, e;
+    qboolean hitClient = qfalse;
+    qboolean isRocket;
+    float throughRadius;
+
+    if (radius < 1) {
+        radius = 1;
+    }
+
+    isRocket = (inflictor && inflictor->s.weapon == WP_ROCKET_LAUNCHER);
+
+    for (i = 0; i < 3; i++) {
+        mins[i] = origin[i] - radius;
+        maxs[i] = origin[i] + radius;
+    }
+
+    numListedEntities = trap_EntitiesInBox(mins, maxs, entityList, MAX_GENTITIES);
+
+    VectorCopy(origin, effectiveOrigin);
+    VectorCopy(origin, rocketOffsetOrigin);
+    if (inflictor) {
+        VectorMA(effectiveOrigin, g_splashdamageOffset.value, inflictor->s.pos.trDelta, effectiveOrigin);
+        VectorCopy(effectiveOrigin, rocketOffsetOrigin);
+        if (isRocket && g_rocketsplashOffset.value != 0.0f) {
+            vec3_t rocketDir;
+            VectorNormalize2(inflictor->s.pos.trDelta, rocketDir);
+            VectorMA(effectiveOrigin, g_rocketsplashOffset.value, rocketDir, rocketOffsetOrigin);
+        }
+    }
+
+    throughRadius = radius * g_dmgThroughSurfaceDampening.value;
+
+    for (e = 0; e < numListedEntities; e++) {
+        ent = &g_entities[entityList[e]];
+
+        if (ent == ignore)
+            continue;
+        if (!ent->takedamage)
+            continue;
+
+        // find distance from edge of bounding box
+        for (i = 0; i < 3; i++) {
+            if (origin[i] < ent->r.absmin[i]) {
+                v[i] = ent->r.absmin[i] - origin[i];
+            } else if (origin[i] > ent->r.absmax[i]) {
+                v[i] = origin[i] - ent->r.absmax[i];
+            } else {
+                v[i] = 0;
+            }
+        }
+        dist = VectorLength(v);
+        if (dist > radius) {
+            continue;
+        }
+
+        // Try normal CanDamage from effectiveOrigin
+        if (CanDamage(ent, effectiveOrigin)) {
+            VectorSubtract(ent->r.currentOrigin, origin, dir);
+            goto applydamage;
+        }
+
+        // For rockets, try rocketOffsetOrigin
+        if (isRocket) {
+            if (CanDamage(ent, rocketOffsetOrigin)) {
+                VectorSubtract(ent->r.currentOrigin, origin, dir);
+                goto applydamage;
+            }
+
+            // Through-wall: reduced radius check
+            if (dist <= throughRadius) {
+                if (CanDamage(ent, origin)) {
+                    VectorSubtract(ent->r.currentOrigin, ignore ? ignore->r.currentOrigin : origin, dir);
+                    goto applydamage;
+                }
+            }
+        }
+        continue;
+
+    applydamage:
+        // Hit tracking
+        if (ent->client && attacker->client && ent != attacker && !OnSameTeam(ent, attacker)) {
+            hitClient = qtrue;
+        }
+
+        if (ent == attacker) {
+            dir[2] += g_knockback_z_self.value;
+        } else {
+            dir[2] += g_knockback_z.value;
+        }
+
+        // g_playerCylinders skip logic
+        if (!g_playerCylinders.integer || !inflictor ||
+            inflictor->s.pos.trDelta[2] != 0.0f || ent == attacker) {
+            points = damage * (1.0 - dist / radius);
+            G_Damage(ent, inflictor, attacker, dir, effectiveOrigin, (int)points,
+                     dflags | DAMAGE_RADIUS, mod);
+        }
+    }
+
+    return hitClient;
+}
+
+/*
+============
+G_WaterRadiusDamage
+[QL] Water-specific radius damage for LG discharge (MOD_LIGHTNING_DISCHARGE).
+Only applies when g_infiniteAmmo is set and origin is in water.
+============
+*/
+qboolean G_WaterRadiusDamage(vec3_t origin, gentity_t *attacker, float damage, float radius) {
+    float points, dist;
+    gentity_t *ent;
+    int entityList[MAX_GENTITIES];
+    int numListedEntities;
+    vec3_t mins, maxs;
+    vec3_t v, dir;
+    int i, e;
+    qboolean hitClient = qfalse;
+
+    if (!g_infiniteAmmo.integer)
+        return qfalse;
+
+    if (!(trap_PointContents(origin, -1) & (CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA)))
+        return qfalse;
+
+    if (radius < 1) radius = 1;
+
+    for (i = 0; i < 3; i++) {
+        mins[i] = origin[i] - radius;
+        maxs[i] = origin[i] + radius;
+    }
+
+    numListedEntities = trap_EntitiesInBox(mins, maxs, entityList, MAX_GENTITIES);
+
+    for (e = 0; e < numListedEntities; e++) {
+        ent = &g_entities[entityList[e]];
+        if (!ent->takedamage)
+            continue;
+
+        for (i = 0; i < 3; i++) {
+            if (origin[i] < ent->r.absmin[i])
+                v[i] = ent->r.absmin[i] - origin[i];
+            else if (origin[i] > ent->r.absmax[i])
+                v[i] = origin[i] - ent->r.absmax[i];
+            else
+                v[i] = 0;
+        }
+        dist = VectorLength(v);
+        if (dist >= radius)
+            continue;
+
+        points = damage * (1.0f - dist / radius);
+
+        if (CanDamage(ent, origin)) {
+            if (ent->client && attacker->client && ent != attacker &&
+                !OnSameTeam(ent, attacker)) {
+                hitClient = qtrue;
+            }
+
+            VectorSubtract(ent->r.currentOrigin, origin, dir);
+            if (ent == attacker)
+                dir[2] += g_knockback_z_self.value;
+            else
+                dir[2] += g_knockback_z.value;
+
+            G_Damage(ent, NULL, attacker, dir, origin, (int)points,
+                     DAMAGE_RADIUS, MOD_LIGHTNING_DISCHARGE);
         }
     }
 

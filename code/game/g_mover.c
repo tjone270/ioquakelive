@@ -1065,7 +1065,7 @@ void SP_func_door(gentity_t* ent) {
 
     InitMover(ent);
 
-    ent->nextthink = level.time + FRAMETIME;
+    ent->nextthink = level.time + (1000 / sv_fps.integer);  // binary uses sv_fps
 
     if (!(ent->flags & FL_TEAMSLAVE)) {
         int health;
@@ -1511,7 +1511,7 @@ void SP_func_train(gentity_t* self) {
 
     // start trains on the second frame, to make sure their targets have had
     // a chance to spawn
-    self->nextthink = level.time + FRAMETIME;
+    self->nextthink = level.time + (1000 / sv_fps.integer);  // binary uses sv_fps
     self->think = Think_SetupTrainTargets;
 }
 
