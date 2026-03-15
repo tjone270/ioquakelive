@@ -180,7 +180,11 @@ void Bullet_Fire(gentity_t* ent, float spread, int damage, int mod) {
 
     passent = ent->s.number;
     for (i = 0; i < 10; i++) {
-        trap_Trace(&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);
+        // g_playerCylinders: capsule trace for player hits; pmove_noPlayerClip: adjust mask
+        {
+            int mask = pmove_NoPlayerClip.integer ? (MASK_SHOT & ~CONTENTS_PLAYERCLIP) : MASK_SHOT;
+            G_TracePlayerHit(&tr, muzzle, NULL, NULL, end, passent, mask);
+        }
         if (tr.surfaceFlags & SURF_NOIMPACT) {
             return;
         }
@@ -257,76 +261,161 @@ SHOTGUN
 // client predicts same spreads
 #define DEFAULT_SHOTGUN_DAMAGE 10
 
-qboolean ShotgunPellet(vec3_t start, vec3_t end, gentity_t* ent) {
+qboolean ShotgunPellet(vec3_t start, vec3_t end, gentity_t* ent, int ring) {
     trace_t tr;
     int damage, i, passent;
     gentity_t* traceEnt;
     vec3_t impactpoint, bouncedir;
     vec3_t tr_start, tr_end;
-    qboolean hitClient = qfalse;
 
     passent = ent->s.number;
     VectorCopy(start, tr_start);
     VectorCopy(end, tr_end);
-    for (i = 0; i < 10; i++) {
-        trap_Trace(&tr, tr_start, NULL, NULL, tr_end, passent, MASK_SHOT);
+    for (i = 0; i < 2; i++) {  // [QL] 2 bounces, not 10
+        // g_playerCylinders + pmove_noPlayerClip
+        {
+            int mask = pmove_NoPlayerClip.integer ? (MASK_SHOT & ~CONTENTS_PLAYERCLIP) : MASK_SHOT;
+            G_TracePlayerHit(&tr, tr_start, NULL, NULL, tr_end, passent, mask);
+        }
         traceEnt = &g_entities[tr.entityNum];
 
-        // send bullet impact
         if (tr.surfaceFlags & SURF_NOIMPACT) {
             return qfalse;
         }
 
-        if (traceEnt->takedamage) {
-            damage = g_damage_sg.integer * s_quadFactor;
-            if (traceEnt->client && traceEnt->client->invulnerabilityTime > level.time) {
-                if (G_InvulnerabilityEffect(traceEnt, forward, tr.endpos, impactpoint, bouncedir)) {
-                    G_BounceProjectile(tr_start, impactpoint, bouncedir, tr_end);
-                    VectorCopy(impactpoint, tr_start);
-                    // the player can hit him/herself with the bounced rail
-                    passent = ENTITYNUM_NONE;
-                } else {
-                    VectorCopy(tr.endpos, tr_start);
-                    passent = traceEnt->s.number;
-                }
-                continue;
+        if (!traceEnt->takedamage) {
+            return qfalse;
+        }
+
+        // [QL] inner vs outer ring damage
+        if (ring == 1) {
+            damage = g_damage_sg.integer;
+        } else {
+            damage = g_damage_sg_outer.integer;
+        }
+
+        // [QL] distance-based damage falloff
+        if (g_damage_sg_falloff.integer && g_range_sg_falloff.integer > 0) {
+            float dist = Distance(start, tr.endpos);
+            int falloffRange = (int)dist;
+            while (falloffRange > 0 && g_range_sg_falloff.integer != 0) {
+                falloffRange -= g_range_sg_falloff.integer;
+                damage -= g_damage_sg_falloff.integer;
             }
-            if (LogAccuracyHit(traceEnt, ent)) {
-                hitClient = qtrue;
+            if (damage < 1) damage = 1;
+        }
+
+        damage = (int)(damage * s_quadFactor);
+
+        if (traceEnt->client && traceEnt->client->invulnerabilityTime > level.time) {
+            if (G_InvulnerabilityEffect(traceEnt, forward, tr.endpos, impactpoint, bouncedir)) {
+                G_BounceProjectile(tr_start, impactpoint, bouncedir, tr_end);
+                VectorCopy(impactpoint, tr_start);
+                passent = ENTITYNUM_NONE;
+            } else {
+                VectorCopy(tr.endpos, tr_start);
+                passent = traceEnt->s.number;
             }
-            G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_SHOTGUN);
-            return hitClient;
+            continue;
+        }
+
+        // [QL] accumulate damage for plum display
+        if (traceEnt->client && ent->client) {
+            ent->client->damagePlum[traceEnt->s.number] += damage;
+        }
+        G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_SHOTGUN);
+        if (LogAccuracyHit(traceEnt, ent)) {
+            return qtrue;
         }
         return qfalse;
     }
     return qfalse;
 }
 
+// [QL] Ring-based shotgun pattern (binary-verified from 0x1006d450)
+// 3 rings: inner(6 pellets), middle(6), outer(8) = 20 total
 // this should match CG_ShotgunPattern
 void ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, gentity_t* ent) {
     int i;
-    float r, u;
+    float r, u, angle, ringRadius;
+    int ring;
     vec3_t end;
     vec3_t forward, right, up;
     qboolean hitClient = qfalse;
 
-    // derive the right and up vectors from the forward vector, because
-    // the client won't have any other information
     VectorNormalize2(origin2, forward);
     PerpendicularVector(right, forward);
     CrossProduct(forward, right, up);
 
-    // generate the "random" spread pattern
-    for (i = 0; i < DEFAULT_SHOTGUN_COUNT; i++) {
-        r = Q_crandom(&seed) * DEFAULT_SHOTGUN_SPREAD * 16;
-        u = Q_crandom(&seed) * DEFAULT_SHOTGUN_SPREAD * 16;
+    // [QL] clear damage plum accumulator
+    if (ent->client) {
+        memset(ent->client->damagePlum, 0, sizeof(ent->client->damagePlum));
+    }
+
+    for (i = 0; i < 20; i++) {
+        // [QL] ring-based pattern
+        if (i < 6) {
+            // Inner ring: 6 pellets, radius 8, 60-degree spacing
+            ringRadius = 8;
+            angle = (float)(i - 20) * (M_PI / 3.0f);
+            ring = 1;  // inner = full damage
+        } else if (i < 12) {
+            // Middle ring: 6 pellets, radius 16
+            ringRadius = 16;
+            angle = (float)i * (M_PI / 3.0f) + (30.0f * M_PI / 180.0f);
+            ring = 0;  // outer damage
+        } else {
+            // Outer ring: 8 pellets, radius 24, 45-degree spacing
+            ringRadius = 24;
+            angle = (float)i * (M_PI / 4.0f);
+            ring = 0;  // outer damage
+        }
+
+        r = cos(angle) * ringRadius;
+        u = sin(angle) * ringRadius;
+
         VectorMA(origin, 8192 * 16, forward, end);
         VectorMA(end, r, right, end);
         VectorMA(end, u, up, end);
-        if (ShotgunPellet(origin, end, ent) && !hitClient) {
+
+        if (ShotgunPellet(origin, end, ent, ring) && !hitClient) {
             hitClient = qtrue;
             ent->client->accuracy_hits++;
             ent->client->expandedStats.shotsHit[WP_SHOTGUN]++;
+        }
+    }
+
+    // [QL] Emit EV_DAMAGEPLUM events for each hit client
+    if (g_damagePlums.integer && ent->client) {
+        int j;
+        int totalDamage = 0;
+        for (j = 0; j < level.maxclients; j++) {
+            if (ent->client->damagePlum[j] != 0) {
+                gentity_t *plum;
+                vec3_t org;
+
+                totalDamage += ent->client->damagePlum[j];
+
+                VectorCopy(g_entities[j].r.currentOrigin, org);
+                org[2] += 32.0f;
+
+                plum = G_TempEntity(org, EV_DAMAGEPLUM);
+                plum->s.eFlags |= EF_NODRAW;
+                plum->s.clientNum = ent->s.clientNum;
+                plum->s.time = ent->client->damagePlum[j];
+                plum->s.generic1 = WP_SHOTGUN;
+                ent->client->damagePlum[j] = 0;
+            }
+        }
+
+        // [QL] Encode shotgun quality into eFlags bits 6-7
+        {
+            int quality;
+            if (totalDamage >= 75) quality = 3;
+            else if (totalDamage >= 50) quality = 2;
+            else if (totalDamage > 24) quality = 1;
+            else quality = 0;
+            ent->client->ps.eFlags = (ent->client->ps.eFlags & ~0xC0) | (quality << 6);
         }
     }
 }
@@ -438,7 +527,11 @@ void Weapon_Railgun_Fire(gentity_t* ent) {
     hits = 0;
     passent = ent->s.number;
     do {
-        trap_Trace(&trace, muzzle, NULL, NULL, end, passent, MASK_SHOT);
+        // g_playerCylinders + pmove_noPlayerClip
+        {
+            int mask = pmove_NoPlayerClip.integer ? (MASK_SHOT & ~CONTENTS_PLAYERCLIP) : MASK_SHOT;
+            G_TracePlayerHit(&trace, muzzle, NULL, NULL, end, passent, mask);
+        }
         if (trace.entityNum >= ENTITYNUM_MAX_NORMAL) {
             break;
         }
@@ -467,7 +560,13 @@ void Weapon_Railgun_Fire(gentity_t* ent) {
                 if (LogAccuracyHit(traceEnt, ent)) {
                     hits++;
                 }
-                G_Damage(traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN);
+                // [QL] headshot detection: surface flag 0x400 on player models = head
+                if ((trace.surfaceFlags & 0x400) && g_headShotDamage_rg.integer) {
+                    G_Damage(traceEnt, ent, ent, forward, trace.endpos,
+                             damage + g_headShotDamage_rg.integer, 0, MOD_RAILGUN_HEADSHOT);
+                } else {
+                    G_Damage(traceEnt, ent, ent, forward, trace.endpos, damage, 0, MOD_RAILGUN);
+                }
             }
         }
         if (trace.contents & CONTENTS_SOLID) {
@@ -507,6 +606,17 @@ void Weapon_Railgun_Fire(gentity_t* ent) {
         tent->s.eventParm = DirToByte(trace.plane.normal);
     }
     tent->s.clientNum = ent->s.clientNum;
+
+    // [QL] rail jump: self-knockback when shooting a wall at close range
+    if (g_railJump.integer && trace.entityNum == ENTITYNUM_WORLD) {
+        float dist = Distance(muzzle, trace.endpos);
+        if (dist < 120.0f) {
+            vec3_t kickDir;
+            VectorScale(forward, -1, kickDir);
+            VectorMA(ent->client->ps.velocity, (float)g_railJump.integer, kickDir, ent->client->ps.velocity);
+            ent->client->ps.velocity[2] += 20.0f;
+        }
+    }
 
     // give the shooter a reward sound if they have made two railgun hits in a row
     if (hits == 0) {
@@ -619,10 +729,36 @@ void Weapon_Lightning_Fire(gentity_t* ent) {
     damage = g_damage_lg.integer * s_quadFactor;
 
     passent = ent->s.number;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < 2; i++) {  // [QL] binary uses 2 iterations, not 10
+        // [QL] water discharge: if firing in water with g_infiniteAmmo, discharge all ammo
+        if (g_infiniteAmmo.integer) {
+            int contents = trap_PointContents(muzzle, -1);
+            if (contents & (CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA)) {
+                int cells = ent->client->ps.ammo[WP_LIGHTNING];
+                if (cells != 0) {
+                    int dischargeRadius = (cells != -1 && !g_loadout.integer) ? cells + 1 : 60;
+                    int extraRadius = dischargeRadius * g_damage_lg.integer;
+
+                    SnapVector(muzzle);
+                    tent = G_TempEntity(muzzle, EV_LIGHTNING_DISCHARGE);
+                    tent->s.eventParm = dischargeRadius;
+                    ent->client->ps.ammo[WP_LIGHTNING] = 0;
+
+                    if (G_WaterRadiusDamage(muzzle, ent, (float)extraRadius, (float)(extraRadius + 16))) {
+                        ent->client->accuracy_hits++;
+                    }
+                }
+                break;
+            }
+        }
+
         VectorMA(muzzle, LIGHTNING_RANGE, forward, end);
 
-        trap_Trace(&tr, muzzle, NULL, NULL, end, passent, MASK_SHOT);
+        // g_playerCylinders + pmove_noPlayerClip
+        {
+            int mask = pmove_NoPlayerClip.integer ? (MASK_SHOT & ~CONTENTS_PLAYERCLIP) : MASK_SHOT;
+            G_TracePlayerHit(&tr, muzzle, NULL, NULL, end, passent, mask);
+        }
 
         // if not the first trace (the lightning bounced of an invulnerability sphere)
         if (i) {
@@ -660,7 +796,17 @@ void Weapon_Lightning_Fire(gentity_t* ent) {
                 ent->client->accuracy_hits++;
                 ent->client->expandedStats.shotsHit[WP_LIGHTNING]++;
             }
-            G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, 0, MOD_LIGHTNING);
+            // [QL] LG distance falloff
+            {
+                int actualDamage = damage;
+                if (g_damage_lg_falloff.integer && g_range_lg_falloff.integer > 0) {
+                    float dist = Distance(muzzle, tr.endpos);
+                    int steps = (int)(dist / g_range_lg_falloff.integer);
+                    actualDamage -= steps * g_damage_lg_falloff.integer;
+                    if (actualDamage < 1) actualDamage = 1;
+                }
+                G_Damage(traceEnt, ent, ent, forward, tr.endpos, actualDamage, 0, MOD_LIGHTNING);
+            }
         }
 
         if (traceEnt->takedamage && traceEnt->client) {
@@ -819,6 +965,14 @@ void FireWeapon(gentity_t* ent) {
 
     CalcMuzzlePointOrigin(ent, ent->client->ps.origin, forward, right, up, muzzle);
 
+    // [QL] Lag compensation for hitscan weapons
+    // Bitmask 0x60cc = weapons 2,3,6,7,13,14 (MG, SG, LG, RG, CG, HMG)
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        if ((0x60cc >> (ent->s.weapon & 0x1f)) & 1) {
+            HAX_Begin(ent, ent->client->ps.commandTime);
+        }
+    }
+
     // fire the specific weapon
     switch (ent->s.weapon) {
         case WP_GAUNTLET:
@@ -866,6 +1020,13 @@ void FireWeapon(gentity_t* ent) {
         default:
             // FIXME		G_Error( "Bad ent->s.weapon" );
             break;
+    }
+
+    // [QL] End lag compensation
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        if ((0x60cc >> (ent->s.weapon & 0x1f)) & 1) {
+            HAX_End(ent);
+        }
     }
 }
 
