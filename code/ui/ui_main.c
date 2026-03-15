@@ -1481,9 +1481,9 @@ static void UI_DrawStartingWeapons(rectDef_t *rect, float scale, vec4_t color) {
         "icons/iconw_plasma",       // WP_PLASMAGUN
         "icons/iconw_bfg",          // WP_BFG
         "icons/iconw_grapple",      // WP_GRAPPLING_HOOK
-        "icons/iconw_machinegun",   // WP_NAILGUN (no unique icon)
-        "icons/iconw_grenade",      // WP_PROX_LAUNCHER (no unique icon)
-        "icons/iconw_machinegun",   // WP_CHAINGUN (no unique icon)
+        "icons/iconw_nailgun",      // WP_NAILGUN
+        "icons/iconw_proxlauncher", // WP_PROX_LAUNCHER
+        "icons/iconw_chaingun",     // WP_CHAINGUN
         "icons/weap_hmg",           // WP_HMG
     };
 
@@ -2736,9 +2736,6 @@ static int UI_MapCountByGameType(qboolean singlePlayer) {
     int i, c, game;
     c = 0;
     game = singlePlayer ? uiInfo.gameTypes[ui_gameType.integer].gtEnum : uiInfo.gameTypes[ui_netGameType.integer].gtEnum;
-    if (game == GT_SINGLE_PLAYER) {
-        game++;
-    }
     if (game == GT_TEAM) {
         game = GT_FFA;
     }
@@ -2746,11 +2743,6 @@ static int UI_MapCountByGameType(qboolean singlePlayer) {
     for (i = 0; i < uiInfo.mapCount; i++) {
         uiInfo.mapList[i].active = qfalse;
         if (uiInfo.mapList[i].typeBits & (1 << game)) {
-            if (singlePlayer) {
-                if (!(uiInfo.mapList[i].typeBits & (1 << GT_SINGLE_PLAYER))) {
-                    continue;
-                }
-            }
             c++;
             uiInfo.mapList[i].active = qtrue;
         }

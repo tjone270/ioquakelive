@@ -187,7 +187,6 @@ typedef enum {
 
 // [QL] Aliases for backward compatibility
 #define GT_TOURNAMENT   GT_DUEL
-#define GT_SINGLE_PLAYER GT_RACE
 
 // [QL] gametype name tables (defined in bg_misc.c)
 extern const char *gametypeShortNames[];    // short names for entity/config filtering
