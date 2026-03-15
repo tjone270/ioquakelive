@@ -1177,6 +1177,11 @@ void ClientEndFrame(gentity_t* ent) {
     }
     SendPendingPredictableEvents(&ent->client->ps);
 
+    // [QL] Lag compensation - store position history
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        HAX_Update(ent);
+    }
+
     // set the bit for the reachability area the client is currently in
     //	i = trap_AAS_PointReachabilityAreaIndex( ent->client->ps.origin );
     //	ent->client->areabits[i >> 3] |= 1 << (i & 7);

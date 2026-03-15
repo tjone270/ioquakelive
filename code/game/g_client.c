@@ -1212,6 +1212,11 @@ void ClientSpawn(gentity_t* ent) {
     G_SetOrigin(ent, spawn_origin);
     VectorCopy(spawn_origin, client->ps.origin);
 
+    // [QL] Lag compensation - clear position history on spawn
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        HAX_Clear(ent);
+    }
+
     // the respawned flag will be cleared after the attack and jump keys come up
     client->ps.pm_flags |= PMF_RESPAWNED;
 
@@ -1362,6 +1367,11 @@ void ClientDisconnect(int clientNum) {
     gclient_t* cl;
 
     ent = g_entities + clientNum;
+
+    // [QL] Lag compensation - clear position history on disconnect
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        HAX_Clear(ent);
+    }
 
     // [QL] publish disconnect stats before anything else (unless intermission)
     if (ent->client && ent->client->ps.pm_type != PM_INTERMISSION) {
