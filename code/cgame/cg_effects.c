@@ -38,7 +38,9 @@ void CG_BubbleTrail(vec3_t start, vec3_t end, float spacing) {
     float len;
     int i;
 
-    if (cg_noProjectileTrail.integer) {
+    // [QL] cg_bubbleTrail controls bubble trail rendering (binary: 0x10012c53)
+    // Note: Q3 used cg_noProjectileTrail here (disable), QL uses cg_bubbleTrail (enable)
+    if (!cg_bubbleTrail.integer) {
         return;
     }
 
@@ -544,6 +546,31 @@ void CG_Bleed(vec3_t origin, int entityNum) {
     if (entityNum == cg.snap->ps.clientNum) {
         ex->refEntity.renderfx |= RF_THIRD_PERSON;
     }
+}
+
+/*
+==================
+CG_BloodSplatEffect
+
+QL binary: blood splat at impact point, used instead of CG_Bleed for hit effects.
+Binary calls this in a loop of 2 for each hit.
+==================
+*/
+void CG_BloodSplatEffect(vec3_t origin, int entityNum) {
+    // For now, delegate to CG_Bleed
+    CG_Bleed(origin, entityNum);
+}
+
+/*
+==================
+CG_SpawnParticleEffect
+
+QL binary: spawns impact spark particles.
+==================
+*/
+void CG_SpawnParticleEffect(vec3_t vel, float size, float r, float g, float b, float a, float lifetime, int startTime, int type, qhandle_t shader) {
+    // TODO: implement QL particle effect system
+    // Binary creates a particle emitter with the given parameters
 }
 
 /*

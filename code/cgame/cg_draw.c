@@ -1864,13 +1864,6 @@ static qboolean CG_DrawScoreboard(void) {
 		return qfalse;
 	}
 
-	// should never happen in Team Arena
-	if (cgs.gametype == GT_SINGLE_PLAYER && cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
-		cg.deferredPlayerLoading = 0;
-		firstTime = qtrue;
-		return qfalse;
-	}
-
 	// don't draw scoreboard during death while warmup up
 	if (cg.warmup && !cg.showScores) {
 		return qfalse;
@@ -2347,21 +2340,8 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 	}
 	CG_SetWidescreen(WIDESCREEN_STRETCH);
 
-	// [QL] race timer - show elapsed time during active race
-	if (cg.race.active && cg.race.startTime > 0) {
-		int elapsed = cg.time - cg.race.startTime;
-		int ms = elapsed % 1000;
-		int sec = (elapsed / 1000) % 60;
-		int min = elapsed / 60000;
-		char raceTime[32];
-		CG_SetWidescreen(WIDESCREEN_CENTER);
-		Com_sprintf(raceTime, sizeof(raceTime), "%d:%02d.%03d", min, sec, ms);
-		{
-			float tw = CG_Text_Width(raceTime, 0.3f, 0);
-			CG_Text_Paint(SCREEN_WIDTH / 2 - tw / 2, 74, 0.3f, colorWhite, raceTime, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
-		}
-		CG_SetWidescreen(WIDESCREEN_STRETCH);
-	}
+	// [QL] race timer is drawn by menu system via CG_DrawRaceTimes ownerdraw
+	// (removed hardcoded duplicate here)
 
 	// don't draw center string if scoreboard is up
 	cg.scoreBoardShowing = CG_DrawScoreboard();
@@ -2376,6 +2356,19 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 =====================
 CG_DrawActive
 
+CG_DrawFullScreenColor
+
+QL binary: draws a fullscreen vignette overlay when cg_vignette is enabled (vmCvar 0x10A63960)
+=====================
+*/
+static void CG_DrawFullScreenColor(void) {
+	if (cg_vignette.integer) {
+		CG_DrawPic(0, 0, 640, 480, cgs.media.vignetteShader);
+	}
+}
+
+/*
+=====================
 Perform all drawing needed to completely fill the screen
 =====================
 */
@@ -2393,6 +2386,13 @@ void CG_DrawActive(stereoFrame_t stereoView) {
 		return;
 	}
 
+	// QL binary: cg_zoomOutOnDeath.integer resets zoom on death/freeze/intermission (vmCvar 0x10A61200)
+	if (((cg.predictedPlayerState.pm_type == PM_DEAD ||
+	      cg.predictedPlayerState.pm_type == PM_FREEZE) && cg_zoomOutOnDeath.integer) ||
+	    cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
+		cg.zoomed = qfalse;
+	}
+
 	// clear around the rendered view if sized down
 	CG_TileClear();
 
@@ -2404,4 +2404,9 @@ void CG_DrawActive(stereoFrame_t stereoView) {
 
 	// draw status bar and other floating elements
 	CG_Draw2D(stereoView);
+
+	// QL binary: vignette overlay drawn after HUD
+	if (!cg.renderingThirdPerson) {
+		CG_DrawFullScreenColor();
+	}
 }

@@ -1245,6 +1245,19 @@ static void CG_RegisterSounds(void) {
     cgs.media.thawTickSound = trap_S_RegisterSound("sound/misc/tim_pump.ogg", qfalse);
     cgs.media.raceFinishSound = trap_S_RegisterSound("sound/world/klaxon1.ogg", qfalse);
     cgs.media.infectedSound = trap_S_RegisterSound("sound/vo/infected.ogg", qfalse);
+
+    // [QL] Race checkpoint assets (binary-verified from cgamex86.dll CG_RegisterGraphics)
+    cgs.media.raceFlagB = trap_R_RegisterModel("models/flag3/b_flag3.md3");
+    cgs.media.raceFlagF = trap_R_RegisterModel("models/flag3/f_flag3.md3");
+    cgs.media.raceFlagG = trap_R_RegisterModel("models/flag3/g_flag3.md3");
+    cgs.media.raceFlagD = trap_R_RegisterModel("models/flag3/d_flag3.md3");
+    cgs.media.raceMarkerStart = trap_R_RegisterShader("gfx/2d/race/start");
+    cgs.media.raceMarkerCheckpoint = trap_R_RegisterShader("gfx/2d/race/checkpoint");
+    cgs.media.raceMarkerFinish = trap_R_RegisterShader("gfx/2d/race/finish");
+    cgs.media.domPointModel = trap_R_RegisterModel("models/powerups/domination/dompoint.md3");
+    cgs.media.domSkinRed = trap_R_RegisterSkin("models/powerups/domination/domred.skin");
+    cgs.media.domSkinBlue = trap_R_RegisterSkin("models/powerups/domination/domblue.skin");
+    cgs.media.domSkinNeutral = trap_R_RegisterSkin("models/powerups/domination/domntrl.skin");
 }
 
 //===================================================================================
@@ -2563,6 +2576,8 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     memset(cg_items, 0, sizeof(cg_items));
 
     cg.clientNum = clientNum;
+    cg.race.nextCheckpointEnt = -1;
+    cg.race.currentCheckpointEnt = -1;
 
     cgs.processedSnapshotNum = serverMessageNum;
     cgs.serverCommandSequence = serverCommandSequence;

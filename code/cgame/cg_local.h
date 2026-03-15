@@ -438,6 +438,8 @@ typedef struct {
 
     qhandle_t modelIcon;
 
+    float modelScale;  // QL: bounding box scale factor (cg_scalePlayerModelsToBB)
+
     animation_t animations[MAX_TOTALANIMATIONS];
 
     sfxHandle_t sounds[MAX_CUSTOM_SOUNDS];
@@ -715,6 +717,8 @@ typedef struct {
         int      checkpointDiff;    // time diff at last checkpoint
         qboolean hasDiff;           // whether diff is valid
         int      checkpointCount;   // current checkpoint number
+        int      nextCheckpointEnt;    // entity number of next checkpoint (-1 = none)
+        int      currentCheckpointEnt; // entity number of current/last checkpoint (-1 = none)
     } race;
 
     // [QL] point of interest markers (flag carriers, powerup holders, etc.)
@@ -887,6 +891,9 @@ typedef struct {
     qhandle_t waterBubbleShader;
     qhandle_t bloodTrailShader;
     qhandle_t bloodSprayShaders[4];  // [QL] bloodSpray1-4
+
+    qhandle_t sparkParticleShader;  // QL: impact spark particles
+    qhandle_t vignetteShader;      // QL: fullscreen vignette overlay
 
     qhandle_t nailPuffShader;
     qhandle_t blueProxMine;
@@ -1145,6 +1152,19 @@ typedef struct {
     sfxHandle_t raceFinishSound;
     sfxHandle_t infectedSound;
 
+    // [QL] Race checkpoint models and shaders (binary-verified)
+    qhandle_t raceFlagB;          // models/flag3/b_flag3.md3 (blue)
+    qhandle_t raceFlagF;          // models/flag3/f_flag3.md3 (finish)
+    qhandle_t raceFlagG;          // models/flag3/g_flag3.md3 (green/start)
+    qhandle_t raceFlagD;          // models/flag3/d_flag3.md3 (default/checkpoint)
+    qhandle_t raceMarkerStart;    // gfx/2d/race/start
+    qhandle_t raceMarkerCheckpoint; // gfx/2d/race/checkpoint
+    qhandle_t raceMarkerFinish;   // gfx/2d/race/finish
+    qhandle_t domPointModel;      // models/powerups/domination/dompoint.md3 (pedestal)
+    qhandle_t domSkinRed;         // models/powerups/domination/domred.skin
+    qhandle_t domSkinBlue;        // models/powerups/domination/domblue.skin
+    qhandle_t domSkinNeutral;     // models/powerups/domination/domntrl.skin
+
     // [QL] POI markers
     qhandle_t poiShader;        // sprites/neutralflagcarrier
 
@@ -1311,6 +1331,7 @@ extern vmCvar_t cg_drawAmmoWarning;
 extern vmCvar_t cg_drawCrosshair;
 extern vmCvar_t cg_drawCrosshairNames;
 extern vmCvar_t cg_drawRewards;
+extern vmCvar_t cg_flagStyle;
 extern vmCvar_t cg_drawTeamOverlay;
 extern vmCvar_t cg_teamOverlayUserinfo;
 extern vmCvar_t cg_crosshairX;
@@ -1377,6 +1398,7 @@ extern vmCvar_t cg_bigFont;
 extern vmCvar_t cg_noTaunt;
 
 extern vmCvar_t cg_noProjectileTrail;
+extern vmCvar_t cg_bubbleTrail;
 extern vmCvar_t cg_oldRail;
 extern vmCvar_t cg_oldRocket;
 extern vmCvar_t cg_oldPlasma;
@@ -1436,6 +1458,33 @@ extern vmCvar_t cg_lowAmmoWeaponBarWarning;
 extern vmCvar_t cg_obituaryRowSize;
 extern vmCvar_t s_announcerVolume;
 extern vmCvar_t s_killBeepVolume;
+
+// QL cvars (binary-verified from cgamex86.dll)
+extern vmCvar_t cg_chatbeep;
+extern vmCvar_t cg_deadBodyDarken;
+extern vmCvar_t cg_enemyHeadColor;
+extern vmCvar_t cg_enemyUpperColor;
+extern vmCvar_t cg_followKiller;
+extern vmCvar_t cg_followPowerup;
+extern vmCvar_t cg_impactMarkTime;
+extern vmCvar_t cg_impactSparks;
+extern vmCvar_t cg_impactSparksLifetime;
+extern vmCvar_t cg_impactSparksSize;
+extern vmCvar_t cg_impactSparksVelocity;
+extern vmCvar_t cg_muzzleFlash;
+extern vmCvar_t cg_plasmaStyle;
+extern vmCvar_t cg_railStyle;
+extern vmCvar_t cg_rocketStyle;
+extern vmCvar_t cg_smoke_SG;
+extern vmCvar_t cg_specFov;
+extern vmCvar_t cg_switchOnEmpty;
+extern vmCvar_t cg_switchToEmpty;
+extern vmCvar_t cg_teamHeadColor;
+extern vmCvar_t cg_trueShotgun;
+extern vmCvar_t cg_vignette;
+extern vmCvar_t cg_zoomOutOnDeath;
+extern vmCvar_t cg_zoomScaling;
+extern vmCvar_t cg_zoomToggle;
 
 //
 // cg_main.c
@@ -1680,6 +1729,9 @@ void CG_GibPlayer(vec3_t playerOrigin);
 void CG_BigExplode(vec3_t playerOrigin);
 
 void CG_Bleed(vec3_t origin, int entityNum);
+void CG_BloodSplatEffect(vec3_t origin, int entityNum);  // QL: blood splat (replaces CG_Bleed for hit effects)
+void CG_SpawnParticleEffect(vec3_t vel, float size, float r, float g, float b, float a, float lifetime, int startTime, int type, qhandle_t shader);  // QL: particle effects
+void CG_SpecAutoFollow(int clientNum, int mode);  // QL: auto-follow spectator
 
 localEntity_t* CG_MakeExplosion(vec3_t origin, vec3_t dir, qhandle_t hModel, qhandle_t shader, int msec, qboolean isSprite);
 
