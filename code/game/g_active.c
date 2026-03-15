@@ -859,21 +859,24 @@ void ClientThink_real(gentity_t* ent) {
         Weapon_HookFree(client->hook);
     }
 
-    // infinite ammo
+    // [QL] infinite ammo: ammo is set to -1 at spawn time only (g_client.c ClientSpawn),
+    // NOT every frame. Per-frame setting causes ammo delta → spurious pickup sounds.
+    // The cvar change handler below restores default ammo when g_infiniteAmmo is turned OFF.
     if (g_infiniteAmmo.modificationCount != infiniteAmmoLastModification) {
         infiniteAmmoLastModification = g_infiniteAmmo.modificationCount;
         if (!g_infiniteAmmo.integer) {
+            // Turned off: restore default ammo quantities
             for (int i = 1; i < WP_NUM_WEAPONS; i++) {
-                if (i != WP_GAUNTLET && i != WP_GRAPPLING_HOOK) {
-                    client->ps.ammo[i] = BG_FindItemForWeapon(i)->quantity;
+                if (i != WP_GAUNTLET && i != WP_GRAPPLING_HOOK && client->ps.ammo[i] == -1) {
+                    gitem_t *item = BG_FindItemForWeapon(i);
+                    client->ps.ammo[i] = item ? item->quantity : 0;
                 }
             }
-        }
-    }
-
-    if (g_infiniteAmmo.integer) {
-        for (int i = 1; i < WP_NUM_WEAPONS; i++) {
-            client->ps.ammo[i] = -1;
+        } else {
+            // Turned on: set all ammo to -1 once
+            for (int i = 1; i < WP_NUM_WEAPONS; i++) {
+                client->ps.ammo[i] = -1;
+            }
         }
     }
 

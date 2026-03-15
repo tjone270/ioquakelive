@@ -24,100 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../../ui/menudef.h"  // for the voice chats
 
-/*
-==================
-DeathmatchScoreboardMessage
-
-==================
-*/
-void DeathmatchScoreboardMessage(gentity_t* ent) {
-    char entry[1024];
-    char string[1400];
-    int stringlength;
-    int i, j;
-    gclient_t* cl;
-    int numSorted, accuracy, perfect;
-    int alive, frags, deaths, bestWeapon, damageDone;
-
-    // don't send scores to bots, they don't parse it
-    if (ent->r.svFlags & SVF_BOT) {
-        return;
-    }
-
-    // send the latest information on all clients
-    string[0] = 0;
-    stringlength = 0;
-
-    numSorted = level.numConnectedClients;
-
-    for (i = 0; i < numSorted; i++) {
-        int ping;
-
-        cl = &level.clients[level.sortedClients[i]];
-
-        if (cl->pers.connected == CON_CONNECTING) {
-            ping = -1;
-        } else {
-            ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
-        }
-
-        if (cl->accuracy_shots) {
-            accuracy = cl->accuracy_hits * 100 / cl->accuracy_shots;
-        } else {
-            accuracy = 0;
-        }
-        perfect = (cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0) ? 1 : 0;
-
-        // [QL] additional fields
-        alive = (cl->ps.stats[STAT_HEALTH] > 0) ? 1 : 0;
-        frags = cl->expandedStats.numKills;
-        deaths = cl->expandedStats.numDeaths;
-        damageDone = cl->expandedStats.totalDamageDealt;
-
-        // [QL] best weapon: highest accuracy weapon with at least 1 shot fired
-        {
-            int w, bestAcc = 0;
-            bestWeapon = 0;
-            for (w = 0; w < 16; w++) {
-                if (cl->expandedStats.shotsFired[w] > 0) {
-                    int weapAcc = cl->expandedStats.shotsHit[w] * 100 / cl->expandedStats.shotsFired[w];
-                    if (weapAcc > bestAcc) {
-                        bestAcc = weapAcc;
-                        bestWeapon = w;
-                    }
-                }
-            }
-        }
-
-        // [QL] scores_ffa: 18 fields per player
-        // client score ping time accuracy impressive excellent gauntlet defend assist
-        // perfect captures alive frags deaths bestWeapon powerups damageDone
-        Com_sprintf(entry, sizeof(entry),
-                    " %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
-                    level.sortedClients[i],
-                    cl->ps.persistant[PERS_SCORE], ping, (level.time - cl->pers.enterTime) / 60000,
-                    accuracy,
-                    cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
-                    cl->ps.persistant[PERS_EXCELLENT_COUNT],
-                    cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
-                    cl->ps.persistant[PERS_DEFEND_COUNT],
-                    cl->ps.persistant[PERS_ASSIST_COUNT],
-                    perfect,
-                    cl->ps.persistant[PERS_CAPTURES],
-                    alive, frags, deaths, bestWeapon,
-                    g_entities[level.sortedClients[i]].s.powerups,
-                    damageDone);
-        j = strlen(entry);
-        if (stringlength + j >= sizeof(string))
-            break;
-        strcpy(string + stringlength, entry);
-        stringlength += j;
-    }
-
-    trap_SendServerCommand(ent - g_entities, va("scores_ffa %i %i %i%s", i,
-                                                level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE],
-                                                string));
-}
+// DeathmatchScoreboardMessage moved to g_gametype_ffa.c
 
 /*
 ==================
@@ -435,13 +342,6 @@ void Cmd_LevelShot_f(gentity_t* ent) {
 
     if (!CheatsOk(ent))
         return;
-
-    // doesn't work in single player
-    if (g_gametype.integer == GT_SINGLE_PLAYER) {
-        trap_SendServerCommand(ent - g_entities,
-                               "print \"Must not be in singleplayer mode for levelshot\n\"");
-        return;
-    }
 
     BeginIntermission();
     trap_SendServerCommand(ent - g_entities, "clientLevelShot");

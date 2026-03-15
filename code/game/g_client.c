@@ -1053,6 +1053,10 @@ void ClientSpawn(gentity_t* ent) {
     if (client->sess.sessionTeam == TEAM_SPECTATOR) {
         spawnPoint = SelectSpectatorSpawnPoint(
             spawn_origin, spawn_angles);
+    } else if (g_gametype.integer == GT_RACE) {
+        // [QL] Race: use initial spawn point (near race start) rather than furthest
+        spawnPoint = SelectInitialSpawnPoint(
+            spawn_origin, spawn_angles, !!(ent->r.svFlags & SVF_BOT));
     } else {
         spawnPoint = SelectSpawnPoint(
             client->ps.origin,
@@ -1341,7 +1345,7 @@ void ClientSpawn(gentity_t* ent) {
 
     // [QL] team alive counting for team gametypes
     if (g_gametype.integer > GT_RACE) {
-        UpdateTeamAliveCount();
+        UpdateTeamAliveCount(NULL, NULL);
     }
 
     // clear entity state values
@@ -1391,7 +1395,7 @@ void ClientDisconnect(int clientNum) {
     }
 
     // [QL] update alive counts immediately
-    UpdateTeamAliveCount();
+    UpdateTeamAliveCount(NULL, NULL);
 
     // [QL] complex follow cleanup: stop followers, release grapple, clear complaint/damage tracking
     for (i = 0; i < level.maxclients; i++) {
@@ -1487,129 +1491,17 @@ void ClientDisconnect(int clientNum) {
     case GT_FREEZE:
     case GT_AD:
     case GT_RR:
-        UpdateTeamAliveCount();
+        UpdateTeamAliveCount(NULL, NULL);
         break;
     }
 }
 
-/*
-============
-ClientBegin_Race
+// ClientBegin_Race moved to g_gametype_race.c
 
-[QL] Race gametype begin - clear race timing data, send race_init
-============
-*/
-void ClientBegin_Race(gentity_t* ent) {
-    gclient_t* client = ent->client;
-
-    // clear race info (timing, checkpoints)
-    memset(&client->race, 0, sizeof(client->race));
-    // sentinel value: no best time yet
-    client->ps.persistant[PERS_SCORE] = 0x7FFFFFFF;
-
-    // send race_init to the client
-    trap_SendServerCommand(ent - g_entities, "race_init");
-    ClientSpawn(ent);
-}
-
-/*
-============
-ClientBegin_RoundBased
-
-[QL] CA/AD begin - spawn behavior depends on round state:
-  roundState 0 (pre-round): normal spawn + weapon select
-  roundState 1 (countdown): spawn + freeze (PMF_TIME_KNOCKBACK)
-  roundState 2+ (active round): spectator mode until next round
-============
-*/
-void ClientBegin_RoundBased(gentity_t* ent) {
-    gclient_t* client = ent->client;
-
-    if (level.roundState.eCurrent == 0) {
-        // pre-round: normal spawn
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-    } else if (level.roundState.eCurrent == 1) {
-        // countdown: spawn but freeze
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-        client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
-    } else {
-        // round active: force to spectator, wait for next round
-        client->ps.pm_type = PM_SPECTATOR;
-        ClientSpawn(ent);
-        UpdateTeamAliveCount();
-        // auto-follow if warmup is off, not spectator team, and both teams have players
-        if (!level.warmupTime
-            && client->sess.sessionTeam != TEAM_SPECTATOR
-            && level.numPlayingClients > 0) {
-            Cmd_FollowCycle_f(ent, 1);
-        }
-    }
-}
-
-/*
-============
-ClientBegin_Freeze
-
-[QL] Freeze Tag begin - like RoundBased but clears freeze/dead pm_type first
-============
-*/
-void ClientBegin_Freeze(gentity_t* ent) {
-    gclient_t* client = ent->client;
-
-    if (level.roundState.eCurrent == 0) {
-        // pre-round: unfreeze if needed
-        if (client->ps.pm_type == PM_FREEZE || client->ps.pm_type == PM_DEAD) {
-            client->ps.pm_type = PM_NORMAL;
-        }
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-    } else if (level.roundState.eCurrent == 1) {
-        // countdown
-        if (client->ps.pm_type == PM_FREEZE || client->ps.pm_type == PM_DEAD) {
-            client->ps.pm_type = PM_NORMAL;
-        }
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-        if (level.roundState.eCurrent != 0) {
-            client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
-        }
-    } else {
-        // round active: spectator mode
-        client->ps.pm_type = PM_SPECTATOR;
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-        UpdateTeamAliveCount();
-        if (!level.warmupTime
-            && client->sess.sessionTeam != TEAM_SPECTATOR
-            && level.numPlayingClients > 0) {
-            Cmd_FollowCycle_f(ent, 1);
-        }
-    }
-}
-
-/*
-============
-ClientBegin_RedRover
-
-[QL] Red Rover begin - spawn normally, freeze during countdown
-============
-*/
-void ClientBegin_RedRover(gentity_t* ent) {
-    gclient_t* client = ent->client;
-
-    if (level.roundState.eCurrent != 1) {
-        // not in countdown: normal spawn
-        ClientSpawn(ent);
-        SelectSpawnWeapon(ent);
-        return;
-    }
-    // countdown: spawn + freeze
-    ClientSpawn(ent);
-    SelectSpawnWeapon(ent);
-    client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
-}
+// ClientBegin_RoundBased moved to g_gametype_common.c
+// ClientBegin_Freeze moved to g_gametype_ft.c
+// ClientBegin_RedRover moved to g_gametype_rr.c
+// Functions moved to g_gametype_*.c files
 
 /*
 ============
@@ -1658,7 +1550,7 @@ UpdateTeamAliveCount
 Sets configstring for each team's alive count.
 ============
 */
-void UpdateTeamAliveCount(void) {
+void UpdateTeamAliveCount(int *outRed, int *outBlue) {
     int i;
     int aliveRed = 0, aliveBlue = 0;
 
@@ -1674,6 +1566,9 @@ void UpdateTeamAliveCount(void) {
 
     trap_SetConfigstring(CS_TEAMCOUNT_RED, va("%i", aliveRed));
     trap_SetConfigstring(CS_TEAMCOUNT_BLUE, va("%i", aliveBlue));
+
+    if (outRed) *outRed = aliveRed;
+    if (outBlue) *outBlue = aliveBlue;
 }
 
 /*
@@ -1703,25 +1598,8 @@ void G_ReleaseGrapple(gentity_t* ent) {
     }
 }
 
-/*
-============
-DuelScoreboardMessage
+// DuelScoreboardMessage moved to g_gametype_duel.c
 
-[QL] Send duel-specific scoreboard to all clients
-============
-*/
-void DuelScoreboardMessage(gentity_t* ent) {
-    // In duel, the regular DeathmatchScoreboardMessage handles this
-    DeathmatchScoreboardMessage(ent);
-}
-
-/*
-============
-STAT_* stubs
-
-[QL] Stats reporting functions - stubs for now (original uses C++ jsoncpp)
-============
-*/
 void STAT_InitClient(gentity_t* ent) { }
 void STAT_PublishClientDisconnect(gclient_t* client, int reason) { }
 void STAT_SubscribeClient(gentity_t* ent) { }
