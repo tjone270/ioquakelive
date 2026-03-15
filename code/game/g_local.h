@@ -42,6 +42,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define INTERMISSION_DELAY_TIME 200  // [QL] binary uses 200ms (was 1000 in Q3)
 #define SP_INTERMISSION_DELAY_TIME 5000
 
+// g_playerCylinders: use capsule trace for player hits when enabled
+#define G_TracePlayerHit(results, start, mins, maxs, end, passEnt, mask) \
+    do { \
+        if (g_playerCylinders.integer) \
+            trap_TraceCapsule(results, start, mins, maxs, end, passEnt, mask); \
+        else \
+            trap_Trace(results, start, mins, maxs, end, passEnt, mask); \
+    } while (0)
+
 // gentity->flags
 #define FL_GODMODE 0x00000010
 #define FL_NOTARGET 0x00000020
@@ -121,6 +130,7 @@ struct gentity_s {
     float angle;    // [QL]
 
     char* target;
+    char* target2;      // [QL] secondary target (race checkpoint chaining)
     char* targetname;
     char* targetShaderName;
     char* targetShaderNewName;
@@ -282,6 +292,7 @@ typedef struct {
     int roundShotsHit;            // [QL]
     int roundKillCount;           // [QL]
     int localPlayerSpawnTime;     // [QL]
+    int caDamageAccum;            // [QL] CA: accumulated damage for +1 score per 100
     qboolean teamInfo;            // send team overlay updates?
 } clientPersistant_t;
 
@@ -438,6 +449,7 @@ struct gclient_s {
     int deferredSpawnTime;      // [QL]
     int deferredSpawnCount;     // [QL]
     raceInfo_t race;            // [QL] (552 bytes)
+    int damagePlum[MAX_CLIENTS]; // [QL] accumulated SG damage per target for EV_DAMAGEPLUM
     int shotgunDmg[64];         // [QL]
     int round_shots;            // [QL]
     int round_hits;             // [QL]
@@ -679,6 +691,8 @@ const char* BuildShaderStateConfig(void);
 qboolean CanDamage(gentity_t* targ, vec3_t origin);
 void G_Damage(gentity_t* targ, gentity_t* inflictor, gentity_t* attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod);
 qboolean G_RadiusDamage(vec3_t origin, gentity_t* inflictor, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int dflags, int mod);
+qboolean G_RadiusDamageThrough(vec3_t origin, gentity_t* inflictor, gentity_t* attacker, float damage, float radius, gentity_t* ignore, int dflags, int mod);
+qboolean G_WaterRadiusDamage(vec3_t origin, gentity_t *attacker, float damage, float radius);
 int G_InvulnerabilityEffect(gentity_t* targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir);
 void body_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int damage, int meansOfDeath);
 void TossClientItems(gentity_t* self);
@@ -768,6 +782,22 @@ void G_StartKamikaze(gentity_t* ent);
 // g_cmds.c
 //
 void DeathmatchScoreboardMessage(gentity_t* ent);
+int STAT_GetBestWeapon(gclient_t *cl);
+void FFAScoreboardMessage_impl(void);
+void DuelScoreboardMessage_impl(void);
+void DuelScoreboardMessage(gentity_t *ent);
+void RaceScoreboardMessage(gentity_t *ent);
+void TDMScoreboardMessage(gentity_t *ent);
+void TDMScoreboardMessage_impl(gentity_t *ent);
+void CAScoreboardMessage(gentity_t *ent);
+void CTFScoreboardMessage(gentity_t *ent);
+void CTFScoreboardMessage_impl(gentity_t *ent);
+void FTScoreboardMessage(gentity_t *ent);
+void FTScoreboardMessage_impl(gentity_t *ent);
+void RRScoreboardMessage(gentity_t *ent);
+void ADScoreboardMessage(gentity_t *ent);
+void SendScoreboardMessageToTeam(int team);
+void AddDuelScore(void);
 
 //
 // g_main.c
@@ -780,12 +810,76 @@ void G_RunThink(gentity_t* ent);
 void AddTournamentQueue(gclient_t* client);
 void SetWarmupState(int warmupTime);
 void QDECL G_LogPrintf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+void LogExit(int isShutdown, int restart, const char* string);
 void SendScoreboardMessageToAllClients(void);
 void QDECL G_Printf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 void QDECL G_Error(const char* fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void G_ShutdownGame(int restart);
 void G_InitGame(int levelTime, int randomSeed, int restart);
 void G_RunFrame(int levelTime);
+
+// g_gametype_common.c - Shared gametype helpers
+int STAT_GetBestWeapon(gclient_t *cl);
+
+// g_gametype_duel.c - Duel / Tournament
+void CheckTournament(void);
+void AddDuelScore(void);
+void AddTournamentPlayer(void);
+
+// g_gametype_ctf.c - Capture The Flag
+void CTF_CheckTeamItems(void);
+
+// g_gametype_1fctf.c - One Flag CTF
+void OneFCTF_CheckTeamItems(void);
+
+// g_gametype_obelisk.c - Overload
+void Obelisk_CheckTeamItems(void);
+
+// g_gametype_har.c - Harvester
+void Harvester_CheckTeamItems(void);
+void Harvester_RegisterItems(void);
+
+// g_gametype_race.c - Race mode checkpoint system
+void SP_race_point(gentity_t *ent);
+void Touch_RaceCheckpoint(gentity_t *self, gentity_t *other, trace_t *trace);
+int Race_GetNumPoints(void);
+void Race_ResetCheckpoints(gentity_t *playerEnt);
+
+// g_gametype_ad.c - Attack & Defend round state machine
+void AD_RoundStateTransition(void);
+qboolean AD_CheckExitRules(int doExit);
+void AD_RunFrame(void);
+int AD_IsInPlayState(void);
+int AD_CanScore(void);
+
+// [QL] RR infection cvars
+extern vmCvar_t g_rrInfectedSpreadTime;
+extern vmCvar_t g_rrInfectedSpreadWarningTime;
+extern vmCvar_t g_rrInfectedSurvivorScoreMethod;
+extern vmCvar_t g_rrInfectedSurvivorScoreRate;
+extern vmCvar_t g_rrInfectedSurvivorScoreBonus;
+
+// g_gametype_rr.c - Red Rover round state machine
+void RR_RoundStateTransition(void);
+void RR_RunFrame(void);
+void RR_OnPlayerDeath(gentity_t *victim);
+void RR_CheckInfection(void);
+void RR_SurvivalBonus(int mode);
+
+// g_gametype_ft.c - Freeze Tag round state machine
+void Freeze_RoundStateTransition(void);
+void Freeze_Think(void);
+void Freeze_ClientThawCheck(gentity_t *ent);
+void Freeze_PlayerFrozen(gentity_t *self);
+qboolean Freeze_TeamFrozen(int team);
+qboolean Freeze_GameIsOver(int *aliveCounts, int *healthTotals);
+
+// g_gametype_ca.c - Clan Arena round state machine
+void CA_RoundStateTransition(void);
+qboolean CA_CheckExitRules(int doExit);
+qboolean CA_AccuracyMessage(gentity_t *target, gentity_t *attacker, int *damage, int *knockback);
+void CA_RunFrame(void);
+void CA_PlayerDied(gentity_t *self);
 void G_RegisterCvars(void);
 
 //
@@ -801,10 +895,9 @@ void ClientBegin_RoundBased(gentity_t* ent);
 void ClientBegin_Freeze(gentity_t* ent);
 void ClientBegin_RedRover(gentity_t* ent);
 void SelectSpawnWeapon(gentity_t* ent);
-void UpdateTeamAliveCount(void);
+void UpdateTeamAliveCount(int *outRed, int *outBlue);
 int G_GetAccessLevel(const char* ip);
 void G_ReleaseGrapple(gentity_t* ent);
-void DuelScoreboardMessage(gentity_t* ent);
 void STAT_InitClient(gentity_t* ent);
 void STAT_PublishClientDisconnect(gclient_t* client, int reason);
 void STAT_SubscribeClient(gentity_t* ent);
@@ -968,6 +1061,15 @@ extern vmCvar_t g_damage_cg;
 extern vmCvar_t g_damage_hmg;
 extern vmCvar_t g_damage_pl;
 
+// [QL] per-weapon advanced cvars
+extern vmCvar_t g_damage_sg_outer;
+extern vmCvar_t g_damage_sg_falloff;
+extern vmCvar_t g_range_sg_falloff;
+extern vmCvar_t g_damage_lg_falloff;
+extern vmCvar_t g_range_lg_falloff;
+extern vmCvar_t g_headShotDamage_rg;
+extern vmCvar_t g_railJump;
+
 // [QL] per-weapon knockback multiplier cvars
 extern vmCvar_t g_knockback_g;
 extern vmCvar_t g_knockback_mg;
@@ -1056,6 +1158,7 @@ extern vmCvar_t pmove_AirControl;
 extern vmCvar_t pmove_AutoHop;
 extern vmCvar_t pmove_CrouchSlide;
 extern vmCvar_t pmove_DoubleJump;
+extern vmCvar_t pmove_NoPlayerClip;
 
 // [QL] loadout system
 extern vmCvar_t g_loadout;
@@ -1083,11 +1186,71 @@ extern vmCvar_t g_quadDamageFactor;
 extern vmCvar_t g_freezeRoundDelay;
 extern vmCvar_t g_timeoutCount;
 
+// [QL] damage-through-surface
+extern vmCvar_t g_forceDmgThroughSurface;
+extern vmCvar_t g_dmgThroughSurfaceDistance;
+extern vmCvar_t g_dmgThroughSurfaceDampening;
+extern vmCvar_t g_dmgThroughSurfaceAngularThreshold;
+
+// [QL] player cylinder hitbox
+extern vmCvar_t g_playerCylinders;
+
+// [QL] server framerate
+extern vmCvar_t sv_fps;
+
+// [QL] round-based game mode cvars
+extern vmCvar_t roundtimelimit;
+extern vmCvar_t g_roundWarmupDelay;
+extern vmCvar_t roundlimit;
+extern vmCvar_t g_accuracyFlags;
+extern vmCvar_t g_lastManStandingWarning;
+extern vmCvar_t g_roundDrawLivingCount;
+extern vmCvar_t g_roundDrawHealthCount;
+extern vmCvar_t g_spawnArmor;
+extern vmCvar_t g_adElimScoreBonus;
+
+// [QL] freeze tag cvars
+extern vmCvar_t g_freezeThawTick;
+extern vmCvar_t g_freezeProtectedSpawnTime;
+extern vmCvar_t g_freezeThawTime;
+extern vmCvar_t g_freezeAutoThawTime;
+extern vmCvar_t g_freezeThawRadius;
+extern vmCvar_t g_freezeThawThroughSurface;
+extern vmCvar_t g_freezeThawWinningTeam;
+extern vmCvar_t g_freezeRemovePowerupsOnRound;
+extern vmCvar_t g_freezeResetHealthOnRound;
+extern vmCvar_t g_freezeResetArmorOnRound;
+extern vmCvar_t g_freezeResetWeaponsOnRound;
+extern vmCvar_t g_freezeAllowRespawn;
+
+// [QL] lag compensation
+extern vmCvar_t g_lagHaxHistory;
+extern vmCvar_t g_lagHaxMs;
+
+// g_unlagged.c - lag compensation (HAX_* system)
+void HAX_Init(void);
+void HAX_Clear(gentity_t *ent);
+void HAX_Update(gentity_t *ent);
+void HAX_Begin(gentity_t *shooter, int commandTime);
+void HAX_End(gentity_t *shooter);
+
+// [QL] weapon modifiers
+extern vmCvar_t g_ironsights_mg;
+
+// [QL] Quad Hog
+extern vmCvar_t g_quadHog;
+extern vmCvar_t g_quadHogTime;
+extern vmCvar_t g_damagePlums;
+void G_QG_Touch_Item(gentity_t *ent, gentity_t *other, trace_t *trace);
+gentity_t *G_QG_RespawnQuad(vec3_t origin);
+void G_QG_Think(void);
+
 // [QL] starting loadout cvars
 extern vmCvar_t g_startingWeapons;
 extern vmCvar_t g_startingHealth;
 extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
+extern vmCvar_t armor_tiered;
 extern vmCvar_t g_startingAmmo_g;
 extern vmCvar_t g_startingAmmo_mg;
 extern vmCvar_t g_startingAmmo_sg;
@@ -1133,6 +1296,7 @@ void trap_SetUserinfo(int num, const char* buffer);
 void trap_GetServerinfo(char* buffer, int bufferSize);
 void trap_SetBrushModel(gentity_t* ent, const char* name);
 void trap_Trace(trace_t* results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask);
+void trap_TraceCapsule(trace_t* results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask);
 int trap_PointContents(const vec3_t point, int passEntityNum);
 qboolean trap_InPVS(const vec3_t p1, const vec3_t p2);
 qboolean trap_InPVSIgnorePortals(const vec3_t p1, const vec3_t p2);

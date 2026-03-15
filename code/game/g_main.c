@@ -234,6 +234,74 @@ vmCvar_t g_quadDamageFactor;
 vmCvar_t g_freezeRoundDelay;
 vmCvar_t g_timeoutCount;
 
+// [QL] damage-through-surface cvars
+vmCvar_t g_forceDmgThroughSurface;
+vmCvar_t g_dmgThroughSurfaceDistance;
+vmCvar_t g_dmgThroughSurfaceDampening;
+vmCvar_t g_dmgThroughSurfaceAngularThreshold;
+
+// [QL] player cylinder hitbox
+vmCvar_t g_playerCylinders;
+
+// [QL] server framerate
+vmCvar_t sv_fps;
+
+// [QL] round-based game mode cvars
+vmCvar_t roundtimelimit;
+vmCvar_t g_roundWarmupDelay;
+vmCvar_t roundlimit;
+vmCvar_t g_accuracyFlags;
+vmCvar_t g_lastManStandingWarning;
+vmCvar_t g_roundDrawLivingCount;
+vmCvar_t g_roundDrawHealthCount;
+vmCvar_t g_spawnArmor;
+vmCvar_t g_adElimScoreBonus;
+
+// [QL] freeze tag cvars
+vmCvar_t g_freezeThawTick;
+vmCvar_t g_freezeProtectedSpawnTime;
+vmCvar_t g_freezeThawTime;
+vmCvar_t g_freezeAutoThawTime;
+vmCvar_t g_freezeThawRadius;
+vmCvar_t g_freezeThawThroughSurface;
+vmCvar_t g_freezeThawWinningTeam;
+vmCvar_t g_freezeRemovePowerupsOnRound;
+vmCvar_t g_freezeResetHealthOnRound;
+vmCvar_t g_freezeResetArmorOnRound;
+vmCvar_t g_freezeResetWeaponsOnRound;
+vmCvar_t g_freezeAllowRespawn;
+
+// [QL] lag compensation
+vmCvar_t g_lagHaxHistory;
+vmCvar_t g_lagHaxMs;
+
+// [QL] weapon modifiers
+vmCvar_t g_ironsights_mg;
+
+// [QL] Quad Hog
+vmCvar_t g_quadHog;
+vmCvar_t g_quadHogTime;
+vmCvar_t g_damagePlums;
+
+// [QL] per-weapon advanced cvars
+vmCvar_t g_damage_sg_outer;
+vmCvar_t g_damage_sg_falloff;
+vmCvar_t g_range_sg_falloff;
+vmCvar_t g_damage_lg_falloff;
+vmCvar_t g_range_lg_falloff;
+vmCvar_t g_headShotDamage_rg;
+vmCvar_t g_railJump;
+
+// [QL] RR infection mode
+vmCvar_t g_rrInfectedSpreadTime;
+vmCvar_t g_rrInfectedSpreadWarningTime;
+vmCvar_t g_rrInfectedSurvivorScoreMethod;
+vmCvar_t g_rrInfectedSurvivorScoreRate;
+vmCvar_t g_rrInfectedSurvivorScoreBonus;
+
+// [QL] tiered armor
+vmCvar_t armor_tiered;
+
 // [QL] starting loadout cvars
 vmCvar_t g_startingWeapons;
 vmCvar_t g_startingHealth;
@@ -634,6 +702,72 @@ static cvarTable_t gameCvarTable[] = {
     {&pmove_CrouchSlide, "pmove_CrouchSlide", "0", 0, 0, OnChangedPmoveCrouchSlide},
     {&pmove_VelocityGH, "pmove_velocity_gh", "800", 0, 0, OnChangedPmoveVelocityGH},
 
+    // [QL] damage-through-surface
+    {&g_forceDmgThroughSurface, "g_forceDmgThroughSurface", "0", 0, 0, NULL},
+    {&g_dmgThroughSurfaceDistance, "g_dmgThroughSurfaceDistance", "-33.1", 0, 0, NULL},
+    {&g_dmgThroughSurfaceDampening, "g_dmgThroughSurfaceDampening", "0.5", 0, 0, NULL},
+    {&g_dmgThroughSurfaceAngularThreshold, "g_dmgThroughSurfaceAngularThreshold", "0.5", 0, 0, NULL},
+
+    // [QL] player cylinders
+    {&g_playerCylinders, "g_playerCylinders", "1", CVAR_INIT, 0, NULL},
+    {&sv_fps, "sv_fps", "40", CVAR_ARCHIVE, 0, NULL},
+
+    // [QL] round-based cvars
+    {&roundtimelimit, "roundtimelimit", "180", CVAR_SERVERINFO | CVAR_NORESTART, 0, NULL},
+    {&g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_SERVERINFO, 0, NULL},
+    {&roundlimit, "roundlimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_accuracyFlags, "g_accuracyFlags", "0", 0, 0, NULL},
+    {&g_lastManStandingWarning, "g_lastManStandingWarning", "0", 0, 0, NULL},
+    {&g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", 0, 0, NULL},
+    {&g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", 0, 0, NULL},
+    {&g_spawnArmor, "g_spawnArmor", "0", 0, 0, NULL},
+    {&g_adElimScoreBonus, "g_adElimScoreBonus", "1", CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] freeze tag cvars
+    {&g_freezeThawTick, "g_freezeThawTick", "1", CVAR_INIT, 0, NULL},
+    {&g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "0", CVAR_INIT, 0, NULL},
+    {&g_freezeThawTime, "g_freezeThawTime", "2000", 0, 0, NULL},
+    {&g_freezeAutoThawTime, "g_freezeAutoThawTime", "120000", 0, 0, NULL},
+    {&g_freezeThawRadius, "g_freezeThawRadius", "96", 0, 0, NULL},
+    {&g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", 0, 0, NULL},
+    {&g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", 0, 0, NULL},
+    {&g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", 0, 0, NULL},
+    {&g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", 0, 0, NULL},
+    {&g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", 0, 0, NULL},
+    {&g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", 0, 0, NULL},
+    {&g_freezeAllowRespawn, "g_freezeAllowRespawn", "0", 0, 0, NULL},
+    {&g_freezeRoundDelay, "g_freezeRoundDelay", "0", CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] lag compensation / weapon modifiers
+    {&g_lagHaxHistory, "g_lagHaxHistory", "4", CVAR_LATCH, 0, NULL},
+    {&g_lagHaxMs, "g_lagHaxMs", "80", 0, 0, NULL},
+    {&g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_TEMP | CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] Quad Hog
+    {&g_quadHog, "g_quadHog", "0", 0, 0, NULL},
+    {&g_quadHogTime, "g_quadHogTime", "30", 0, 0, NULL},
+    {&g_damagePlums, "g_damagePlums", "1", CVAR_SERVERINFO, 0, NULL},
+
+    // [QL] per-weapon advanced
+    {&g_damage_sg_outer, "g_damage_sg_outer", "5", 0, 0, NULL},
+    {&g_damage_sg_falloff, "g_damage_sg_falloff", "0", 0, 0, NULL},
+    {&g_range_sg_falloff, "g_range_sg_falloff", "768", 0, 0, NULL},
+    {&g_damage_lg_falloff, "g_damage_lg_falloff", "0", 0, 0, NULL},
+    {&g_range_lg_falloff, "g_range_lg_falloff", "768", 0, 0, NULL},
+    {&g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, NULL},
+    {&g_railJump, "g_railJump", "0", 0, 0, NULL},
+
+    // [QL] RR infection mode
+    {&g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", 0, 0, NULL},
+    {&g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", 0, 0, NULL},
+    {&g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", 0, 0, NULL},
+    {&g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", 0, 0, NULL},
+    {&g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", 0, 0, NULL},
+
+    // [QL] tiered armor
+    {&armor_tiered, "armor_tiered", "0", 0, 0, NULL},
+    {&g_startingArmor, "g_startingArmor", "0", 0, 0, NULL},
+
     // NULL terminator
     {NULL, NULL, NULL, 0, 0, NULL}
 };
@@ -877,7 +1011,7 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
 
     level.snd_fry = G_SoundIndex("sound/player/fry.wav");  // FIXME standing in lava / slime
 
-    if (g_gametype.integer != GT_SINGLE_PLAYER && g_logfile.string[0]) {
+    if (g_logfile.string[0]) {
         if (g_logfileSync.integer) {
             trap_FS_FOpenFile(g_logfile.string, &level.logFile, FS_APPEND_SYNC);
         } else {
@@ -937,6 +1071,11 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
     // general initialization
     G_FindTeams();
 
+    // [QL] Lag compensation init
+    if (g_lagHaxMs.integer != 0 && g_lagHaxHistory.integer != 0) {
+        HAX_Init();
+    }
+
     // make sure we have flags for CTF, etc
     if (g_gametype.integer >= GT_TEAM) {
         G_CheckTeamItems();
@@ -946,7 +1085,7 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
 
     G_Printf("-----------------------------------\n");
 
-    if (g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue("com_buildScript")) {
+    if (trap_Cvar_VariableIntegerValue("com_buildScript")) {
         G_ModelIndex(SP_PODIUM_MODEL);
     }
 
@@ -2465,63 +2604,7 @@ static void CheckWarmup(void) {
     }
 }
 
-/*
-=============
-CheckTournament
-
-[QL] Duel-only: pull in spectators from the queue when a slot opens.
-Binary: FUN_100557f0 in qagamex86.dll - only runs for GT_TOURNAMENT.
-Warmup state machine is now in CheckWarmup() (separate function).
-=============
-*/
-void CheckTournament(void) {
-    int i;
-    int numNonSpec;
-    gclient_t *cl;
-
-    if (g_gametype.integer != GT_TOURNAMENT) {
-        return;
-    }
-
-    // Count non-spectator connected clients
-    numNonSpec = 0;
-    for (i = 0; i < level.maxclients; i++) {
-        cl = level.clients + i;
-        if (cl->pers.connected != CON_DISCONNECTED &&
-            cl->sess.sessionTeam != TEAM_SPECTATOR) {
-            numNonSpec++;
-        }
-    }
-
-    // If we already have 2 players, nothing to do
-    if (numNonSpec >= 2) {
-        return;
-    }
-
-    // Pull in next spectator from the queue
-    AddTournamentPlayer();
-
-    if (level.warmupTime != -1) {
-        SetWarmupState(-1);
-
-        // Clear allReadyTime countdown if active
-        if (level.allReadyTime != 0) {
-            level.allReadyTime = 0;
-        }
-    }
-
-    // Reset specOnly on connected playing clients
-    for (i = 0; i < level.maxclients; i++) {
-        cl = level.clients + i;
-        if (cl->pers.connected != CON_DISCONNECTED &&
-            cl->sess.sessionTeam != TEAM_SPECTATOR) {
-            if (cl->sess.specOnly == 1) {
-                cl->sess.specOnly = 0;
-            }
-            ClientUserinfoChanged(i);
-        }
-    }
-}
+// CheckTournament moved to g_gametype_duel.c
 
 /*
 ==================
