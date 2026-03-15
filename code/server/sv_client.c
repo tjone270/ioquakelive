@@ -61,8 +61,8 @@ void SV_GetChallenge(netadr_t from) {
     char* gameName;
     qboolean gameMismatch;
 
-    // ignore if we are in single player
-    if (Cvar_VariableValue("g_gametype") == GT_SINGLE_PLAYER || Cvar_VariableValue("ui_singlePlayerActive")) {
+    // [QL] GT_SINGLE_PLAYER check removed - index 2 is GT_RACE in QL, must allow connections
+    if (Cvar_VariableValue("ui_singlePlayerActive")) {
         return;
     }
 

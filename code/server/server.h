@@ -102,11 +102,9 @@ typedef enum {
     CS_ACTIVE      // client is fully in game
 } clientState_t;
 
-#define MAX_NETCHAN_MSGLEN 32768 // [QL] netchan uses 32KB buffers (Q3 used MAX_MSGLEN=16KB)
-
 typedef struct netchan_buffer_s {
     msg_t msg;
-    byte msgBuffer[MAX_NETCHAN_MSGLEN]; // [QL] 32KB buffer
+    byte msgBuffer[MAX_MSGLEN]; // [QL] 32KB buffer
     char clientCommandString[MAX_STRING_CHARS];  // valid command string for SV_Netchan_Encode
     struct netchan_buffer_s* next;
 } netchan_buffer_t;

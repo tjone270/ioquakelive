@@ -95,6 +95,7 @@ field_t fields[] = {
     {"spawnflags", FOFS(spawnflags), F_INT},
     {"speed", FOFS(speed), F_FLOAT},
     {"target", FOFS(target), F_STRING},
+    {"target2", FOFS(target2), F_STRING},
     {"targetname", FOFS(targetname), F_STRING},
     {"message", FOFS(message), F_STRING},
     {"team", FOFS(team), F_STRING},
@@ -193,17 +194,9 @@ void SP_advertisement(gentity_t *ent) {
     trap_LinkEntity(ent);
 }
 
-void SP_team_dom_point(gentity_t *ent) {
-    // [QL] domination point - only functional in GT_DOM (10)
-    // point entity, no brush model
-    G_FreeEntity(ent);
-}
-
-void SP_race_point(gentity_t *ent) {
-    // [QL] race checkpoint - only functional in GT_RACE (2)
-    // point entity, no brush model
-    G_FreeEntity(ent);
-}
+// defined in g_gametype_dom.c / g_gametype_race.c
+void SP_team_dom_point(gentity_t *ent);
+void SP_race_point(gentity_t *ent);
 
 spawn_t spawns[] = {
     // info entities don't do anything at all, but provide positional
@@ -430,16 +423,12 @@ void G_SpawnGEntityFromSpawnVars(void) {
         G_ParseField(level.spawnVars[i][0], level.spawnVars[i][1], ent);
     }
 
-    // check for "notsingle" flag
-    if (g_gametype.integer == GT_SINGLE_PLAYER) {
-        G_SpawnInt("notsingle", "0", &i);
-        if (i) {
-            ADJUST_AREAPORTAL();
-            G_FreeEntity(ent);
-            return;
-        }
-    }
-    // check for "notteam" flag (GT_FFA, GT_TOURNAMENT, GT_SINGLE_PLAYER)
+    // [QL] binary-verified entity filtering (from qagamex86.dll 0x10066080):
+    // 1. notteam/notfree filter based on gametype category
+    // 2. "gametype" positive filter - entity only spawns if current gametype is listed
+    // 3. "not_gametype" negative filter - entity is suppressed if current gametype is listed
+    // No notsingle/notta checks exist in QL binary.
+
     if (g_gametype.integer >= GT_TEAM) {
         G_SpawnInt("notteam", "0", &i);
         if (i) {
@@ -456,19 +445,25 @@ void G_SpawnGEntityFromSpawnVars(void) {
         }
     }
 
-    G_SpawnInt("notta", "0", &i);
-    if (i) {
-        ADJUST_AREAPORTAL();
-        G_FreeEntity(ent);
-        return;
-    }
-
+    // [QL] "gametype" key: positive filter - only spawn if current gametype is in the list
     if (G_SpawnString("gametype", NULL, &value)) {
         if (g_gametype.integer >= GT_FFA && g_gametype.integer < GT_MAX_GAME_TYPE) {
             gametypeName = (char *)gametypeShortNames[g_gametype.integer];
-
             s = strstr(value, gametypeName);
             if (!s) {
+                ADJUST_AREAPORTAL();
+                G_FreeEntity(ent);
+                return;
+            }
+        }
+    }
+
+    // [QL] "not_gametype" key: negative filter - suppress if current gametype IS in the list
+    if (G_SpawnString("not_gametype", NULL, &value)) {
+        if (g_gametype.integer >= GT_FFA && g_gametype.integer < GT_MAX_GAME_TYPE) {
+            gametypeName = (char *)gametypeShortNames[g_gametype.integer];
+            s = strstr(value, gametypeName);
+            if (s) {
                 ADJUST_AREAPORTAL();
                 G_FreeEntity(ent);
                 return;

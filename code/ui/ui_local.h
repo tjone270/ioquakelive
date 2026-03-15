@@ -1036,14 +1036,7 @@ void UI_NetworkOptionsMenu(void);
 //
 // ui_gameinfo.c
 //
-typedef enum {
-    AWARD_ACCURACY,
-    AWARD_IMPRESSIVE,
-    AWARD_EXCELLENT,
-    AWARD_GAUNTLET,
-    AWARD_FRAGS,
-    AWARD_PERFECT
-} awardType_t;
+// award_t enum is now in bg_public.h with correct QL values
 
 const char* UI_GetArenaInfoByNumber(int num);
 const char* UI_GetArenaInfoByMap(const char* map);
