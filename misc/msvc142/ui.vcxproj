@@ -182,7 +182,7 @@
       <Command>powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Making bin.pk3 (ui)</Message>
+      <Message>Making iobin pk3 (ui)</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -249,7 +249,7 @@
       <Command>powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Making bin.pk3 (ui)</Message>
+      <Message>Making iobin pk3 (ui)</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
