@@ -204,6 +204,14 @@ void AD_RoundStateTransition(void) {
                 cl->round_shots = 0;
                 cl->round_hits = 0;
                 cl->round_damage = 0;
+                cl->expandedStats.killStreak = 0;
+                if (cl->sess.sessionTeam != TEAM_SPECTATOR) {
+                    cl->ps.pm_type = PM_NORMAL;
+                }
+                if (g_spawnArmor.integer != 0) {
+                    cl->ps.powerups[PW_QUAD] =
+                        (level.time / 1000) * 1000 + g_spawnArmor.integer;
+                }
             }
         }
 
@@ -244,6 +252,36 @@ void AD_RoundStateTransition(void) {
                 level.teamScores[TEAM_RED] += g_adElimScoreBonus.integer;
             }
             winTeam = TEAM_RED;
+        }
+
+        // Award medals
+        for (i = 0; i < level.maxclients; i++) {
+            gclient_t *cl = &level.clients[i];
+            gentity_t *ent = &g_entities[i];
+            if (cl->pers.connected != CON_CONNECTED) continue;
+
+            // Accuracy award: >50% hit rate this round
+            if (cl->round_shots != 0) {
+                int acc = (cl->round_hits * 100) / cl->round_shots;
+                if ((double)acc > 50.0) {
+                    gentity_t *te = G_TempEntity(ent->r.currentOrigin, EV_AWARD);
+                    te->r.svFlags |= SVF_BROADCAST;
+                    te->s.otherEntityNum = ent->s.number;
+                    te->s.eventParm = AWARD_ACCURACY;
+                    te->s.otherEntityNum2 = 1;
+                    cl->rewardTime = level.time + REWARD_SPRITE_TIME;
+                }
+            }
+
+            // Perfect award: on winning team with 0 damage taken
+            if (cl->round_damage == 0) {
+                gentity_t *te = G_TempEntity(ent->r.currentOrigin, EV_AWARD);
+                te->r.svFlags |= SVF_BROADCAST;
+                te->s.otherEntityNum = ent->s.number;
+                te->s.eventParm = AWARD_PERFECT;
+                te->s.otherEntityNum2 = 1;
+                cl->rewardTime = level.time + REWARD_SPRITE_TIME;
+            }
         }
 
         CalculateRanks();
@@ -302,8 +340,12 @@ void AD_RoundStateTransition(void) {
         return;
     }
 
-    default:  // state 5 = exit
+    case RS_EXIT:
         AD_CheckExitRules(1);
+        return;
+
+    default:
+        G_Error("AD_RoundStateTransition: invalid state");
         return;
     }
 }

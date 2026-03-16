@@ -154,18 +154,59 @@ void Freeze_RoundStateTransition(void) {
                 continue;
 
             // Handle frozen/dead players from previous round
-            if (cl->ps.pm_type == PM_FREEZE || cl->ps.pm_type == PM_DEAD) {
+            if (cl->ps.pm_type == PM_FREEZE) {
                 if (g_freezeThawWinningTeam.integer != 0 ||
                     cl->sess.sessionTeam != level.roundState.prevRoundWinningTeam) {
+                    // Thaw event
+                    G_TempEntity(ent->r.currentOrigin, EV_THAW_PLAYER);
                     cl->ps.pm_type = PM_NORMAL;
                     ClientSpawn(ent);
                 }
-            } else if (cl->ps.pm_type == PM_SPECTATOR) {
+            } else if (cl->ps.pm_type == PM_SPECTATOR || cl->ps.pm_type == PM_DEAD) {
                 cl->ps.pm_type = PM_NORMAL;
                 ClientSpawn(ent);
             }
 
-            cl->ps.pm_flags |= PMF_FROZEN;
+            // Clamp powerup timers when removing powerups on round start
+            if (g_freezeRemovePowerupsOnRound.integer != 0) {
+                int j;
+                for (j = PW_QUAD; j <= PW_FLIGHT; j++) {
+                    if (cl->ps.powerups[j] > level.time + 3000) {
+                        cl->ps.powerups[j] = level.time + 3000;
+                    }
+                }
+            }
+
+            // Reset weapons on round start
+            if (g_freezeResetWeaponsOnRound.integer != 0 && cl->ps.pm_type != PM_FREEZE) {
+                SelectSpawnWeapon(ent);
+            }
+
+            // Reset health/armor on round start
+            if (g_freezeResetHealthOnRound.integer != 0 && cl->ps.pm_type != PM_FREEZE) {
+                ent->health = cl->pers.maxHealth;
+                cl->ps.stats[STAT_HEALTH] = ent->health;
+                if (g_freezeResetArmorOnRound.integer != 0) {
+                    cl->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
+                }
+            }
+
+            // Freeze all players (if not first round)
+            if (level.roundState.eCurrent != RS_WARMUP) {
+                cl->ps.pm_flags |= PMF_FROZEN;
+            }
+        }
+
+        // Remove powerup items from map
+        if (g_freezeRemovePowerupsOnRound.integer != 0) {
+            gentity_t *mapEnt;
+            for (mapEnt = &g_entities[0]; mapEnt < &g_entities[level.num_entities]; mapEnt++) {
+                if (mapEnt->inuse && mapEnt->item &&
+                    mapEnt->item->giType == IT_POWERUP &&
+                    (mapEnt->flags & FL_DROPPED_ITEM)) {
+                    G_FreeEntity(mapEnt);
+                }
+            }
         }
 
         UpdateTeamAliveCount(NULL, NULL);
@@ -173,20 +214,24 @@ void Freeze_RoundStateTransition(void) {
 
         {
             int countdown = g_freezeRoundDelay.integer;
-            if (countdown <= 0) countdown = g_roundWarmupDelay.integer;
+            if (level.roundState.round == 1) {
+                countdown = g_roundWarmupDelay.integer;
+            }
             if (countdown == 0) {
                 level.roundState.tNext = 0;
                 level.roundState.eCurrent = RS_PLAYING;
                 Freeze_RoundStateTransition();
-                return;
+            } else {
+                level.roundState.tNext = level.time + countdown;
+                level.roundState.eNext = RS_PLAYING;
             }
-            level.roundState.tNext = level.time + countdown;
-            level.roundState.eNext = RS_PLAYING;
         }
 
-        trap_SetConfigstring(CS_ROUND_STATUS,
-            va("\\time\\%d\\round\\%d",
-                level.roundState.tNext, level.roundState.round));
+        if (level.roundState.eCurrent != RS_WARMUP) {
+            trap_SetConfigstring(CS_ROUND_STATUS,
+                va("\\time\\%d\\round\\%d",
+                    level.roundState.tNext, level.roundState.round));
+        }
         return;
 
     case RS_PLAYING:
@@ -197,6 +242,11 @@ void Freeze_RoundStateTransition(void) {
                 cl->round_shots = 0;
                 cl->round_hits = 0;
                 cl->round_damage = 0;
+                cl->expandedStats.killStreak = 0;
+                if (g_spawnArmor.integer != 0) {
+                    cl->ps.powerups[PW_QUAD] =
+                        (level.time / 1000) * 1000 + g_spawnArmor.integer;
+                }
             }
         }
         trap_SetConfigstring(CS_ROUND_TIME, va("%d", level.time));
@@ -245,6 +295,36 @@ void Freeze_RoundStateTransition(void) {
             }
         }
 
+        // Award medals
+        for (i = 0; i < level.maxclients; i++) {
+            gclient_t *cl = &level.clients[i];
+            gentity_t *ent2 = &g_entities[i];
+            if (cl->pers.connected != CON_CONNECTED) continue;
+
+            // Accuracy award: >50% hit rate this round
+            if (cl->round_shots != 0) {
+                int acc = (cl->round_hits * 100) / cl->round_shots;
+                if ((double)acc > 50.0) {
+                    gentity_t *te = G_TempEntity(ent2->r.currentOrigin, EV_AWARD);
+                    te->r.svFlags |= SVF_BROADCAST;
+                    te->s.otherEntityNum = ent2->s.number;
+                    te->s.eventParm = AWARD_ACCURACY;
+                    te->s.otherEntityNum2 = 1;
+                    cl->rewardTime = level.time + REWARD_SPRITE_TIME;
+                }
+            }
+
+            // Perfect award: on winning team with 0 damage taken
+            if (cl->sess.sessionTeam == winTeam && cl->round_damage == 0) {
+                gentity_t *te = G_TempEntity(ent2->r.currentOrigin, EV_AWARD);
+                te->r.svFlags |= SVF_BROADCAST;
+                te->s.otherEntityNum = ent2->s.number;
+                te->s.eventParm = AWARD_PERFECT;
+                te->s.otherEntityNum2 = 1;
+                cl->rewardTime = level.time + REWARD_SPRITE_TIME;
+            }
+        }
+
         level.roundState.round++;
         CalculateRanks();
 
@@ -289,8 +369,12 @@ void Freeze_RoundStateTransition(void) {
         return;
     }
 
-    default:  // state 5 = exit
+    case RS_EXIT:
         CA_CheckExitRules(1);
+        return;
+
+    default:
+        G_Error("Freeze_RoundStateTransition: invalid state");
         return;
     }
 }

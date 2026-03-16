@@ -228,6 +228,11 @@ void RR_RoundStateTransition(void) {
                 cl->round_shots = 0;
                 cl->round_hits = 0;
                 cl->round_damage = 0;
+                cl->expandedStats.killStreak = 0;
+                if (g_spawnArmor.integer != 0) {
+                    cl->ps.powerups[PW_QUAD] =
+                        (level.time / 1000) * 1000 + g_spawnArmor.integer;
+                }
             }
         }
         level.roundState.round = level.teamScores[TEAM_BLUE] + level.teamScores[TEAM_RED] + 1;

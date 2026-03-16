@@ -442,15 +442,13 @@ struct gclient_s {
     int deferredSpawnTime;      // [QL]
     int deferredSpawnCount;     // [QL]
     raceInfo_t race;            // [QL] (552 bytes)
-    int damagePlum[MAX_CLIENTS]; // [QL] accumulated SG damage per target for EV_DAMAGEPLUM
-    int shotgunDmg[64];         // [QL]
-    int round_shots;            // [QL]
+    int damagePlum[MAX_CLIENTS]; // [QL] per-client damage accumulator (binary: 0xAC4, 256 bytes)
+    int round_shots;            // [QL] shots fired this round (binary: 0xBC4)
     int round_hits;             // [QL]
     int round_damage;           // [QL]
-    qboolean queuedSpectatorFollow; // [QL]
-    int queuedSpectatorClient;  // [QL]
-
-    char* areabits;
+    qboolean queuedSpectatorFollow; // [QL] (binary: 0xBD0)
+    int queuedSpectatorClient;  // [QL] (binary: 0xBD4)
+    // Total size: 0xBD8 (3032 bytes)
 };
 
 //
