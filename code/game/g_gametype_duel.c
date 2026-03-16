@@ -384,7 +384,7 @@ void DuelScoreboardMessage(gentity_t *ent) {
 CheckTournament
 
 [QL] Duel-only: pull in spectators from the queue when a slot opens.
-Binary: FUN_100557f0 in qagamex86.dll - only runs for GT_TOURNAMENT.
+Binary: FUN_100557f0 in qagamex86.dll - only runs for GT_DUEL.
 Warmup state machine is now in CheckWarmup() (separate function).
 =============
 */
@@ -393,7 +393,7 @@ void CheckTournament(void) {
     int numNonSpec;
     gclient_t *cl;
 
-    if (g_gametype.integer != GT_TOURNAMENT) {
+    if (g_gametype.integer != GT_DUEL) {
         return;
     }
 

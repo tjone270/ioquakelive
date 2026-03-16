@@ -2351,7 +2351,7 @@ static void UI_StartSkirmish(qboolean next) {
 
     delay = 500;
 
-    if (g == GT_TOURNAMENT) {
+    if (g == GT_DUEL) {
         trap_Cvar_Set("sv_maxClients", "2");
         Com_sprintf(buff, sizeof(buff),
                     "wait ; addbot %s %f "

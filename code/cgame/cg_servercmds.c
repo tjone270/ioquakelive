@@ -624,7 +624,7 @@ static void CG_ParseWarmup(void) {
     } else if (warmup > 0 && cg.warmup <= 0) {
         // countdown started
         int gt = (cg.warmupGametype >= 0) ? cg.warmupGametype : cgs.gametype;
-        if (gt < GT_TEAM || gt == GT_TOURNAMENT || gt == GT_RR) {
+        if (gt < GT_TEAM || gt == GT_DUEL || gt == GT_RR) {
             trap_S_StartLocalSound(cgs.media.countPrepareSound, CHAN_ANNOUNCER);
         } else {
             trap_S_StartLocalSound(cgs.media.countPrepareTeamSound, CHAN_ANNOUNCER);

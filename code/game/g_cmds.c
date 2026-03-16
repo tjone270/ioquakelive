@@ -513,7 +513,7 @@ void SetTeam(gentity_t* ent, const char* s) {
     }
 
     // override decision if limiting the players
-    if ((g_gametype.integer == GT_TOURNAMENT) && level.numNonSpectatorClients >= 2) {
+    if ((g_gametype.integer == GT_DUEL) && level.numNonSpectatorClients >= 2) {
         team = TEAM_SPECTATOR;
     } else if (g_maxGameClients.integer > 0 &&
                level.numNonSpectatorClients >= g_maxGameClients.integer) {
@@ -638,7 +638,7 @@ void Cmd_Team_f(gentity_t* ent) {
     }
 
     // if they are playing a tournement game, count as a loss
-    if ((g_gametype.integer == GT_TOURNAMENT) && ent->client->sess.sessionTeam == TEAM_FREE) {
+    if ((g_gametype.integer == GT_DUEL) && ent->client->sess.sessionTeam == TEAM_FREE) {
         ent->client->sess.losses++;
     }
 
@@ -682,7 +682,7 @@ void Cmd_Follow_f(gentity_t* ent) {
     }
 
     // if they are playing a tournement game, count as a loss
-    if ((g_gametype.integer == GT_TOURNAMENT) && ent->client->sess.sessionTeam == TEAM_FREE) {
+    if ((g_gametype.integer == GT_DUEL) && ent->client->sess.sessionTeam == TEAM_FREE) {
         ent->client->sess.losses++;
     }
 
@@ -705,7 +705,7 @@ void Cmd_FollowCycle_f(gentity_t* ent, int dir) {
     int original;
 
     // if they are playing a tournement game, count as a loss
-    if ((g_gametype.integer == GT_TOURNAMENT) && ent->client->sess.sessionTeam == TEAM_FREE) {
+    if ((g_gametype.integer == GT_DUEL) && ent->client->sess.sessionTeam == TEAM_FREE) {
         ent->client->sess.losses++;
     }
     // first set them to spectator
@@ -780,7 +780,7 @@ static void G_SayTo(gentity_t* ent, gentity_t* other, int mode, int color, const
         return;
     }
     // no chatting to players in tournements
-    if ((g_gametype.integer == GT_TOURNAMENT) && other->client->sess.sessionTeam == TEAM_FREE && ent->client->sess.sessionTeam != TEAM_FREE) {
+    if ((g_gametype.integer == GT_DUEL) && other->client->sess.sessionTeam == TEAM_FREE && ent->client->sess.sessionTeam != TEAM_FREE) {
         return;
     }
 
@@ -941,7 +941,7 @@ static void G_VoiceTo(gentity_t* ent, gentity_t* other, int mode, const char* id
         return;
     }
     // no chatting to players in tournements
-    if (g_gametype.integer == GT_TOURNAMENT) {
+    if (g_gametype.integer == GT_DUEL) {
         return;
     }
 
@@ -1445,7 +1445,7 @@ void Cmd_CallVote_f(gentity_t *ent) {
     }
     else if (!Q_stricmp(arg1, "teamsize")) {
         int ts;
-        if (g_gametype.integer == GT_TOURNAMENT) {
+        if (g_gametype.integer == GT_DUEL) {
             trap_SendServerCommand(clientNum,
                 "print \"Teamsize is not available in Duel.\n\"");
             return;

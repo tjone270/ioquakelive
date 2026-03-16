@@ -1537,7 +1537,7 @@ void CalculateRanks(void) {
         }
 
         // [QL] Duel-specific: set CS for 1st/2nd player scores + clientNums
-        if (g_gametype.integer == GT_TOURNAMENT && !level.intermissionQueued && !level.intermissionTime) {
+        if (g_gametype.integer == GT_DUEL && !level.intermissionQueued && !level.intermissionTime) {
             int p1, p2;
 
             if (level.numPlayingClients == 0) {
@@ -1697,7 +1697,7 @@ void BeginIntermission(void) {
     trap_SetConfigstring(CS_INTERMISSION, "1");
 
     // if in tournement mode, change the wins / losses
-    if (g_gametype.integer == GT_TOURNAMENT) {
+    if (g_gametype.integer == GT_DUEL) {
         AdjustTournamentScores();
     }
 
@@ -1812,7 +1812,7 @@ void ExitLevel(void) {
 
     // if we are running a tournement map, kick the loser to spectator status,
     // which will automatically grab the next spectator and restart
-    if (g_gametype.integer == GT_TOURNAMENT) {
+    if (g_gametype.integer == GT_DUEL) {
         if (!level.restarted) {
             RemoveTournamentLoser();
             trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
@@ -2193,7 +2193,7 @@ void CheckExitRules(void) {
     }
 
     if (g_fraglimit.integer &&
-        (g_gametype.integer == GT_FFA || g_gametype.integer == GT_TOURNAMENT || g_gametype.integer == GT_TEAM)) {
+        (g_gametype.integer == GT_FFA || g_gametype.integer == GT_DUEL || g_gametype.integer == GT_TEAM)) {
         if (level.teamScores[TEAM_RED] >= g_fraglimit.integer) {
             trap_SendServerCommand(-1, "print \"Red hit the fraglimit.\n\"");
             LogExit(0, 0, "Fraglimit hit.");
@@ -2323,7 +2323,7 @@ static qboolean CheckWarmupMinPlayers(void) {
 
     // [QL] Grace period: non-duel gametypes wait g_warmup seconds from map start
     // before allowing countdown (but only during PRE_GAME with warmup enabled)
-    if (g_doWarmup.integer != 0 && g_gametype.integer != GT_TOURNAMENT &&
+    if (g_doWarmup.integer != 0 && g_gametype.integer != GT_DUEL &&
         level.time - level.startTime < g_warmup.integer * 1000) {
         return qfalse;
     }
@@ -2382,7 +2382,7 @@ static qboolean CheckWarmupMinPlayers(void) {
 
     // Check ready requirements during PRE_GAME
     if (level.warmupTime < 0) {
-        if (g_gametype.integer == GT_TOURNAMENT) {
+        if (g_gametype.integer == GT_DUEL) {
             // Duel: need exactly 2 playing clients
             if (level.numPlayingClients == 2 && numPlaying == 2) {
                 return qtrue;
@@ -2479,7 +2479,7 @@ Binary: FUN_10057f90 in qagamex86.dll
 static void HandleForfeit(void) {
     int redCount, blueCount;
 
-    if (g_gametype.integer == GT_TOURNAMENT) {
+    if (g_gametype.integer == GT_DUEL) {
         // Duel: set losing score on disconnected/spectating players
         int i;
         for (i = 0; i < 2; i++) {
