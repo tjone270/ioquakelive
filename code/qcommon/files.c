@@ -3080,6 +3080,10 @@ static void FS_ReorderPurePaks(void) {
 FS_Startup
 ================
 */
+#ifdef _WIN32
+static void FS_AddWorkshopPaks(void);
+#endif
+
 static void FS_Startup(const char* gameName) {
 	const char* homePath;
 
@@ -3182,6 +3186,13 @@ static void FS_Startup(const char* gameName) {
 	FS_Path_f();
 
 	fs_gamedirvar->modified = qfalse;  // We just loaded, it's not modified
+
+#ifdef _WIN32
+	// Add Steam Workshop pk3s for Quake Live (app 282440).
+	// This runs inside FS_Startup so workshop paks are re-added on every
+	// filesystem restart (connect, disconnect, map_restart, etc.)
+	FS_AddWorkshopPaks();
+#endif
 
 	Com_Printf("----------------------\n");
 
@@ -3442,6 +3453,139 @@ static qboolean FS_FindSteamUserFolder(const char *qlPath, char *steamIdPath,
 	return qfalse;
 }
 
+/*
+===================
+FS_AddWorkshopPaks
+
+Find the Steam workshop directory for Quake Live (app 282440) and add
+each workshop item's directory to the filesystem search path so that
+any pk3 files within are loaded.
+
+Workshop content lives at:
+  <steamLibrary>/steamapps/workshop/content/282440/<workshopItemId>/
+
+We derive the library path from the QL install path by stripping
+"steamapps/common/Quake Live" to get back to the library root.
+===================
+*/
+static void FS_AddWorkshopPaks(void) {
+	char qlPath[MAX_OSPATH];
+	char workshopBase[MAX_OSPATH];
+	char searchPath[MAX_OSPATH];
+	char savedGamedir[MAX_OSPATH];
+	char *steamapps;
+	WIN32_FIND_DATAA dirFd;
+	HANDLE hDirFind;
+	int count = 0;
+
+	// Binary checks fs_skipWorkshop cvar (default 0)
+	if (Cvar_VariableIntegerValue("fs_skipWorkshop")) {
+		Com_Printf("Skipping workshop since fs_skipWorkshop is set.\n");
+		return;
+	}
+
+	if (!FS_FindSteamQLPath(qlPath, sizeof(qlPath))) {
+		Com_Printf("Workshop: Could not find Steam QL installation.\n");
+		return;
+	}
+
+	Com_Printf("Workshop: QL found at %s\n", qlPath);
+
+	// Find "steamapps" in the QL path to get the library root.
+	// qlPath = "<library>/steamapps/common/Quake Live"
+	// We want "<library>/steamapps/workshop/content/282440/"
+	{
+		char *p;
+		char temp[MAX_OSPATH];
+		Q_strncpyz(temp, qlPath, sizeof(temp));
+
+		for (p = temp; *p; p++) {
+			if (*p >= 'A' && *p <= 'Z') *p += 32;
+		}
+
+		steamapps = strstr(temp, "steamapps");
+		if (!steamapps)
+			return;
+
+		steamapps = qlPath + (steamapps - temp);
+	}
+
+	{
+		char libraryRoot[MAX_OSPATH];
+		int steamappsEnd = (int)(steamapps - qlPath) + 9;
+		if (steamappsEnd >= (int)sizeof(libraryRoot))
+			return;
+		Q_strncpyz(libraryRoot, qlPath, steamappsEnd + 1);
+		Com_sprintf(workshopBase, sizeof(workshopBase),
+		            "%s\\workshop\\content\\282440", libraryRoot);
+	}
+
+	Com_Printf("Workshop: checking %s\n", workshopBase);
+
+	if (!FS_DirExistsOS(workshopBase)) {
+		Com_Printf("Workshop: directory not found.\n");
+		return;
+	}
+
+	// Save fs_gamedir - FS_AddGameDirectory sets it to the dir param,
+	// and we pass "" which would leave it empty
+	Q_strncpyz(savedGamedir, fs_gamedir, sizeof(savedGamedir));
+
+	// Enumerate workshop item directories.
+	// The binary calls FS_AddGameDirectory(installPath, "") for each item,
+	// passing the full item path as the base and empty string as gamedir.
+	// This makes FS_BuildOSPath resolve to just the item directory.
+	Com_sprintf(searchPath, sizeof(searchPath), "%s\\*", workshopBase);
+	hDirFind = FindFirstFileA(searchPath, &dirFd);
+	if (hDirFind == INVALID_HANDLE_VALUE) {
+		Q_strncpyz(fs_gamedir, savedGamedir, sizeof(fs_gamedir));
+		return;
+	}
+
+	do {
+		char itemPath[MAX_OSPATH];
+		char pk3Test[MAX_OSPATH];
+		WIN32_FIND_DATAA pk3Fd;
+		HANDLE hPk3;
+
+		if (!(dirFd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+			continue;
+		if (dirFd.cFileName[0] == '.')
+			continue;
+
+		Com_sprintf(itemPath, sizeof(itemPath), "%s\\%s",
+		            workshopBase, dirFd.cFileName);
+
+		// Only add if the directory contains at least one pk3
+		Com_sprintf(pk3Test, sizeof(pk3Test), "%s\\*.pk3", itemPath);
+		hPk3 = FindFirstFileA(pk3Test, &pk3Fd);
+		if (hPk3 == INVALID_HANDLE_VALUE)
+			continue;
+		FindClose(hPk3);
+
+		// Load pk3s from the workshop item directory.
+		// We pass "" as gamedir so pk3s are loaded directly from itemPath.
+		// Then we patch pakGamename to BASEGAME_DIR so the paks pass
+		// ioquake3's pure server checks (which filter by gamename).
+		FS_AddGameDirectory(itemPath, "");
+
+		// Binary leaves pakGamename as "" for workshop paks.
+		// FS_Loaded* includes all paks (matching binary behavior).
+		// FS_Referenced* only includes paks with referenced flag set.
+		count++;
+	} while (FindNextFileA(hDirFind, &dirFd));
+
+	FindClose(hDirFind);
+
+	// Restore fs_gamedir to what it was before workshop loading
+	Q_strncpyz(fs_gamedir, savedGamedir, sizeof(fs_gamedir));
+
+	if (count > 0) {
+		Com_Printf("Added %d Steam Workshop item%s to search path.\n",
+		           count, count == 1 ? "" : "s");
+	}
+}
+
 static void FS_CopyFromSteam(void) {
 	char qlPath[MAX_OSPATH];
 	char pak00Dest[MAX_OSPATH];
@@ -3668,12 +3812,10 @@ const char* FS_ReferencedPakChecksums(void) {
 
 	info[0] = 0;
 
+	// [QL] Binary only includes paks with referenced flag set - no gamename fallback
 	for (search = fs_searchpaths; search; search = search->next) {
-		// is the element a pak file?
-		if (search->pack) {
-			if (search->pack->referenced || Q_stricmpn(search->pack->pakGamename, com_basegame->string, strlen(com_basegame->string))) {
-				Q_strcat(info, sizeof(info), va("%i ", search->pack->checksum));
-			}
+		if (search->pack && search->pack->referenced) {
+			Q_strcat(info, sizeof(info), va("%i ", search->pack->checksum));
 		}
 	}
 
@@ -3741,19 +3883,15 @@ const char* FS_ReferencedPakNames(void) {
 
 	info[0] = 0;
 
-	// we want to return ALL pk3's from the fs_game path
-	// and referenced one's from baseq3
+	// [QL] Binary only includes paks with referenced flag set
 	for (search = fs_searchpaths; search; search = search->next) {
-		// is the element a pak file?
-		if (search->pack) {
-			if (search->pack->referenced || Q_stricmpn(search->pack->pakGamename, com_basegame->string, strlen(com_basegame->string))) {
-				if (*info) {
-					Q_strcat(info, sizeof(info), " ");
-				}
-				Q_strcat(info, sizeof(info), search->pack->pakGamename);
-				Q_strcat(info, sizeof(info), "/");
-				Q_strcat(info, sizeof(info), search->pack->pakBasename);
+		if (search->pack && search->pack->referenced) {
+			if (*info) {
+				Q_strcat(info, sizeof(info), " ");
 			}
+			Q_strcat(info, sizeof(info), search->pack->pakGamename);
+			Q_strcat(info, sizeof(info), "/");
+			Q_strcat(info, sizeof(info), search->pack->pakBasename);
 		}
 	}
 
@@ -4143,6 +4281,7 @@ void FS_InitFilesystem(void) {
 			}
 		}
 	}
+
 #endif
 
 	// if we can't find default.cfg, assume that the paths are
