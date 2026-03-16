@@ -316,9 +316,6 @@ void SCR_DrawDemoRecording(void) {
     if (!clc.demorecording) {
         return;
     }
-    if (clc.spDemoRecording) {
-        return;
-    }
 
     pos = FS_FTell(clc.demofile);
     sprintf(string, "RECORDING %s: %ik", clc.demoName, pos / 1024);

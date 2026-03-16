@@ -86,7 +86,6 @@ vmCvar_t g_smoothClients;
 vmCvar_t g_knockback_z;
 vmCvar_t g_knockback_z_self;
 vmCvar_t g_knockback_cripple;
-vmCvar_t g_rankings;
 vmCvar_t g_listEntity;
 vmCvar_t g_localTeamPref;
 vmCvar_t g_obeliskHealth;
@@ -96,7 +95,6 @@ vmCvar_t g_obeliskRespawnDelay;
 vmCvar_t g_cubeTimeout;
 vmCvar_t g_redteam;
 vmCvar_t g_blueteam;
-vmCvar_t g_singlePlayer;
 vmCvar_t g_enableDust;
 vmCvar_t g_enableBreath;
 vmCvar_t g_proxMineTimeout;
@@ -500,7 +498,6 @@ static cvarTable_t gameCvarTable[] = {
     {&g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO, 0, NULL},
 
     {&g_cubeTimeout, "g_cubeTimeout", "30", 0, 0, NULL},
-    {&g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, NULL},
 
     {&g_enableDust, "g_enableDust", "0", CVAR_SERVERINFO, 0, NULL},
     {&g_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO, 0, NULL},
@@ -508,7 +505,6 @@ static cvarTable_t gameCvarTable[] = {
 
     {&g_smoothClients, "g_smoothClients", "1", 0, 0, NULL},
 
-    {&g_rankings, "g_rankings", "0", 0, 0, NULL},
     {&g_localTeamPref, "g_localTeamPref", "", 0, 0, NULL},
 
     {&g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_SYSTEMINFO, 0, NULL},
@@ -1084,10 +1080,6 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
     SaveRegisteredItems();
 
     G_Printf("-----------------------------------\n");
-
-    if (trap_Cvar_VariableIntegerValue("com_buildScript")) {
-        G_ModelIndex(SP_PODIUM_MODEL);
-    }
 
     if (trap_Cvar_VariableIntegerValue("bot_enable")) {
         BotAISetup(restart);

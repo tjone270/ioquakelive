@@ -375,12 +375,6 @@ static void SVC_Status(netadr_t from) {
     int playerLength;
     char infostring[MAX_INFO_STRING];
 
-    // ignore if we are in single player
-    // [QL] GT_SINGLE_PLAYER check removed - index 2 is GT_RACE
-    if (Cvar_VariableValue("ui_singlePlayerActive")) {
-        return;
-    }
-
     // Prevent using getstatus as an amplifier
     if (SVC_RateLimitAddress(from, 10, 1000)) {
         Com_DPrintf("SVC_Status: rate limit from %s exceeded, dropping request\n",
@@ -439,12 +433,6 @@ void SVC_Info(netadr_t from) {
     char* gamedir;
     char infostring[MAX_INFO_STRING];
 
-    // ignore if we are in single player
-    // [QL] GT_SINGLE_PLAYER check removed - index 2 is GT_RACE
-    if (Cvar_VariableValue("ui_singlePlayerActive")) {
-        return;
-    }
-
     // Prevent using getinfo as an amplifier
     if (SVC_RateLimitAddress(from, 10, 1000)) {
         Com_DPrintf("SVC_Info: rate limit from %s exceeded, dropping request\n",
@@ -487,12 +475,7 @@ void SVC_Info(netadr_t from) {
 
     Info_SetValueForKey(infostring, "gamename", com_gamename->string);
 
-#ifdef LEGACY_PROTOCOL
-    if (com_legacyprotocol->integer > 0)
-        Info_SetValueForKey(infostring, "protocol", va("%i", com_legacyprotocol->integer));
-    else
-#endif
-        Info_SetValueForKey(infostring, "protocol", va("%i", com_protocol->integer));
+    Info_SetValueForKey(infostring, "protocol", va("%i", com_protocol->integer));
 
     Info_SetValueForKey(infostring, "hostname", sv_hostname->string);
     Info_SetValueForKey(infostring, "mapname", sv_mapname->string);
@@ -637,10 +620,6 @@ static void SV_ConnectionlessPacket(netadr_t from, msg_t* msg) {
         SV_GetChallenge(from);
     } else if (!Q_stricmp(c, "connect")) {
         SV_DirectConnect(from);
-#ifndef STANDALONE
-    } else if (!Q_stricmp(c, "ipAuthorize")) {
-        SV_AuthorizeIpPacket(from);
-#endif
     } else if (!Q_stricmp(c, "rcon")) {
         SVC_RemoteCommand(from, msg);
     } else if (!Q_stricmp(c, "disconnect")) {

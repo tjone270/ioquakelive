@@ -45,9 +45,6 @@ sent to that ip.
 ioquake3: we added a possibility for clients to add a challenge
 to their packets, to make it more difficult for malicious servers
 to hi-jack client connections.
-Also, the auth stuff is completely disabled for com_standalone games
-as well as IPv6 connections, since there is no way to use the
-v4-only auth server for these new types of connections.
 =================
 */
 void SV_GetChallenge(netadr_t from) {
@@ -59,12 +56,6 @@ void SV_GetChallenge(netadr_t from) {
     challenge_t* challenge;
     qboolean wasfound = qfalse;
     char* gameName;
-    qboolean gameMismatch;
-
-    // [QL] GT_SINGLE_PLAYER check removed - index 2 is GT_RACE in QL, must allow connections
-    if (Cvar_VariableValue("ui_singlePlayerActive")) {
-        return;
-    }
 
     // Prevent using getchallenge as an amplifier
     if (SVC_RateLimitAddress(from, 10, 1000)) {
@@ -136,82 +127,6 @@ void SV_GetChallenge(netadr_t from) {
                        challenge->challenge, clientChallenge, com_protocol->integer);
 }
 
-#ifndef STANDALONE
-/*
-====================
-SV_AuthorizeIpPacket
-
-A packet has been returned from the authorize server.
-If we have a challenge adr for that ip, send the
-challengeResponse to it
-====================
-*/
-void SV_AuthorizeIpPacket(netadr_t from) {
-    int challenge;
-    int i;
-    char* s;
-    char* r;
-    challenge_t* challengeptr;
-
-    if (!NET_CompareBaseAdr(from, svs.authorizeAddress)) {
-        Com_Printf("SV_AuthorizeIpPacket: not from authorize server\n");
-        return;
-    }
-
-    challenge = atoi(Cmd_Argv(1));
-
-    for (i = 0; i < MAX_CHALLENGES; i++) {
-        if (svs.challenges[i].challenge == challenge) {
-            break;
-        }
-    }
-    if (i == MAX_CHALLENGES) {
-        Com_Printf("SV_AuthorizeIpPacket: challenge not found\n");
-        return;
-    }
-
-    challengeptr = &svs.challenges[i];
-
-    // send a packet back to the original client
-    challengeptr->pingTime = svs.time;
-    s = Cmd_Argv(2);
-    r = Cmd_Argv(3);  // reason
-
-    if (!Q_stricmp(s, "demo")) {
-        // they are a demo client trying to connect to a real server
-        NET_OutOfBandPrint(NS_SERVER, challengeptr->adr, "print\nServer is not a demo server\n");
-        // clear the challenge record so it won't timeout and let them through
-        Com_Memset(challengeptr, 0, sizeof(*challengeptr));
-        return;
-    }
-    if (!Q_stricmp(s, "accept")) {
-        NET_OutOfBandPrint(NS_SERVER, challengeptr->adr,
-                           "challengeResponse %d %d %d", challengeptr->challenge, 0, com_protocol->integer);
-        return;
-    }
-    if (!Q_stricmp(s, "unknown")) {
-        if (!r) {
-            NET_OutOfBandPrint(NS_SERVER, challengeptr->adr, "print\nAwaiting CD key authorization\n");
-        } else {
-            NET_OutOfBandPrint(NS_SERVER, challengeptr->adr, "print\n%s\n", r);
-        }
-        // clear the challenge record so it won't timeout and let them through
-        Com_Memset(challengeptr, 0, sizeof(*challengeptr));
-        return;
-    }
-
-    // authorization failed
-    if (!r) {
-        NET_OutOfBandPrint(NS_SERVER, challengeptr->adr, "print\nSomeone is using this CD Key\n");
-    } else {
-        NET_OutOfBandPrint(NS_SERVER, challengeptr->adr, "print\n%s\n", r);
-    }
-
-    // clear the challenge record so it won't timeout and let them through
-    Com_Memset(challengeptr, 0, sizeof(*challengeptr));
-}
-#endif
-
 /*
 ==================
 SV_IsBanned
@@ -277,20 +192,13 @@ void SV_DirectConnect(netadr_t from) {
 
     version = atoi(Info_ValueForKey(userinfo, "protocol"));
 
-#ifdef LEGACY_PROTOCOL
-    if (version > 0 && com_legacyprotocol->integer == version)
-        ;  // legacy protocol match
-    else
-#endif
-    {
-        if (version != com_protocol->integer) {
-            NET_OutOfBandPrint(NS_SERVER, from,
-                               "print\nServer uses protocol version %i "
-                               "(yours is %i).\n",
-                               com_protocol->integer, version);
-            Com_DPrintf("    rejected connect from version %i\n", version);
-            return;
-        }
+    if (version != com_protocol->integer) {
+        NET_OutOfBandPrint(NS_SERVER, from,
+                           "print\nServer uses protocol version %i "
+                           "(yours is %i).\n",
+                           com_protocol->integer, version);
+        Com_DPrintf("    rejected connect from version %i\n", version);
+        return;
     }
 
     challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
@@ -460,7 +368,7 @@ gotnewcl:
     newcl->challenge = challenge;
 
     // save the address
-    Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge, qfalse);
+    Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge);
     // init the netchan queue
     newcl->netchan_end_queue = &newcl->netchan_start_queue;
 
@@ -840,8 +748,6 @@ int SV_WriteDownloadToClient(client_t* cl, msg_t* msg) {
         return 0;  // Nothing being downloaded
 
     if (!cl->download) {
-        qboolean idPack = qfalse;
-
         // Chop off filename extension.
         Com_sprintf(pakbuf, sizeof(pakbuf), "%s", cl->downloadName);
         pakptr = strrchr(pakbuf, '.');
@@ -865,8 +771,6 @@ int SV_WriteDownloadToClient(client_t* cl, msg_t* msg) {
                         // now that we know the file is referenced,
                         // check whether it's legal to download it.
 
-                        idPack = idPack || FS_idPak(pakbuf, BASEGAME_DIR, NUM_ID_PAKS);
-
                         break;
                     }
                 }
@@ -878,15 +782,12 @@ int SV_WriteDownloadToClient(client_t* cl, msg_t* msg) {
         // We open the file here
         if (!(sv_allowDownload->integer & DLF_ENABLE) ||
             (sv_allowDownload->integer & DLF_NO_UDP) ||
-            idPack || unreferenced ||
+            unreferenced ||
             (cl->downloadSize = FS_SV_FOpenFileRead(cl->downloadName, &cl->download)) < 0) {
             // cannot auto-download file
             if (unreferenced) {
                 Com_Printf("clientDownload: %d : \"%s\" is not referenced and cannot be downloaded.\n", (int)(cl - svs.clients), cl->downloadName);
                 Com_sprintf(errorMessage, sizeof(errorMessage), "File \"%s\" is not referenced and cannot be downloaded.", cl->downloadName);
-            } else if (idPack) {
-                Com_Printf("clientDownload: %d : \"%s\" cannot download id pk3 files\n", (int)(cl - svs.clients), cl->downloadName);
-                Com_sprintf(errorMessage, sizeof(errorMessage), "Cannot autodownload id pk3 file \"%s\"", cl->downloadName);
             } else if (!(sv_allowDownload->integer & DLF_ENABLE) ||
                        (sv_allowDownload->integer & DLF_NO_UDP)) {
                 Com_Printf("clientDownload: %d : \"%s\" download disabled\n", (int)(cl - svs.clients), cl->downloadName);

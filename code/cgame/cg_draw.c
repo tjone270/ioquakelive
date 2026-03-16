@@ -1916,11 +1916,6 @@ CG_DrawIntermission
 =================
 */
 static void CG_DrawIntermission(void) {
-	//	int key;
-	// if (cg_singlePlayer.integer) {
-	//	CG_DrawCenterString();
-	//	return;
-	//}
 	cg.scoreFadeTime = cg.time;
 	cg.scoreBoardShowing = CG_DrawScoreboard();
 }

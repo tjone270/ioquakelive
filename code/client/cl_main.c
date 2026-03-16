@@ -95,8 +95,6 @@ cvar_t* cl_serverStatusResendTime;
 
 cvar_t* cl_lanForcePackets;
 
-cvar_t* cl_guidServerUniq;
-
 cvar_t* cl_consoleKeys;
 
 cvar_t* cl_rate;
@@ -230,7 +228,6 @@ void CL_StopRecord_f(void) {
     FS_FCloseFile(clc.demofile);
     clc.demofile = 0;
     clc.demorecording = qfalse;
-    clc.spDemoRecording = qfalse;
     Com_Printf("Stopped demo.\n");
 }
 
@@ -282,9 +279,7 @@ void CL_Record_f(void) {
     }
 
     if (clc.demorecording) {
-        if (!clc.spDemoRecording) {
-            Com_Printf("Already recording.\n");
-        }
+        Com_Printf("Already recording.\n");
         return;
     }
 
@@ -301,24 +296,14 @@ void CL_Record_f(void) {
     if (Cmd_Argc() == 2) {
         s = Cmd_Argv(1);
         Q_strncpyz(demoName, s, sizeof(demoName));
-#ifdef LEGACY_PROTOCOL
-        if (clc.compat)
-            Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_legacyprotocol->integer);
-        else
-#endif
-            Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_protocol->integer);
+        Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_protocol->integer);
     } else {
         int number;
 
         // scan for a free demo name
         for (number = 0; number <= 9999; number++) {
             CL_DemoFilename(number, demoName, sizeof(demoName));
-#ifdef LEGACY_PROTOCOL
-            if (clc.compat)
-                Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_legacyprotocol->integer);
-            else
-#endif
-                Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_protocol->integer);
+            Com_sprintf(name, sizeof(name), "demos/%s.%s%d", demoName, DEMOEXT, com_protocol->integer);
 
             if (!FS_FileExists(name))
                 break;  // file doesn't exist
@@ -334,11 +319,6 @@ void CL_Record_f(void) {
         return;
     }
     clc.demorecording = qtrue;
-    if (Cvar_VariableValue("ui_recordSPDemo")) {
-        clc.spDemoRecording = qtrue;
-    } else {
-        clc.spDemoRecording = qfalse;
-    }
 
     Q_strncpyz(clc.demoName, demoName, sizeof(clc.demoName));
 
@@ -558,19 +538,6 @@ static int CL_WalkDemoExt(char* arg, char* name, int* demofile) {
     int i = 0;
     *demofile = 0;
 
-#ifdef LEGACY_PROTOCOL
-    if (com_legacyprotocol->integer > 0) {
-        Com_sprintf(name, MAX_OSPATH, "demos/%s.%s%d", arg, DEMOEXT, com_legacyprotocol->integer);
-        FS_FOpenFileRead(name, demofile, qtrue);
-
-        if (*demofile) {
-            Com_Printf("Demo file: %s\n", name);
-            return com_legacyprotocol->integer;
-        }
-    }
-
-    if (com_protocol->integer != com_legacyprotocol->integer)
-#endif
     {
         Com_sprintf(name, MAX_OSPATH, "demos/%s.%s%d", arg, DEMOEXT, com_protocol->integer);
         FS_FOpenFileRead(name, demofile, qtrue);
@@ -584,10 +551,6 @@ static int CL_WalkDemoExt(char* arg, char* name, int* demofile) {
     Com_Printf("Not found: %s\n", name);
 
     while (demo_protocols[i]) {
-#ifdef LEGACY_PROTOCOL
-        if (demo_protocols[i] == com_legacyprotocol->integer)
-            continue;
-#endif
         if (demo_protocols[i] == com_protocol->integer)
             continue;
 
@@ -659,11 +622,7 @@ void CL_PlayDemo_f(void) {
                 break;
         }
 
-        if (demo_protocols[i] || protocol == com_protocol->integer
-#ifdef LEGACY_PROTOCOL
-            || protocol == com_legacyprotocol->integer
-#endif
-        ) {
+        if (demo_protocols[i] || protocol == com_protocol->integer) {
             Com_sprintf(name, sizeof(name), "demos/%s", arg);
             FS_FOpenFileRead(name, &clc.demofile, qtrue);
         } else {
@@ -693,13 +652,6 @@ void CL_PlayDemo_f(void) {
     clc.state = CA_CONNECTED;
     clc.demoplaying = qtrue;
     Q_strncpyz(clc.servername, arg, sizeof(clc.servername));
-
-#ifdef LEGACY_PROTOCOL
-    if (protocol <= com_legacyprotocol->integer)
-        clc.compat = qtrue;
-    else
-        clc.compat = qfalse;
-#endif
 
     // read demo messages until connected
     while (clc.state >= CA_CONNECTED && clc.state < CA_PRIMED) {
@@ -880,27 +832,6 @@ void CL_ClearState(void) {
     Com_Memset(&cl, 0, sizeof(cl));
 }
 
-/*
-====================
-CL_UpdateGUID
-
-update cl_guid using RND_FILE and optional prefix
-====================
-*/
-static void CL_UpdateGUID(const char* prefix, int prefix_len) {
-    fileHandle_t f;
-    int len;
-
-    len = FS_SV_FOpenFileRead(RND_FILE, &f);
-    FS_FCloseFile(f);
-
-    if (len != RND_SIZE)
-        Cvar_Set("cl_guid", "");
-    else
-        Cvar_Set("cl_guid", Com_MD5File(RND_FILE, RND_SIZE,
-                                        prefix, prefix_len));
-}
-
 static void CL_OldGame(void) {
     if (cl_oldGameSet) {
         // change back to previous fs_game
@@ -983,8 +914,6 @@ void CL_Disconnect(qboolean showMainMenu) {
         SCR_UpdateScreen();
         CL_CloseAVI();
     }
-
-    CL_UpdateGUID(NULL, 0);
 
     if (!noGameRestart)
         CL_OldGame();
@@ -1091,7 +1020,6 @@ CL_Disconnect_f
 */
 void CL_Disconnect_f(void) {
     SCR_StopCinematic();
-    Cvar_Set("ui_singlePlayerActive", "0");
     if (clc.state != CA_DISCONNECTED && clc.state != CA_CINEMATIC) {
         Com_Error(ERR_DISCONNECT, "Disconnected from server");
     }
@@ -1106,7 +1034,6 @@ CL_Reconnect_f
 void CL_Reconnect_f(void) {
     if (!strlen(cl_reconnectArgs))
         return;
-    Cvar_Set("ui_singlePlayerActive", "0");
     Cbuf_AddText(va("connect %s\n", cl_reconnectArgs));
 }
 
@@ -1143,8 +1070,6 @@ void CL_Connect_f(void) {
     // save arguments for reconnect
     Q_strncpyz(cl_reconnectArgs, Cmd_Args(), sizeof(cl_reconnectArgs));
 
-    Cvar_Set("ui_singlePlayerActive", "0");
-
     // fire a message off to the motd server
     CL_RequestMotd();
 
@@ -1179,13 +1104,7 @@ void CL_Connect_f(void) {
 
     Com_Printf("%s resolved to %s\n", clc.servername, serverString);
 
-    if (cl_guidServerUniq->integer)
-        CL_UpdateGUID(serverString, strlen(serverString));
-    else
-        CL_UpdateGUID(NULL, 0);
-
-    // if we aren't playing on a lan, we need to authenticate
-    // with the cd key
+    // if we aren't playing on a lan, we need to request a challenge
     if (NET_IsLocalAddress(clc.serverAddress))
         clc.state = CA_CHALLENGING;
     else {
@@ -1789,15 +1708,7 @@ void CL_CheckForResend(void) {
 
             Q_strncpyz(info, Cvar_InfoString(CVAR_USERINFO), sizeof(info));
 
-#ifdef LEGACY_PROTOCOL
-            if (com_legacyprotocol->integer == com_protocol->integer)
-                clc.compat = qtrue;
-
-            if (clc.compat)
-                Info_SetValueForKey(info, "protocol", va("%i", com_legacyprotocol->integer));
-            else
-#endif
-                Info_SetValueForKey(info, "protocol", va("%i", com_protocol->integer));
+            Info_SetValueForKey(info, "protocol", va("%i", com_protocol->integer));
             Info_SetValueForKey(info, "qport", va("%i", port));
             Info_SetValueForKey(info, "challenge", va("%i", clc.challenge));
 
@@ -1861,7 +1772,6 @@ void CL_InitServerInfo(serverInfo_t* server, netadr_t* address) {
     server->game[0] = '\0';
     server->gameType = 0;
     server->netType = 0;
-    server->punkbuster = 0;
     server->g_humanplayers = 0;
     server->g_needpass = 0;
 }
@@ -2041,7 +1951,7 @@ void CL_ConnectionlessPacket(netadr_t from, msg_t* msg) {
         // QL server sends just "connectResponse" with no challenge echo.
         // Address check above is sufficient anti-hijack protection.
         Netchan_Setup(NS_CLIENT, &clc.netchan, from, Cvar_VariableValue("net_qport"),
-                      clc.challenge, qfalse);
+                      clc.challenge);
 
         clc.state = CA_CONNECTED;
         clc.lastPacketSentTime = -9999;  // send first packet immediately
@@ -2664,45 +2574,6 @@ void CL_StopVideo_f(void) {
     CL_CloseAVI();
 }
 
-/*
-===============
-CL_GenerateRnd
-
-test to see if a valid RND_FILE exists.  If one does not, try to generate
-it by filling it with 2048 bytes of random data.
-===============
-*/
-static void CL_GenerateRnd(void) {
-    int len = 0;
-    unsigned char buff[RND_SIZE];
-    fileHandle_t f;
-
-    len = FS_SV_FOpenFileRead(RND_FILE, &f);
-    FS_FCloseFile(f);
-    if (len == RND_SIZE) {
-        Com_Printf(RND_FILE " found.\n");
-        return;
-    } else {
-        if (len > 0) {
-            Com_Printf(RND_FILE " file size != %d, regenerating\n",
-                       RND_SIZE);
-        }
-
-        Com_Printf(RND_FILE " building random string\n");
-        Com_RandomBytes(buff, sizeof(buff));
-
-        f = FS_SV_FOpenFileWrite(RND_FILE);
-        if (!f) {
-            Com_Printf(RND_FILE " could not open %s for write\n",
-                       RND_FILE);
-            return;
-        }
-        FS_Write(buff, sizeof(buff), f);
-        FS_FCloseFile(f);
-        Com_Printf(RND_FILE " generated\n");
-    }
-}
-
 void CL_Sayto_f(void) {
     char* rawname;
     char name[MAX_NAME_LENGTH];
@@ -2910,8 +2781,6 @@ void CL_Init(void) {
 
     cl_lanForcePackets = Cvar_Get("cl_lanForcePackets", "1", CVAR_ARCHIVE);
 
-    cl_guidServerUniq = Cvar_Get("cl_guidServerUniq", "1", CVAR_ARCHIVE);
-
     // ~ and `, as keys and characters
     cl_consoleKeys = Cvar_Get("cl_consoleKeys", "~ ` 0x7e 0x60", CVAR_ARCHIVE);
 
@@ -2977,10 +2846,6 @@ void CL_Init(void) {
     //	Cbuf_Execute ();
 
     Cvar_Set("cl_running", "1");
-
-    CL_GenerateRnd();
-    Cvar_Get("cl_guid", "", CVAR_USERINFO | CVAR_ROM);
-    CL_UpdateGUID(NULL, 0);
 
     Com_Printf("----- Client Initialization Complete -----\n");
 }
@@ -3063,7 +2928,6 @@ static void CL_SetServerInfo(serverInfo_t* server, const char* info, int ping) {
             server->netType = atoi(Info_ValueForKey(info, "nettype"));
             server->minPing = atoi(Info_ValueForKey(info, "minping"));
             server->maxPing = atoi(Info_ValueForKey(info, "maxping"));
-            server->punkbuster = atoi(Info_ValueForKey(info, "punkbuster"));
             server->g_humanplayers = atoi(Info_ValueForKey(info, "g_humanplayers"));
             server->g_needpass = atoi(Info_ValueForKey(info, "g_needpass"));
         }
@@ -3111,13 +2975,7 @@ void CL_ServerInfoPacket(netadr_t from, msg_t* msg) {
     // if this isn't the correct gamename, ignore it
     gamename = Info_ValueForKey(infoString, "gamename");
 
-#ifdef LEGACY_PROTOCOL
-    // gamename is optional for legacy protocol
-    if (com_legacyprotocol->integer && !*gamename)
-        gameMismatch = qfalse;
-    else
-#endif
-        gameMismatch = !*gamename || strcmp(gamename, com_gamename->string) != 0;
+    gameMismatch = !*gamename || strcmp(gamename, com_gamename->string) != 0;
 
     if (gameMismatch) {
         Com_DPrintf("Game mismatch in info packet: %s\n", infoString);
@@ -3127,11 +2985,7 @@ void CL_ServerInfoPacket(netadr_t from, msg_t* msg) {
     // if this isn't the correct protocol version, ignore it
     prot = atoi(Info_ValueForKey(infoString, "protocol"));
 
-    if (prot != com_protocol->integer
-#ifdef LEGACY_PROTOCOL
-        && prot != com_legacyprotocol->integer
-#endif
-    ) {
+    if (prot != com_protocol->integer) {
         Com_DPrintf("Different protocol info packet: %s\n", infoString);
         return;
     }

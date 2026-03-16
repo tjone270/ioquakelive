@@ -22,12 +22,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "ui_local.h"
 
-// this file is only included when building a dll
-// syscalls.asm is included instead when building a qvm
-#ifdef Q3_VM
-#error "Do not use in VM build"
-#endif
-
 static intptr_t(QDECL* syscall)(intptr_t arg, ...) = (intptr_t(QDECL*)(intptr_t, ...)) - 1;
 
 Q_EXPORT void dllEntry(intptr_t(QDECL* syscallptr)(intptr_t arg, ...)) {
@@ -312,14 +306,6 @@ int trap_MemoryRemaining(void) {
     return syscall(UI_MEMORY_REMAINING);
 }
 
-void trap_GetCDKey(char* buf, int buflen) {
-    syscall(UI_GET_CDKEY, buf, buflen);
-}
-
-void trap_SetCDKey(char* buf) {
-    syscall(UI_SET_CDKEY, buf);
-}
-
 int trap_PC_AddGlobalDefine(char* define) {
     return syscall(UI_PC_ADD_GLOBAL_DEFINE, define);
 }
@@ -380,10 +366,6 @@ void trap_CIN_SetExtents(int handle, int x, int y, int w, int h) {
 
 void trap_R_RemapShader(const char* oldShader, const char* newShader, const char* timeOffset) {
     syscall(UI_R_REMAP_SHADER, oldShader, newShader, timeOffset);
-}
-
-qboolean trap_VerifyCDKey(const char* key, const char* chksum) {
-    return syscall(UI_VERIFY_CDKEY, key, chksum);
 }
 
 void trap_SetPbClStatus(int status) {
