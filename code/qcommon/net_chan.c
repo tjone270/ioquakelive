@@ -538,6 +538,34 @@ NET_OutOfBandPrint
 Sends a data message in an out-of-band datagram (only used for "connect")
 ================
 */
+/*
+===============
+NET_OutOfBandRaw
+
+Sends a binary message in an out-of-band datagram without Huffman compression.
+Used for packets that contain raw binary data (e.g. QL getchallenge with Steam auth bytes).
+NET_OutOfBandPrint stops at null bytes; NET_OutOfBandData applies Huffman compression.
+===============
+*/
+void NET_OutOfBandRaw(netsrc_t sock, netadr_t adr, const byte* data, int len) {
+    byte buf[MAX_MSGLEN];
+
+    if (len < 0 || len > MAX_MSGLEN - 4) {
+        Com_Printf("NET_OutOfBandRaw: len %d is out of range\n", len);
+        return;
+    }
+
+    // set the header
+    buf[0] = 0xff;
+    buf[1] = 0xff;
+    buf[2] = 0xff;
+    buf[3] = 0xff;
+
+    Com_Memcpy(buf + 4, data, len);
+
+    NET_SendPacket(sock, len + 4, buf, adr);
+}
+
 void QDECL NET_OutOfBandData(netsrc_t sock, netadr_t adr, byte* format, int len) {
     byte string[MAX_MSGLEN * 2];
     int i;

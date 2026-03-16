@@ -101,6 +101,8 @@ cvar_t* cl_consoleKeys;
 
 cvar_t* cl_rate;
 
+cvar_t* cl_steamId;
+
 clientActive_t cl;
 clientConnection_t clc;
 clientStatic_t cls;
@@ -1763,13 +1765,23 @@ void CL_CheckForResend(void) {
 
     switch (clc.state) {
         case CA_CONNECTING:
-            // The challenge request shall be followed by a client challenge so no malicious server can hijack this connection.
-            // Add the gamename so the server knows we're running the correct game or can reject the client
-            // with a meaningful message
-            Com_sprintf(data, sizeof(data), "getchallenge %d %s", clc.challenge, com_gamename->string);
+        {
+            // QL getchallenge payload: "getchallenge " (13) + steam key (8) + auth token (11-512).
+            // Can't use NET_OutOfBandPrint (stops at nulls) or NET_OutOfBandData (adds Huffman).
+            byte payload[64];
+            unsigned long long steamId;
+#ifdef _MSC_VER
+            steamId = _strtoui64(cl_steamId->string, NULL, 10);
+#else
+            steamId = strtoull(cl_steamId->string, NULL, 10);
+#endif
+            Com_Memcpy(payload,      "getchallenge ", 13);  // command
+            Com_Memcpy(payload + 13, &steamId, 8);          // steam key (cl_steamId cvar)
+            Com_Memset(payload + 21, 0, 16);                // dummy auth token (min 11 bytes)
 
-            NET_OutOfBandPrint(NS_CLIENT, clc.serverAddress, "%s", data);
+            NET_OutOfBandRaw(NS_CLIENT, clc.serverAddress, payload, 13 + 8 + 16);
             break;
+        }
 
         case CA_CHALLENGING:
             // sending back the challenge
@@ -1979,7 +1991,6 @@ Responses to broadcasts, etc
 void CL_ConnectionlessPacket(netadr_t from, msg_t* msg) {
     char* s;
     char* c;
-    int challenge = 0;
 
     MSG_BeginReadingOOB(msg);
     MSG_ReadLong(msg);  // skip the -1
@@ -1992,70 +2003,14 @@ void CL_ConnectionlessPacket(netadr_t from, msg_t* msg) {
 
     Com_DPrintf("CL packet %s: %s\n", NET_AdrToStringwPort(from), c);
 
-    // challenge from the server we are connecting to
     if (!Q_stricmp(c, "challengeResponse")) {
-        char* strver;
-        int ver;
-
         if (clc.state != CA_CONNECTING) {
             Com_DPrintf("Unwanted challenge response received. Ignored.\n");
             return;
         }
 
-        c = Cmd_Argv(2);
-        if (*c)
-            challenge = atoi(c);
-
-        strver = Cmd_Argv(3);
-        if (*strver) {
-            ver = atoi(strver);
-
-            if (ver != com_protocol->integer) {
-#ifdef LEGACY_PROTOCOL
-                if (com_legacyprotocol->integer > 0) {
-                    // Server is ioq3 but has a different protocol than we do.
-                    // Fall back to idq3 protocol.
-                    clc.compat = qtrue;
-
-                    Com_Printf(S_COLOR_YELLOW
-                               "Warning: Server reports protocol version %d, "
-                               "we have %d. Trying legacy protocol %d.\n",
-                               ver, com_protocol->integer, com_legacyprotocol->integer);
-                } else
-#endif
-                {
-                    Com_Printf(S_COLOR_YELLOW
-                               "Warning: Server reports protocol version %d, we have %d. "
-                               "Trying anyways.\n",
-                               ver, com_protocol->integer);
-                }
-            }
-        }
-#ifdef LEGACY_PROTOCOL
-        else
-            clc.compat = qtrue;
-
-        if (clc.compat) {
-            if (!NET_CompareAdr(from, clc.serverAddress)) {
-                // This challenge response is not coming from the expected address.
-                // Check whether we have a matching client challenge to prevent
-                // connection hi-jacking.
-
-                if (!*c || challenge != clc.challenge) {
-                    Com_DPrintf("Challenge response received from unexpected source. Ignored.\n");
-                    return;
-                }
-            }
-        } else
-#endif
-        {
-            if (!*c || challenge != clc.challenge) {
-                Com_Printf("Bad challenge for challengeResponse. Ignored.\n");
-                return;
-            }
-        }
-
-        // start sending challenge response instead of challenge request packets
+        // QL server sends: "challengeResponse <challenge>"
+        // No client challenge echo or protocol version in Argv(2)/Argv(3).
         clc.challenge = atoi(Cmd_Argv(1));
         clc.state = CA_CHALLENGING;
         clc.connectPacketCount = 0;
@@ -2083,32 +2038,10 @@ void CL_ConnectionlessPacket(netadr_t from, msg_t* msg) {
             return;
         }
 
-#ifdef LEGACY_PROTOCOL
-        if (!clc.compat)
-#endif
-        {
-            c = Cmd_Argv(1);
-
-            if (*c)
-                challenge = atoi(c);
-            else {
-                Com_Printf("Bad connectResponse received. Ignored.\n");
-                return;
-            }
-
-            if (challenge != clc.challenge) {
-                Com_Printf("ConnectResponse with bad challenge received. Ignored.\n");
-                return;
-            }
-        }
-
-#ifdef LEGACY_PROTOCOL
-        Netchan_Setup(NS_CLIENT, &clc.netchan, from, Cvar_VariableValue("net_qport"),
-                      clc.challenge, clc.compat);
-#else
+        // QL server sends just "connectResponse" with no challenge echo.
+        // Address check above is sufficient anti-hijack protection.
         Netchan_Setup(NS_CLIENT, &clc.netchan, from, Cvar_VariableValue("net_qport"),
                       clc.challenge, qfalse);
-#endif
 
         clc.state = CA_CONNECTED;
         clc.lastPacketSentTime = -9999;  // send first packet immediately
@@ -2981,6 +2914,8 @@ void CL_Init(void) {
 
     // ~ and `, as keys and characters
     cl_consoleKeys = Cvar_Get("cl_consoleKeys", "~ ` 0x7e 0x60", CVAR_ARCHIVE);
+
+    cl_steamId = Cvar_Get("cl_steamId", "0", CVAR_ARCHIVE);
 
     // userinfo
     Cvar_Get("name", "UnnamedPlayer", CVAR_USERINFO | CVAR_ARCHIVE);
