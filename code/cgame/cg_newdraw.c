@@ -1104,7 +1104,7 @@ qboolean CG_OwnerDrawVisible(int flags, int flags2) {
     }
 
     if (flags & CG_SHOW_DUEL) {
-        if (cgs.gametype == GT_TOURNAMENT) {
+        if (cgs.gametype == GT_DUEL) {
             return qtrue;
         }
     }

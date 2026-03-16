@@ -1753,7 +1753,7 @@ static void CG_DrawSpectator(void) {
 	// Bottom hints - left-aligned, skip when following a player
 	if (!(cg.snap->ps.pm_flags & PMF_FOLLOW)) {
 		CG_SetWidescreen(WIDESCREEN_LEFT);
-		if (cgs.gametype == GT_TOURNAMENT) {
+		if (cgs.gametype == GT_DUEL) {
 			CG_Text_Paint(20, 461, 0.28f, colorWhite, "waiting to play", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
 		} else if (cgs.gametype >= GT_TEAM) {
 			s = va("press %s and use the JOIN buttons", menuKey);
@@ -2037,7 +2037,7 @@ static void CG_DrawWarmupCountdown(int gt) {
 	int i;
 
 	// Gametype header line
-	if (gt == GT_TOURNAMENT) {
+	if (gt == GT_DUEL) {
 		// Duel: show "X vs Y"
 		ci1 = NULL;
 		ci2 = NULL;
@@ -2182,7 +2182,7 @@ static void CG_DrawWarmup(void) {
 		}
 	} else if (gt < GT_TEAM) {
 		// FFA / Duel / Race
-		if (gt == GT_TOURNAMENT && teamCounts[TEAM_FREE] > 2) {
+		if (gt == GT_DUEL && teamCounts[TEAM_FREE] > 2) {
 			line1 = "The match will begin when";
 			line2 = "fewer players are in the match.";
 		} else if (teamCounts[TEAM_FREE] < 2) {

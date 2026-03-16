@@ -120,14 +120,14 @@ static void CG_DrawClientScore(int y, score_t* score, float* color, float fade, 
             }
         } else if (ci->handicap < 100) {
             Com_sprintf(string, sizeof(string), "%i", ci->handicap);
-            if (cgs.gametype == GT_TOURNAMENT)
+            if (cgs.gametype == GT_DUEL)
                 CG_DrawSmallStringColor(iconx, y - SMALLCHAR_HEIGHT / 2, string, color);
             else
                 CG_DrawSmallStringColor(iconx, y, string, color);
         }
 
         // draw the wins / losses
-        if (cgs.gametype == GT_TOURNAMENT) {
+        if (cgs.gametype == GT_DUEL) {
             Com_sprintf(string, sizeof(string), "%i/%i", ci->wins, ci->losses);
             if (ci->handicap < 100 && !ci->botSkill) {
                 CG_DrawSmallStringColor(iconx, y + SMALLCHAR_HEIGHT / 2, string, color);

@@ -440,7 +440,7 @@ void G_CheckMinimumPlayers(void) {
         } else if (humanplayers + botplayers > minplayers && botplayers) {
             G_RemoveRandomBot(TEAM_BLUE);
         }
-    } else if (g_gametype.integer == GT_TOURNAMENT) {
+    } else if (g_gametype.integer == GT_DUEL) {
         if (minplayers >= g_maxclients.integer) {
             minplayers = g_maxclients.integer - 1;
         }

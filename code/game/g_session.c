@@ -130,7 +130,7 @@ void G_InitSessionData(gclient_t* client, char* userinfo) {
     sess->spectatorState = SPECTATOR_FREE;
     sess->spectatorTime = level.time;
     sess->privileges = 0;
-    sess->specOnly = (g_gametype.integer == GT_TOURNAMENT) ? 1 : 0;
+    sess->specOnly = (g_gametype.integer == GT_DUEL) ? 1 : 0;
     sess->playQueue = 0;
     sess->muted = 0;
     sess->weaponPrimary = 0;

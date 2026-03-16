@@ -1005,7 +1005,7 @@ void ClientBegin(int clientNum) {
     }
 
     // [QL] Duel bots: clear losses, set join time
-    if (g_gametype.integer == GT_TOURNAMENT && (ent->r.svFlags & SVF_BOT)) {
+    if (g_gametype.integer == GT_DUEL && (ent->r.svFlags & SVF_BOT)) {
         client->sess.losses = 0;
         if (client->sess.joinTime == 0) {
             client->sess.joinTime = (int)time(NULL);
@@ -1390,7 +1390,7 @@ void ClientDisconnect(int clientNum) {
     }
 
     // [QL] duel: send scoreboard on disconnect
-    if (g_gametype.integer == GT_TOURNAMENT) {
+    if (g_gametype.integer == GT_DUEL) {
         DuelScoreboardMessage(ent);
     }
 
@@ -1460,7 +1460,7 @@ void ClientDisconnect(int clientNum) {
     G_LogPrintf("ClientDisconnect: %i\n", clientNum);
 
     // if we are playing in tourney mode and losing, give a win to the other player
-    if ((g_gametype.integer == GT_TOURNAMENT) && !level.intermissionTime && !level.warmupTime && level.sortedClients[1] == clientNum) {
+    if ((g_gametype.integer == GT_DUEL) && !level.intermissionTime && !level.warmupTime && level.sortedClients[1] == clientNum) {
         level.clients[level.sortedClients[0]].sess.wins++;
         ClientUserinfoChanged(level.sortedClients[0]);
     }
