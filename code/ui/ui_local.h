@@ -72,7 +72,6 @@ extern vmCvar_t ui_mapIndex;
 extern vmCvar_t ui_currentOpponent;
 extern vmCvar_t ui_selectedPlayer;
 extern vmCvar_t ui_selectedPlayerName;
-extern vmCvar_t ui_singlePlayerActive;
 extern vmCvar_t ui_scoreAccuracy;
 extern vmCvar_t ui_scoreImpressives;
 extern vmCvar_t ui_scoreExcellents;
@@ -968,8 +967,6 @@ void trap_LAN_ResetPings(int n);
 int trap_LAN_ServerStatus(const char* serverAddress, char* serverStatus, int maxLen);
 int trap_LAN_CompareServers(int source, int sortKey, int sortDir, int s1, int s2);
 int trap_MemoryRemaining(void);
-void trap_GetCDKey(char* buf, int buflen);
-void trap_SetCDKey(char* buf);
 void trap_R_RegisterFont(const char* pFontname, int pointSize, fontInfo_t* font);
 void trap_S_StopBackgroundTrack(void);
 void trap_S_StartBackgroundTrack(const char* intro, const char* loop);
@@ -980,8 +977,6 @@ void trap_CIN_DrawCinematic(int handle);
 void trap_CIN_SetExtents(int handle, int x, int y, int w, int h);
 int trap_RealTime(qtime_t* qtime);
 void trap_R_RemapShader(const char* oldShader, const char* newShader, const char* timeOffset);
-qboolean trap_VerifyCDKey(const char* key, const char* chksum);
-
 void trap_SetPbClStatus(int status);
 
 //

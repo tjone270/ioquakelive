@@ -50,14 +50,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
  The "home path" is the path used for all write access. On win32 systems we have "base path"
  == "home path", but on *nix systems the base installation is usually readonly, and
- "home path" points to ~/.q3a or similar
+ "home path" points to a user-writable directory
 
  The user can also install custom mods and content in "home path", so it should be searched
  along with "home path" and "cd path" for game content.
 
 
  The "base game" is the directory under the paths where data comes from by default, and
- can be either "baseq3" or "demoq3".
+ is "baseq3".
 
  The "current game" may be the same as the base game, or it may be the name of another
  directory under the paths that should be searched for files before looking in the base game.
@@ -88,7 +88,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  Additionally, we search in several subdirectories:
  current game is the current mode
  base game is a variable to allow mods based on other mods
- (such as baseq3 + missionpack content combination in a mod for instance)
+ (such as baseq3 content in a mod for instance)
  BASEGAME is the hardcoded base game ("baseq3")
 
  e.g. the qpath "sound/newstuff/test.wav" would be searched for in the following places:
@@ -157,7 +157,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
  Different version coexistance?
 
- When building a pak file, make sure a q3config.cfg isn't present in it,
+ When building a pak file, make sure a qzconfig.cfg isn't present in it,
  or configs will never get loaded from disk!
 
    todo:
@@ -168,9 +168,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  =============================================================================
 
  */
-
-// [QL] pak00.pk3 checksum - must match the legitimate Quake Live pak00.pk3
-#define PAK00_CHECKSUM 363034675u
 
 #define MAX_ZPATH 256
 #define MAX_SEARCH_PATHS 4096
@@ -534,13 +531,13 @@ qboolean FS_CreatePath(char* OSPath) {
 =================
 FS_CheckFilenameIsMutable
 
-ERR_FATAL if trying to maniuplate a file with the platform library, QVM, or pk3 extension
+ERR_FATAL if trying to manipulate a file with the platform library or pk3 extension
 =================
  */
 static void FS_CheckFilenameIsMutable(const char* filename,
 									  const char* function) {
-	// Check if the filename ends with the library, QVM, or pk3 extension
-	if (Sys_DllExtension(filename) || COM_CompareExtension(filename, ".qvm") || COM_CompareExtension(filename, ".pk3")) {
+	// Check if the filename ends with the library or pk3 extension
+	if (Sys_DllExtension(filename) || COM_CompareExtension(filename, ".pk3")) {
 		Com_Error(ERR_FATAL,
 				  "%s: Not allowed to manipulate '%s' due "
 				  "to %s extension",
@@ -1057,11 +1054,6 @@ qboolean FS_IsDemoExt(const char* filename, int namelen) {
 		if (protocol == com_protocol->integer)
 			return qtrue;
 
-#ifdef LEGACY_PROTOCOL
-		if (protocol == com_legacyprotocol->integer)
-			return qtrue;
-#endif
-
 		for (index = 0; demo_protocols[index]; index++) {
 			if (demo_protocols[index] == protocol)
 				return qtrue;
@@ -1306,7 +1298,7 @@ long FS_FOpenFileRead(const char* filename, fileHandle_t* file, qboolean uniqueF
 
 	isLocalConfig = !strcmp(filename, "autoexec.cfg") || !strcmp(filename, QZCONFIG_CFG);
 	for (search = fs_searchpaths; search; search = search->next) {
-		// autoexec.cfg and q3config.cfg can only be loaded outside of pk3 files.
+		// autoexec.cfg and qzconfig.cfg can only be loaded outside of pk3 files.
 		if (isLocalConfig && search->pack)
 			continue;
 
@@ -1340,14 +1332,9 @@ long FS_FOpenFileRead(const char* filename, fileHandle_t* file, qboolean uniqueF
 =================
 FS_FindVM
 
-Find a suitable VM file in search path order.
+Find a suitable DLL file in search path order.
 
-In each searchpath try:
- - open DLL file if DLL loading enabled
-
-Enable search for DLL by setting enableDll to FSVM_ENABLEDLL
-
-write found DLL or QVM to "found" and return VMI_NATIVE if DLL, VMI_COMPILED if QVM
+write found DLL path to "found".
 Return the searchpath in "startSearch".
 =================
 */
@@ -1355,15 +1342,16 @@ Return the searchpath in "startSearch".
 void FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, int enableDll) {
 	searchpath_t* search, * lastSearch;
 	directory_t* dir;
-	pack_t* pack;
 	char dllName[MAX_OSPATH];
 	char* netpath;
 
 	if (!fs_searchpaths)
 		Com_Error(ERR_FATAL, "Filesystem call made without initialization");
 
-	if (enableDll)
-		Com_sprintf(dllName, sizeof(dllName), "%s" ARCH_STRING DLL_EXT, name);
+	if (!enableDll)
+		return;
+
+	Com_sprintf(dllName, sizeof(dllName), "%s" ARCH_STRING DLL_EXT, name);
 
 	lastSearch = *startSearch;
 	if (*startSearch == NULL)
@@ -1372,36 +1360,19 @@ void FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, 
 		search = lastSearch->next;
 
 	while (search) {
-		if (search->dir) {  // && !fs_numServerPaks) { // Had to remove to allow for DLL reloading - this alteration may affect purity checks
+		if (search->dir) {
 			dir = search->dir;
+			netpath = FS_BuildOSPath(dir->path, dir->gamedir, dllName);
 
-			if (enableDll) {
-				netpath = FS_BuildOSPath(dir->path, dir->gamedir, dllName);
-
-				if (FS_FileInPathExists(netpath)) {
-					Q_strncpyz(found, netpath, foundlen);
-					*startSearch = search;
-					return;
-				}
-			}
-		} else if (search->pack) {
-			pack = search->pack;
-
-			if (lastSearch && lastSearch->pack) {
-				// make sure we only try loading one VM file per game dir
-				// i.e. if VM from pak7.pk3 fails we won't try one from pak6.pk3
-
-				if (!FS_FilenameCompare(lastSearch->pack->pakPathname, pack->pakPathname)) {
-					search = search->next;
-					continue;
-				}
+			if (FS_FileInPathExists(netpath)) {
+				Q_strncpyz(found, netpath, foundlen);
+				*startSearch = search;
+				return;
 			}
 		}
 
 		search = search->next;
 	}
-
-	return;
 }
 
 /*
@@ -2882,20 +2853,6 @@ void FS_AddGameDirectory(const char* path, const char* dir) {
 
 /*
 ================
-FS_idPak
-
-[QL] Check if the given pak name is pak00 (the only official data file).
-================
-*/
-qboolean FS_idPak(char* pak, char* base, int numPaks) {
-	if (!FS_FilenameCompare(pak, va("%s/pak00", base))) {
-		return qtrue;
-	}
-	return qfalse;
-}
-
-/*
-================
 FS_CheckDirTraversal
 
 Check whether the string contains stuff like "../" to prevent directory traversal bugs
@@ -2966,11 +2923,6 @@ qboolean FS_ComparePaks(char* neededpaks, int len, qboolean dlstring) {
 	for (i = 0; i < fs_numServerReferencedPaks; i++) {
 		// Ok, see if we have this pak file
 		havepak = qfalse;
-
-		// never autodownload any of the id paks
-		if (FS_idPak(fs_serverReferencedPakNames[i], BASEGAME_DIR, NUM_ID_PAKS)) {
-			continue;
-		}
 
 		// Make sure the server cannot make us write to non-quake3 directories.
 		if (FS_CheckDirTraversal(fs_serverReferencedPakNames[i])) {
@@ -3621,52 +3573,6 @@ static void FS_CopyFromSteam(void) {
 #endif /* _WIN32 */
 
 /*
-===================
-FS_CheckPak00
-
-[QL] Verify that pak00.pk3 is present in baseq3/ and that its
-checksum matches the legitimate Quake Live data file.
-Errors out if the file is missing or corrupted.
-===================
-*/
-static void FS_CheckPak00(void) {
-	searchpath_t* path;
-	pack_t* curpack;
-	qboolean found = qfalse;
-
-	for (path = fs_searchpaths; path; path = path->next) {
-		if (!path->pack)
-			continue;
-
-		curpack = path->pack;
-
-		if (Q_stricmp(curpack->pakGamename, BASEGAME_DIR) != 0)
-			continue;
-		if (Q_stricmp(curpack->pakBasename, "pak00") != 0)
-			continue;
-
-		// Found pak00.pk3 - verify checksum
-		if ((unsigned int)curpack->checksum != PAK00_CHECKSUM) {
-			Com_Error(ERR_FATAL,
-				BASEGAME_DIR "/pak00.pk3 is corrupted (checksum %u, expected %u).\n\n"
-				"Please re-copy pak00.pk3 from your Quake Live installation.",
-				(unsigned int)curpack->checksum, PAK00_CHECKSUM);
-		}
-
-		found = qtrue;
-		break;
-	}
-
-	if (!found) {
-		Com_Error(ERR_FATAL,
-			BASEGAME_DIR "/pak00.pk3 is missing.\n\n"
-			"Please copy pak00.pk3 from your Quake Live installation to:\n"
-			"%s%c" BASEGAME_DIR "%c",
-			fs_basepath->string, PATH_SEP, PATH_SEP);
-	}
-}
-
-/*
 =====================
 FS_LoadedPakChecksums
 
@@ -4239,10 +4145,6 @@ void FS_InitFilesystem(void) {
 	}
 #endif
 
-#ifndef STANDALONE
-	FS_CheckPak00();
-#endif
-
 	// if we can't find default.cfg, assume that the paths are
 	// busted and error out now, rather than getting an unreadable
 	// graphics screen when the font fails to load
@@ -4276,10 +4178,6 @@ void FS_Restart(int checksumFeed) {
 	// try to start up normally
 	FS_Startup(com_basegame->string);
 
-#ifndef STANDALONE
-	FS_CheckPak00();
-#endif
-
 	// if we can't find default.cfg, assume that the paths are
 	// busted and error out now, rather than getting an unreadable
 	// graphics screen when the font fails to load
@@ -4309,7 +4207,7 @@ void FS_Restart(int checksumFeed) {
 		Sys_RemovePIDFile(lastGameDir);
 		Sys_InitPIDFile(FS_GetCurrentGameDir());
 
-		// skip the q3config.cfg if "safe" is on the command line
+		// skip the qzconfig.cfg if "safe" is on the command line
 		if (!Com_SafeMode()) {
 			Cbuf_AddText("exec " QZCONFIG_CFG "\n");
 		}

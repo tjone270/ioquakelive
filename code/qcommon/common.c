@@ -31,8 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <winsock.h>
 #endif
 
-int demo_protocols[] =
-    {91, 0};
+int demo_protocols[] = {0};
 
 #define MAX_NUM_ARGVS 50
 
@@ -69,10 +68,6 @@ cvar_t* com_pipefile;
 cvar_t* com_showtrace;
 cvar_t* com_version;
 cvar_t* com_blood;
-cvar_t* com_buildScript;  // for automated data building scripts
-#ifdef CINEMATICS_INTRO
-cvar_t* com_introPlayed;
-#endif
 cvar_t* cl_paused;
 cvar_t* sv_paused;
 cvar_t* cl_packetdelay;
@@ -84,12 +79,8 @@ cvar_t* com_maxfpsUnfocused;
 cvar_t* com_minimized;
 cvar_t* com_maxfpsMinimized;
 cvar_t* com_abnormalExit;
-cvar_t* com_standalone;
 cvar_t* com_gamename;
 cvar_t* com_protocol;
-#ifdef LEGACY_PROTOCOL
-cvar_t* com_legacyprotocol;
-#endif
 cvar_t* com_basegame;
 cvar_t* com_homepath;
 cvar_t* com_busyWait;
@@ -97,13 +88,6 @@ cvar_t* com_busyWait;
 cvar_t* con_autochat;
 #endif
 
-#if idx64
-int (*Q_VMftol)(void);
-#elif id386
-long(QDECL* Q_ftol)(float f);
-int(QDECL* Q_VMftol)(void);
-void(QDECL* Q_SnapVector)(vec3_t vec);
-#endif
 
 // com_speeds times
 int time_game;
@@ -268,12 +252,6 @@ void QDECL Com_Error(int code, const char* fmt, ...) {
 
     Cvar_Set("com_errorCode", va("%i", code));
 
-    // when we are running automated scripts, make sure we
-    // know if anything failed
-    if (com_buildScript && com_buildScript->integer) {
-        code = ERR_FATAL;
-    }
-
     // if we are getting a solid stream of ERR_DROP, do an ERR_FATAL
     currentTime = Sys_Milliseconds();
     if (currentTime - lastErrorTime < 100) {
@@ -436,7 +414,7 @@ void Com_ParseCommandLine(char* commandLine) {
 Com_SafeMode
 
 Check for "safe" on the command line, which will
-skip loading of q3config.cfg
+skip loading of qzconfig.cfg
 ===================
 */
 qboolean Com_SafeMode(void) {
@@ -1395,7 +1373,7 @@ void Com_InitZoneMemory(void) {
     cvar_t* cv;
 
     // Please note: com_zoneMegs can only be set on the command line, and
-    // not in q3config.cfg or Com_StartupVariable, as they haven't been
+    // not in qzconfig.cfg or Com_StartupVariable, as they haven't been
     // executed by this point. It's a chicken and egg problem. We need the
     // memory manager configured to handle those places where you would
     // configure the memory manager.
@@ -2372,48 +2350,6 @@ void Com_GameRestart_f(void) {
     Com_GameRestart(0, qtrue);
 }
 
-/*
-=================
-Com_DetectSSE
-Find out whether we have SSE support for Q_ftol function
-=================
-*/
-
-#if id386 || idx64
-
-static void Com_DetectSSE(void) {
-#if !idx64
-    cpuFeatures_t feat;
-
-    feat = Sys_GetProcessorFeatures();
-
-    if (feat & CF_SSE) {
-        if (feat & CF_SSE2)
-            Q_SnapVector = qsnapvectorsse;
-        else
-            Q_SnapVector = qsnapvectorx87;
-
-        Q_ftol = qftolsse;
-#endif
-        Q_VMftol = qvmftolsse;
-
-        Com_Printf("SSE instruction set enabled\n");
-#if !idx64
-    } else {
-        Q_ftol = qftolx87;
-        Q_VMftol = qvmftolx87;
-        Q_SnapVector = qsnapvectorx87;
-
-        Com_Printf("SSE instruction set not available\n");
-    }
-#endif
-}
-
-#else
-
-#define Com_DetectSSE()
-
-#endif
 
 /*
 =================
@@ -2464,8 +2400,6 @@ void Com_Init(char* commandLine) {
     //	Swap_Init ();
     Cbuf_Init();
 
-    Com_DetectSSE();
-
     // override anything from the config files with command line args
     Com_StartupVariable(NULL);
 
@@ -2478,7 +2412,6 @@ void Com_Init(char* commandLine) {
     // done early so bind command exists
     CL_InitKeyCommands();
 
-    com_standalone = Cvar_Get("com_standalone", "0", CVAR_ROM);
     com_basegame = Cvar_Get("com_basegame", BASEGAME_DIR, CVAR_INIT);
     com_homepath = Cvar_Get("com_homepath", "", CVAR_INIT | CVAR_PROTECTED);
 
@@ -2548,7 +2481,6 @@ void Com_Init(char* commandLine) {
     sv_packetdelay = Cvar_Get("sv_packetdelay", "0", CVAR_CHEAT);
     com_sv_running = Cvar_Get("sv_running", "0", CVAR_ROM);
     com_cl_running = Cvar_Get("cl_running", "0", CVAR_ROM);
-    com_buildScript = Cvar_Get("com_buildScript", "0", 0);
     com_ansiColor = Cvar_Get("com_ansiColor", "0", CVAR_ARCHIVE);
 
     com_unfocused = Cvar_Get("com_unfocused", "0", CVAR_ROM);
@@ -2559,23 +2491,11 @@ void Com_Init(char* commandLine) {
     com_busyWait = Cvar_Get("com_busyWait", "0", CVAR_ARCHIVE);
     Cvar_Get("com_errorMessage", "", CVAR_ROM | CVAR_NORESTART);
 
-#ifdef CINEMATICS_INTRO
-    com_introPlayed = Cvar_Get("com_introplayed", "0", CVAR_ARCHIVE);
-#endif
-
     s = va("%s %s %s", FULL_PRODUCT_VERSION, PLATFORM_STRING, PRODUCT_DATE);
     com_version = Cvar_Get("version", s, CVAR_ROM | CVAR_SERVERINFO);
     com_gamename = Cvar_Get("com_gamename", PRODUCT_NAME, CVAR_SERVERINFO | CVAR_INIT);
     com_protocol = Cvar_Get("com_protocol", va("%i", PROTOCOL_VERSION), CVAR_SERVERINFO | CVAR_INIT);
-#ifdef LEGACY_PROTOCOL
-    com_legacyprotocol = Cvar_Get("com_legacyprotocol", va("%i", PROTOCOL_LEGACY_VERSION), CVAR_INIT);
-
-    // Keep for compatibility with old mods / mods that haven't updated yet.
-    if (com_legacyprotocol->integer > 0)
-        Cvar_Get("protocol", com_legacyprotocol->string, CVAR_ROM);
-    else
-#endif
-        Cvar_Get("protocol", com_protocol->string, CVAR_ROM);
+    Cvar_Get("protocol", com_protocol->string, CVAR_ROM);
 
 #ifndef DEDICATED
     con_autochat = Cvar_Get("con_autochat", "1", CVAR_ARCHIVE);
@@ -2606,9 +2526,6 @@ void Com_Init(char* commandLine) {
     Com_AddStartupCommands();
 
     CL_StartHunkUsers(qfalse);
-
-    // make sure single player is off by default
-    Cvar_Set("ui_singlePlayerActive", "0");
 
     com_fullyInitialized = qtrue;
 

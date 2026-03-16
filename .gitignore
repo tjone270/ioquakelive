@@ -61,3 +61,4 @@ profile
 *.idb
 *.exp
 *.pk3
+misc/msvc142/.res

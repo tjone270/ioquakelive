@@ -421,7 +421,6 @@ CG_LoadClientInfo
 
 [QL] Rewritten to match binary (CG_RegisterClientModel at 0x1003d830).
 Team-aware fallback: red→"sarge/red", blue→"sarge/blue", ffa→"sarge/default".
-Uses com_build cvar instead of cg_buildScript to gate CG_Error calls.
 ===================
 */
 static void CG_LoadClientInfo(int clientNum, clientInfo_t* ci) {
@@ -431,53 +430,31 @@ static void CG_LoadClientInfo(int clientNum, clientInfo_t* ci) {
 
     modelloaded = qtrue;
     if (!CG_RegisterClientModelname(ci, ci->modelName, ci->skinName, ci->headModelName)) {
-        if (cg_buildScript.integer) {
-            CG_Error("CG_RegisterClientModel( %s, %s, %s, %s ) failed", ci->modelName, ci->skinName, ci->headModelName, ci->headSkinName);
-        }
-
         // [QL] team-aware fallback
         if (ci->team == TEAM_RED) {
             if (!CG_RegisterClientModelname(ci, ci->modelName, "red", ci->headModelName)) {
-                if (cg_buildScript.integer) {
-                    CG_Error("CG_RegisterClientModel( %s, red, %s, red ) failed to register", ci->modelName, ci->headModelName);
-                }
                 // ultimate fallback: sarge/red
                 Q_strncpyz(ci->headModelName, "sarge", sizeof(ci->headModelName));
                 Q_strncpyz(ci->headSkinName, "red", sizeof(ci->headSkinName));
                 if (!CG_RegisterClientModelname(ci, "sarge", "red", "sarge")) {
-                    if (cg_buildScript.integer) {
-                        CG_Error("CG_RegisterClientModel (%s/red) failed to register", "sarge");
-                    }
                     modelloaded = qfalse;
                 }
             }
         } else if (ci->team == TEAM_BLUE) {
             if (!CG_RegisterClientModelname(ci, ci->modelName, "blue", ci->headModelName)) {
-                if (cg_buildScript.integer) {
-                    CG_Error("CG_RegisterClientModel( %s, blue, %s, blue ) failed to register", ci->modelName, ci->headModelName);
-                }
                 // ultimate fallback: sarge/blue
                 Q_strncpyz(ci->headModelName, "sarge", sizeof(ci->headModelName));
                 Q_strncpyz(ci->headSkinName, "blue", sizeof(ci->headSkinName));
                 if (!CG_RegisterClientModelname(ci, "sarge", "blue", "sarge")) {
-                    if (cg_buildScript.integer) {
-                        CG_Error("CG_RegisterClientModel (%s/blue) failed to register", "sarge");
-                    }
                     modelloaded = qfalse;
                 }
             }
         } else {
             // FFA: try "default" skin, then sarge/default
             if (!CG_RegisterClientModelname(ci, ci->modelName, "default", ci->headModelName)) {
-                if (cg_buildScript.integer) {
-                    CG_Error("CG_RegisterClientModel (%s/%s) failed to register", ci->modelName, "default");
-                }
                 Q_strncpyz(ci->headModelName, "sarge", sizeof(ci->headModelName));
                 Q_strncpyz(ci->headSkinName, "default", sizeof(ci->headSkinName));
                 if (!CG_RegisterClientModelname(ci, "sarge", "default", "sarge")) {
-                    if (cg_buildScript.integer) {
-                        CG_Error("CG_RegisterClientModel (%s/%s) failed to register", "sarge", "default");
-                    }
                     modelloaded = qfalse;
                 }
             }
@@ -795,7 +772,7 @@ void CG_NewClientInfo(int clientNum) {
         forceDefer = trap_MemoryRemaining() < 4000000;
 
         // if we are defering loads, just have it pick the first valid
-        if (forceDefer || (cg_deferPlayers.integer && !cg_buildScript.integer && !cg.loading)) {
+        if (forceDefer || (cg_deferPlayers.integer && !cg.loading)) {
             // keep whatever they had if it won't violate team skins
             CG_SetDeferredClientInfo(clientNum, &newInfo);
             // if we are low on memory, leave them with this model

@@ -32,8 +32,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #endif
 
-// #define	PRE_RELEASE_DEMO
-
 //============================================================================
 
 //
@@ -190,8 +188,6 @@ void NET_Sleep(int msec);
                                    // will overflow the reliable commands buffer
 #define MAX_DOWNLOAD_BLKSIZE 1024  // 896 byte block chunks
 
-#define NETCHAN_GENCHECKSUM(challenge, sequence) ((challenge) ^ ((sequence) * (challenge)))
-
 /*
 Netchan handles packet fragmentation and out of order / duplicate suppression
 */
@@ -226,13 +222,10 @@ typedef struct {
     int lastSentTime;
     int lastSentSize;
 
-#ifdef LEGACY_PROTOCOL
-    qboolean compat;
-#endif
 } netchan_t;
 
 void Netchan_Init(int qport);
-void Netchan_Setup(netsrc_t sock, netchan_t* chan, netadr_t adr, int qport, int challenge, qboolean compat);
+void Netchan_Setup(netsrc_t sock, netchan_t* chan, netadr_t adr, int qport, int challenge);
 
 void Netchan_Transmit(netchan_t* chan, int length, const byte* data);
 void Netchan_TransmitNextFragment(netchan_t* chan);
@@ -248,7 +241,6 @@ PROTOCOL
 */
 
 #define PROTOCOL_VERSION 91
-#define PROTOCOL_LEGACY_VERSION 91
 // Quake III  v1.31 - 67
 // Quake Live v1069 - 91
 
@@ -294,7 +286,7 @@ enum clc_ops_e {
 /*
 ==============================================================
 
-VIRTUAL MACHINE
+MODULE SYSTEM (native DLL loading, QVM removed)
 
 ==============================================================
 */
@@ -323,7 +315,7 @@ typedef intptr_t(QDECL* vmMainProc)(int callNum, intptr_t arg0, intptr_t arg1, i
 
 void VM_Init(void);
 vm_t* VM_Create(const char* module, intptr_t (*systemCalls)(intptr_t*));
-// module should be bare: "cgame", not "cgame.dll" or "vm/cgame.qvm"
+// module should be bare: "cgame", not "cgame.dll"
 
 void VM_Free(vm_t* vm);
 void VM_Clear(void);
@@ -558,9 +550,6 @@ issues.
 #define FS_UI_REF 0x02
 #define FS_CGAME_REF 0x04
 #define FS_QAGAME_REF 0x08
-// number of id paks that will never be autodownloaded from baseq3/missionpack
-#define NUM_ID_PAKS 1
-
 #define MAX_FILE_HANDLES 64
 
 #ifdef DEDICATED
@@ -693,7 +682,6 @@ void FS_PureServerSetLoadedPaks(const char* pakSums, const char* pakNames);
 
 qboolean FS_CheckDirTraversal(const char* checkdir);
 qboolean FS_InvalidGameDir(const char* gamedir);
-qboolean FS_idPak(char* pak, char* base, int numPaks);
 qboolean FS_ComparePaks(char* neededpaks, int len, qboolean dlstring);
 
 void FS_Rename(const char* from, const char* to);
@@ -819,7 +807,6 @@ extern cvar_t* com_sv_running;
 extern cvar_t* com_cl_running;
 extern cvar_t* com_version;
 extern cvar_t* com_blood;
-extern cvar_t* com_buildScript;  // for building release pak files
 extern cvar_t* com_journal;
 extern cvar_t* com_cameraMode;
 extern cvar_t* com_ansiColor;
@@ -827,7 +814,6 @@ extern cvar_t* com_unfocused;
 extern cvar_t* com_maxfpsUnfocused;
 extern cvar_t* com_minimized;
 extern cvar_t* com_maxfpsMinimized;
-extern cvar_t* com_standalone;
 extern cvar_t* com_basegame;
 extern cvar_t* com_homepath;
 
@@ -840,9 +826,6 @@ extern cvar_t* sv_packetdelay;
 
 extern cvar_t* com_gamename;
 extern cvar_t* com_protocol;
-#ifdef LEGACY_PROTOCOL
-extern cvar_t* com_legacyprotocol;
-#endif
 #ifndef DEDICATED
 extern cvar_t* con_autochat;
 #endif
@@ -1014,8 +997,6 @@ int SV_SendQueuedPackets(void);
 // UI interface
 //
 qboolean UI_GameCommand(void);
-qboolean UI_usesUniqueCDKey(void);
-
 //
 // input interface
 //

@@ -1420,12 +1420,6 @@ void SV_AddOperatorCommands(void) {
 
     Cmd_AddCommand("heartbeat", SV_Heartbeat_f);
     Cmd_AddCommand("kick", SV_Kick_f);
-#ifndef STANDALONE
-    if (!com_standalone->integer) {
-        Cmd_AddCommand("banUser", SV_Ban_f);
-        Cmd_AddCommand("banClient", SV_BanNum_f);
-    }
-#endif
     Cmd_AddCommand("kickbots", SV_KickBots_f);
     Cmd_AddCommand("kickall", SV_KickAll_f);
     Cmd_AddCommand("kicknum", SV_KickNum_f);

@@ -107,7 +107,7 @@ Q_EXPORT intptr_t vmMain(int command, intptr_t arg0, intptr_t arg1, intptr_t arg
         case UI_DRAW_CONNECT_SCREEN:
             UI_DrawConnectScreen(arg0);
             return 0;
-        case UI_HASUNIQUECDKEY:
+        case UI_HASUNIQUECDKEY:  // [Q3 remnant] always true, QL uses Steam auth
             return qtrue;
 
         case UI_REGISTER_CVARS:
@@ -2254,41 +2254,25 @@ static void UI_LoadDemos(void) {
     char demolist[NAMEBUFSIZE];
     char demoExt[32];
     char* demoname;
-    int i, j, len;
-    int protocol, protocolLegacy;
+    int i, len;
+    int protocol;
 
-    protocolLegacy = trap_Cvar_VariableValue("com_legacyprotocol");
     protocol = trap_Cvar_VariableValue("com_protocol");
 
     if (!protocol)
         protocol = trap_Cvar_VariableValue("protocol");
-    if (protocolLegacy == protocol)
-        protocolLegacy = 0;
 
     Com_sprintf(demoExt, sizeof(demoExt), ".%s%d", DEMOEXT, protocol);
     uiInfo.demoCount = trap_FS_GetFileList("demos", demoExt, demolist, ARRAY_LEN(demolist));
 
+    if (uiInfo.demoCount > MAX_DEMOS)
+        uiInfo.demoCount = MAX_DEMOS;
+
     demoname = demolist;
-    i = 0;
-
-    for (j = 0; j < 2; j++) {
-        if (uiInfo.demoCount > MAX_DEMOS)
-            uiInfo.demoCount = MAX_DEMOS;
-
-        for (; i < uiInfo.demoCount; i++) {
-            len = strlen(demoname);
-            uiInfo.demoList[i] = String_Alloc(demoname);
-            demoname += len + 1;
-        }
-
-        if (!j) {
-            if (protocolLegacy > 0 && uiInfo.demoCount < MAX_DEMOS) {
-                Com_sprintf(demoExt, sizeof(demoExt), ".%s%d", DEMOEXT, protocolLegacy);
-                uiInfo.demoCount += trap_FS_GetFileList("demos", demoExt, demolist, ARRAY_LEN(demolist));
-                demoname = demolist;
-            } else
-                break;
-        }
+    for (i = 0; i < uiInfo.demoCount; i++) {
+        len = strlen(demoname);
+        uiInfo.demoList[i] = String_Alloc(demoname);
+        demoname += len + 1;
     }
 }
 
@@ -2328,8 +2312,6 @@ static void UI_StartSkirmish(qboolean next) {
     trap_Cvar_Set("ui_scoreMap", uiInfo.mapList[ui_currentMap.integer].mapName);
 
     k = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
-
-    trap_Cvar_Set("ui_singlePlayerActive", "1");
 
     // set up sp overrides, will be replaced on postgame
     temp = trap_Cvar_VariableValue("capturelimit");
@@ -2540,7 +2522,6 @@ static void UI_RunMenuScript(char** args) {
             float skill;
             trap_Cvar_Set("cg_thirdPerson", "0");
             trap_Cvar_Set("cg_cameraOrbit", "0");
-            trap_Cvar_Set("ui_singlePlayerActive", "0");
             trap_Cvar_SetValue("dedicated", Com_Clamp(0, 2, ui_dedicated.integer));
             trap_Cvar_SetValue("g_gametype", Com_Clamp(0, GT_MAX_GAME_TYPE - 1, uiInfo.gameTypes[ui_netGameType.integer].gtEnum));
             trap_Cvar_Set("g_redTeam", UI_Cvar_VariableString("ui_teamName"));
@@ -2589,17 +2570,14 @@ static void UI_RunMenuScript(char** args) {
         } else if (Q_stricmp(name, "JoinServer") == 0) {
             trap_Cvar_Set("cg_thirdPerson", "0");
             trap_Cvar_Set("cg_cameraOrbit", "0");
-            trap_Cvar_Set("ui_singlePlayerActive", "0");
             if (uiInfo.serverStatus.currentServer >= 0 && uiInfo.serverStatus.currentServer < uiInfo.serverStatus.numDisplayServers) {
                 trap_Cmd_ExecuteText(EXEC_APPEND, va("connect %s\n", buff));
             }
         } else if (Q_stricmp(name, "FoundPlayerJoinServer") == 0) {
-            trap_Cvar_Set("ui_singlePlayerActive", "0");
             if (uiInfo.currentFoundPlayerServer >= 0 && uiInfo.currentFoundPlayerServer < uiInfo.numFoundPlayerServers) {
                 trap_Cmd_ExecuteText(EXEC_APPEND, va("connect %s\n", uiInfo.foundPlayerServerAddresses[uiInfo.currentFoundPlayerServer]));
             }
         } else if (Q_stricmp(name, "Quit") == 0) {
-            trap_Cvar_Set("ui_singlePlayerActive", "0");
             trap_Cmd_ExecuteText(EXEC_NOW, "quit");
         } else if (Q_stricmp(name, "Controls") == 0) {
             trap_Cvar_Set("cl_paused", "1");
@@ -4166,7 +4144,6 @@ vmCvar_t ui_mapIndex;
 vmCvar_t ui_currentOpponent;
 vmCvar_t ui_selectedPlayer;
 vmCvar_t ui_selectedPlayerName;
-vmCvar_t ui_singlePlayerActive;
 vmCvar_t ui_scoreAccuracy;
 vmCvar_t ui_scoreImpressives;
 vmCvar_t ui_scoreExcellents;
@@ -4302,7 +4279,6 @@ static cvarTable_t cvarTable[] = {
     {&ui_currentOpponent, "ui_currentOpponent", "0", CVAR_ARCHIVE},
     {&ui_selectedPlayer, "cg_selectedPlayer", "0", CVAR_ARCHIVE},
     {&ui_selectedPlayerName, "cg_selectedPlayerName", "", CVAR_ARCHIVE},
-    {&ui_singlePlayerActive, "ui_singlePlayerActive", "0", 0},
     {&ui_scoreAccuracy, "ui_scoreAccuracy", "0", CVAR_ARCHIVE},
     {&ui_scoreImpressives, "ui_scoreImpressives", "0", CVAR_ARCHIVE},
     {&ui_scoreExcellents, "ui_scoreExcellents", "0", CVAR_ARCHIVE},
@@ -4437,7 +4413,6 @@ static cvarTable_t cvarTable[] = {
     {NULL, "ui_teamName", "", CVAR_ARCHIVE},
     {NULL, "ui_new", "0", CVAR_TEMP},
     {NULL, "ui_priv", "0", CVAR_TEMP},
-    {NULL, "ui_cdkeychecked", "0", CVAR_TEMP},
     {NULL, "g_spAwards", "", CVAR_ARCHIVE},
     {NULL, "g_spSkill", "2", CVAR_ARCHIVE},
     {NULL, "g_spScores1", "", CVAR_ARCHIVE},

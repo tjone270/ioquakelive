@@ -144,7 +144,6 @@ vmCvar_t cg_synchronousClients;
 vmCvar_t cg_teamChatTime;
 vmCvar_t cg_teamChatHeight;
 vmCvar_t cg_stats;
-vmCvar_t cg_buildScript;
 vmCvar_t cg_forceModel;
 vmCvar_t cg_paused;
 vmCvar_t cg_blood;
@@ -177,10 +176,8 @@ vmCvar_t cg_trueLightning;
 
 vmCvar_t cg_currentSelectedPlayer;
 vmCvar_t cg_currentSelectedPlayerName;
-vmCvar_t cg_singlePlayer;
 vmCvar_t cg_enableDust;
 vmCvar_t cg_enableBreath;
-vmCvar_t cg_singlePlayerActive;
 vmCvar_t cg_recordSPDemo;
 vmCvar_t cg_recordSPDemoName;
 vmCvar_t cg_obeliskRespawnDelay;
@@ -521,17 +518,14 @@ static cvarTable_t cvarTable[] = {
     {&cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE},
     // the following variables are created in other parts of the system,
     // but we also reference them here
-    {&cg_buildScript, "com_buildScript", "0", 0},  // force loading of all possible data amd error on failures
     {&cg_paused, "cl_paused", "0", CVAR_ROM},
     {&cg_blood, "com_blood", "1", CVAR_ARCHIVE},
     {&cg_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO},
 
     {&cg_currentSelectedPlayer, "cg_currentSelectedPlayer", "0", CVAR_ARCHIVE},
     {&cg_currentSelectedPlayerName, "cg_currentSelectedPlayerName", "", CVAR_ARCHIVE},
-    {&cg_singlePlayer, "ui_singlePlayerActive", "0", CVAR_USERINFO},
     {&cg_enableDust, "g_enableDust", "0", CVAR_SERVERINFO},
     {&cg_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO},
-    {&cg_singlePlayerActive, "ui_singlePlayerActive", "0", CVAR_USERINFO},
     {&cg_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
     {&cg_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_ARCHIVE},
     {&cg_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO},
@@ -1047,7 +1041,7 @@ static void CG_RegisterSounds(void) {
     cgs.media.countPrepareSound = trap_S_RegisterSound("sound/vo/prepare_to_fight.ogg", qtrue);
     cgs.media.countPrepareTeamSound = trap_S_RegisterSound("sound/vo/prepare_your_team.ogg", qtrue);
 
-    if (cgs.gametype >= GT_TEAM || cg_buildScript.integer) {
+    if (cgs.gametype >= GT_TEAM) {
         cgs.media.captureAwardSound = trap_S_RegisterSound("sound/teamplay/flagcapture_yourteam", qtrue);
         cgs.media.redLeadsSound = trap_S_RegisterSound("sound/vo/red_leads", qtrue);
         cgs.media.blueLeadsSound = trap_S_RegisterSound("sound/vo/blue_leads", qtrue);
@@ -1066,25 +1060,25 @@ static void CG_RegisterSounds(void) {
         cgs.media.takenYourTeamSound = trap_S_RegisterSound("sound/teamplay/flagtaken_yourteam", qtrue);
         cgs.media.takenOpponentSound = trap_S_RegisterSound("sound/teamplay/flagtaken_opponent", qtrue);
 
-        if (cgs.gametype == GT_CTF || cg_buildScript.integer) {
+        if (cgs.gametype == GT_CTF) {
             cgs.media.redFlagReturnedSound = trap_S_RegisterSound("sound/vo/red_flag_returned", qtrue);
             cgs.media.blueFlagReturnedSound = trap_S_RegisterSound("sound/vo/blue_flag_returned", qtrue);
             cgs.media.enemyTookYourFlagSound = trap_S_RegisterSound("sound/vo/your_flag_taken", qtrue);
             cgs.media.yourTeamTookEnemyFlagSound = trap_S_RegisterSound("sound/vo/enemy_flag_taken", qtrue);
         }
 
-        if (cgs.gametype == GT_1FCTF || cg_buildScript.integer) {
+        if (cgs.gametype == GT_1FCTF) {
             cgs.media.neutralFlagReturnedSound = trap_S_RegisterSound("sound/teamplay/flagreturn_opponent.ogg", qtrue);
             cgs.media.yourTeamTookTheFlagSound = trap_S_RegisterSound("sound/vo/your_team_has_flag", qtrue);
             cgs.media.enemyTookTheFlagSound = trap_S_RegisterSound("sound/vo/the_enemy_has_flag", qtrue);
         }
 
-        if (cgs.gametype == GT_1FCTF || cgs.gametype == GT_CTF || cg_buildScript.integer) {
+        if (cgs.gametype == GT_1FCTF || cgs.gametype == GT_CTF) {
             cgs.media.youHaveFlagSound = trap_S_RegisterSound("sound/vo/you_have_flag", qtrue);
             cgs.media.holyShitSound = trap_S_RegisterSound("sound/vo/holy_shit", qtrue);
         }
 
-        if (cgs.gametype == GT_OBELISK || cg_buildScript.integer) {
+        if (cgs.gametype == GT_OBELISK) {
             cgs.media.yourBaseIsUnderAttackSound = trap_S_RegisterSound("sound/teamplay/voc_base_attack.ogg", qtrue);
         }
     }
@@ -1372,14 +1366,14 @@ static void CG_RegisterGraphics(void) {
     cgs.media.gametypeIcon[GT_AD]         = trap_R_RegisterShaderNoMip("ui/assets/hud/ad");
     cgs.media.gametypeIcon[GT_RR]         = trap_R_RegisterShaderNoMip("ui/assets/hud/rr");
 
-    if (cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
+    if (cgs.gametype == GT_HARVESTER) {
         cgs.media.redCubeModel = trap_R_RegisterModel("models/powerups/orb/r_orb.md3");
         cgs.media.blueCubeModel = trap_R_RegisterModel("models/powerups/orb/b_orb.md3");
         cgs.media.redCubeIcon = trap_R_RegisterShader("icons/skull_red");
         cgs.media.blueCubeIcon = trap_R_RegisterShader("icons/skull_blue");
     }
 
-    if (cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
+    if (cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER) {
         cgs.media.redFlagModel = trap_R_RegisterModel("models/flags/r_flag.md3");
         cgs.media.blueFlagModel = trap_R_RegisterModel("models/flags/b_flag.md3");
         cgs.media.redFlagShader[0] = trap_R_RegisterShaderNoMip("icons/iconf_red1");
@@ -1401,7 +1395,7 @@ static void CG_RegisterGraphics(void) {
         cgs.media.neutralFlagBaseModel = trap_R_RegisterModel("models/mapobjects/flagbase/ntrl_base.md3");
     }
 
-    if (cgs.gametype == GT_1FCTF || cg_buildScript.integer) {
+    if (cgs.gametype == GT_1FCTF) {
         cgs.media.neutralFlagModel = trap_R_RegisterModel("models/flags/n_flag.md3");
         cgs.media.flagShader[0] = trap_R_RegisterShaderNoMip("icons/iconf_neutral1");
         cgs.media.flagShader[1] = trap_R_RegisterShaderNoMip("icons/iconf_red2");
@@ -1409,7 +1403,7 @@ static void CG_RegisterGraphics(void) {
         cgs.media.flagShader[3] = trap_R_RegisterShaderNoMip("icons/iconf_neutral3");
     }
 
-    if (cgs.gametype == GT_OBELISK || cg_buildScript.integer) {
+    if (cgs.gametype == GT_OBELISK) {
         cgs.media.rocketExplosionShader = trap_R_RegisterShader("rocketExplosion");
         cgs.media.overloadBaseModel = trap_R_RegisterModel("models/powerups/overload_base.md3");
         cgs.media.overloadTargetModel = trap_R_RegisterModel("models/powerups/overload_target.md3");
@@ -1417,7 +1411,7 @@ static void CG_RegisterGraphics(void) {
         cgs.media.overloadEnergyModel = trap_R_RegisterModel("models/powerups/overload_energy.md3");
     }
 
-    if (cgs.gametype == GT_HARVESTER || cg_buildScript.integer) {
+    if (cgs.gametype == GT_HARVESTER) {
         cgs.media.harvesterModel = trap_R_RegisterModel("models/powerups/harvester/harvester.md3");
         cgs.media.harvesterRedSkin = trap_R_RegisterSkin("models/powerups/harvester/red.skin");
         cgs.media.harvesterBlueSkin = trap_R_RegisterSkin("models/powerups/harvester/blue.skin");
@@ -1427,7 +1421,7 @@ static void CG_RegisterGraphics(void) {
     cgs.media.redKamikazeShader = trap_R_RegisterShader("models/weaphits/kamikred");
     cgs.media.dustPuffShader = trap_R_RegisterShader("hasteSmokePuff");
 
-    if (cgs.gametype >= GT_TEAM || cg_buildScript.integer) {
+    if (cgs.gametype >= GT_TEAM) {
         cgs.media.redQuadShader = trap_R_RegisterShader("powerups/blueflag");
         cgs.media.teamStatusBar = trap_R_RegisterShader("gfx/2d/colorbar.tga");
         cgs.media.blueKamikazeShader = trap_R_RegisterShader("models/weaphits/kamikblu");
@@ -1509,7 +1503,7 @@ static void CG_RegisterGraphics(void) {
     Q_strncpyz(items, CG_ConfigString(CS_ITEMS), sizeof(items));
 
     for (i = 1; i < bg_numItems; i++) {
-        if (items[i] == '1' || cg_buildScript.integer) {
+        if (items[i] == '1') {
             CG_LoadingItem(i);
             CG_RegisterItemVisuals(i);
         }

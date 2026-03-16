@@ -34,10 +34,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "cl_curl.h"
 #endif /* USE_CURL */
 
-// file full of random crap that gets used to create cl_guid
-#define RND_FILE "rnd.dat"
-#define RND_SIZE 2048
-
 #define RETRANSMIT_TIMEOUT 3000  // time between connection packet retransmits
 
 // snapshots are a view of the server at a given time
@@ -210,7 +206,6 @@ typedef struct {
 
     // demo information
     char demoName[MAX_QPATH];
-    qboolean spDemoRecording;
     qboolean demorecording;
     qboolean demoplaying;
     qboolean demowaiting;  // don't record until a non-delta message is received
@@ -227,10 +222,6 @@ typedef struct {
 
     float aviVideoFrameRemainder;
     float aviSoundFrameRemainder;
-
-#ifdef LEGACY_PROTOCOL
-    qboolean compat;
-#endif
 
     // big stuff at end of structure so most offsets are 15 bits or less
     netchan_t netchan;
@@ -268,14 +259,11 @@ typedef struct {
     int maxPing;
     int ping;
     qboolean visible;
-    int punkbuster;
     int g_humanplayers;
     int g_needpass;
 } serverInfo_t;
 
 typedef struct {
-    qboolean cddialog;  // bring up the cd needed dialog next frame
-
     // when the server clears the hunk, all of these must be restarted
     qboolean rendererStarted;
     qboolean soundStarted;
@@ -307,8 +295,6 @@ typedef struct {
     netadr_t updateServer;
     char updateChallenge[MAX_TOKEN_CHARS];
     char updateInfoString[MAX_INFO_STRING];
-
-    netadr_t authorizeServer;
 
     netadr_t rconAddress;
 

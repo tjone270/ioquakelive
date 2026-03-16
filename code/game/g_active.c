@@ -939,18 +939,6 @@ void ClientThink_real(gentity_t* ent) {
 
     // [QL] pmove_fixed/pmove_msec removed from pmove_t; pmoveFixed removed from clientPersistant_t
 
-    if (level.intermissionQueued != 0 && g_singlePlayer.integer) {
-        if (level.time - level.intermissionQueued >= 1000) {
-            pm.cmd.buttons = 0;
-            pm.cmd.forwardmove = 0;
-            pm.cmd.rightmove = 0;
-            pm.cmd.upmove = 0;
-            if (level.time - level.intermissionQueued >= 2000 && level.time - level.intermissionQueued <= 2500) {
-                trap_SendConsoleCommand(EXEC_APPEND, "centerview\n");
-            }
-            ent->client->ps.pm_type = PM_INTERMISSION;
-        }
-    }
     Pmove(&pm);
 
     // save results of pmove

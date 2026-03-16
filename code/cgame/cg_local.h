@@ -1376,7 +1376,6 @@ extern vmCvar_t cg_teamChatTime;
 extern vmCvar_t cg_teamChatHeight;
 extern vmCvar_t cg_stats;
 extern vmCvar_t cg_forceModel;
-extern vmCvar_t cg_buildScript;
 extern vmCvar_t cg_paused;
 extern vmCvar_t cg_blood;
 extern vmCvar_t cg_predictItems;
@@ -1406,10 +1405,8 @@ extern vmCvar_t cg_trueLightning;
 
 extern vmCvar_t cg_currentSelectedPlayer;
 extern vmCvar_t cg_currentSelectedPlayerName;
-extern vmCvar_t cg_singlePlayer;
 extern vmCvar_t cg_enableDust;
 extern vmCvar_t cg_enableBreath;
-extern vmCvar_t cg_singlePlayerActive;
 extern vmCvar_t cg_recordSPDemo;
 extern vmCvar_t cg_recordSPDemoName;
 extern vmCvar_t cg_obeliskRespawnDelay;

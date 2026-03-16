@@ -862,7 +862,7 @@ Routing logic (matches binary):
   - Other CVAR_ARCHIVE (0x1) cvars → qzconfig
 
 Pass the same handle for both to write everything to one file.
-Skips "cl_cdkey" and "password" cvars (matches binary).
+Skips "password" cvar (matches binary).
 ============
 */
 void Cvar_WriteVariables(fileHandle_t f_hw, fileHandle_t f_rep) {
@@ -873,8 +873,6 @@ void Cvar_WriteVariables(fileHandle_t f_hw, fileHandle_t f_rep) {
 
     for (var = cvar_vars; var; var = var->next) {
         // [QL] skip sensitive cvars
-        if (!Q_stricmp(var->name, "cl_cdkey"))
-            continue;
         if (!Q_stricmp(var->name, "password"))
             continue;
 
