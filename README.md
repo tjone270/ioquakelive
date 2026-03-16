@@ -13,9 +13,9 @@ It's really important to me that the Quake Live community prosper - it's such a 
 
 - Quake Live clients can connect to the ioquakelive server.
 - QL network protocol (custom netchan, entity/player state field tables, usercmd layout)
-- QL game module (`qagame`) - 40%-50% complete-ish.
+- QL game module (`qagame`) - 60%-70% complete, with per-gametype source files and lag compensation
 - QL UI module - new exports, ~78 new cvars, font/widescreen support
-- QL cgame module - updated event system, physics, HUD owner-draws, scoreboard rendering
+- QL cgame module - updated event system, physics, HUD owner-draws, scoreboard rendering, impact sparks, weapon styles, zoom
 - Font rendering via FreeType (though might move to `stb_truetype` in future as this is what Quake Live uses)
 - Widescreen coordinate system (4:3 content area with left/center/right bias)
 - All base game types: Free for All, Duel, Team Deathmatch, Clan Arena, CTF, 1F CTF, Harvester, Freeze Tag, Domination, A&D, Race, Red Rover (most have basic implementation)
@@ -51,15 +51,24 @@ I do not have any rights to use any Quake Live game assets and cannot/**will not
 | entityStateFields | Done | 58 entries, reordered, gravity as int32 |
 | playerStateFields | Done | 58 entries, `pm_flags` 24-bit, `weaponPrimary`, 9 new QL fields |
 | usercmd_t deltas | Done | Offsets 21-25 reordered, 2 generic byte fields added |
+| Configstring flood fix | Done | Track `csUpdated[]` per client during `CS_PRIMED`, only resend changed |
+| XOR netchan encoding | Done | `challenge ^ serverId ^ messageAcknowledge` key derivation |
+| Huffman on OOB data | Done | `NET_OutOfBandData` compresses connect packets at byte 12 |
 
 #### Client engine
 
 | Area | Status | Notes |
 |------|--------|-------|
 | CG_REGISTER_CVARS call | Done | `VM_Call` before `CG_INIT` in `cl_cgame.c` |
+| Connection protocol | Done | Steam auth in `getchallenge`, `NET_OutOfBandRaw` for binary payloads, `cl_steamId` cvar |
+| DLL pak system | Done | Architecture-specific `iobin_x86`/`iobin_x86_64` pk3 with `Make-BinPk3.ps1`, pure server compatible |
 | Sound system | Pending | QL sound system changes not yet audited |
-| Demo recording/playback/journalling | Pending | Not yet tested with QL protocol |
+| Demo recording/playback | Pending | Not yet tested with QL protocol |
 | Download system | Pending | HTTP redirect and pk3 downloads not yet audited |
+| VOIP / Steam voice | Pending | QL uses Steam P2P voice, not Q3 VOIP; current code is ioquake3 VOIP |
+| Console auto-complete | Pending | QL-specific commands/cvars not yet registered for tab-complete |
+| Screenshot system | Pending | QL screenshot path/naming conventions not audited |
+| Client-side prediction | Pending | Prediction error handling for QL-specific player states (freeze, tutorial) not fully tested |
 
 #### Server engine
 
@@ -67,8 +76,14 @@ I do not have any rights to use any Quake Live game assets and cannot/**will not
 |------|--------|-------|
 | Snapshot system | Done | Entity/player state serialisation matches QL |
 | Bot management | Done | `sv_bot.c` functional |
+| Steam auth bypass | Done | `com_build 1` skips Steam GS init and auth validation |
+| Game module loading | Done | Native DLL loading with `gameImport_t` function pointer table |
+| Ban system | Pending | `SV_Ban_f` / `SV_BanNum_f` print "Not yet implemented" |
 | ZMQ stats/rcon | Pending | QL uses ZeroMQ for remote console and stats publishing |
-| Server browser | Pending | Valve's Server Query Protocol planned |
+| Server browser protocol | Pending | Valve's Server Query Protocol needed for server list |
+| Master server heartbeat | Pending | QL uses Steam master servers; needs custom implementation |
+| Map download redirect | Pending | HTTP redirect for missing maps not implemented |
+| Rate limiting | Pending | QL-specific flood protection tuning not audited |
 
 #### cgame (client-side game module)
 
@@ -87,9 +102,19 @@ I do not have any rights to use any Quake Live game assets and cannot/**will not
 | Prediction/pmove | Done | 9 binary-verified fixes (freeze, dead float, hookEnemy, etc.) |
 | Obituary feed | Done | Attacker/victim name rendering with weapon icons |
 | Team overlay | Done | Scrolling spectator list, team info |
+| Impact sparks | Done | Configurable spark particle system on bullet/rail impacts |
+| Weapon styles | Done | Muzzle flash control, shotgun smoke, weapon render cvars |
+| Vignette overlay | Done | Screen-edge darkening effect |
+| Zoom system | Done | Toggle zoom, zoom scaling, zoomOutOnDeath |
+| Player model scaling | Done | Bounding box scaling for player models |
+| Spectator features | Done | Auto-follow, FOV sync, `cg_followPowerup` |
 | Crosshair | Pending | QL crosshair set not fully verified |
 | Awards/medals display | Pending | Rendering present but QL-specific award set not fully audited |
 | Damage direction indicator | Pending | Not yet verified against binary |
+| Chat beep sounds | Pending | QL-specific chat notification sounds not verified |
+| Warmup countdown display | Pending | Countdown overlay/announcer not fully tested |
+| Player clan tags | Pending | Clan tag rendering in scoreboard/nameplate not audited |
+| Intermission camera | Pending | QL intermission camera behaviour not verified |
 
 #### UI (user interface module)
 
@@ -99,15 +124,20 @@ I do not have any rights to use any Quake Live game assets and cannot/**will not
 | fontIndex support | Done | All 26+ DC call sites pass `item->fontIndex` |
 | Cvars | Done | ~78 new cvars registered in `ui_main.c` |
 | Menu file loading | Done | `pak01.pk3` override system for custom menus/other assets |
-| Non-team scoreboards | Done | Implemented and fixed up visuals to ensure associated `.menu` files process accurately. |
+| Non-team scoreboards | Done | Implemented and fixed up visuals to ensure associated `.menu` files process accurately |
 | Server browser | Pending | Not yet adapted for QL master server protocol |
-| Team scoreboards | Pending | Still a lot of stuff not correctly drawing here. |
+| Team scoreboards | Pending | Still a lot of stuff not correctly drawing here |
+| UI script actions | Pending | 13 QL-specific UI scripts stubbed (clientViewProfile, modPlayer, putspec, banPlayer, etc.) |
+| Player profile display | Pending | Steam profile/avatar integration removed; needs replacement |
+| Friend/social features | Pending | Friend invite, mute player, lobby system all stubbed |
+| Settings menus | Pending | Some QL-specific settings panels may need menu file updates |
+| Map voting UI | Pending | End-of-match map voting display driven by server but UI not fully tested |
 
 #### Game module (server-side game logic)
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Game types | Done | FFA, Duel, TDM, CA, CTF, 1FCTF, Harvester, FT, DOM, A&D, Race, RR |
+| Game types | Done | FFA, Duel, TDM, CA, CTF, 1FCTF, Harvester, FT, DOM, A&D, Race, RR - per-gametype `g_gametype_*.c` source files |
 | Physics (bg_pmove) | Done | CPM air control, double jump, crouch slide, auto-hop, ladder move |
 | Grapple hook | Done | Wall/enemy pull, close-range slowdown, water damping |
 | Weapon definitions | Done | All QL weapons with correct reload times |
@@ -118,19 +148,30 @@ I do not have any rights to use any Quake Live game assets and cannot/**will not
 | Serverinfo cvars | Done | 8 new `CVAR_SERVERINFO` cvars |
 | Bot loading | Done | `G_LoadBots`, `G_LoadBotsFromFile`, `G_ParseInfos` |
 | CVAR table | Done | ~390 cvars with 56 `OnChanged` callbacks |
+| Race checkpoints | Done | Race gametype module with init, checkpoint, and timing logic |
+| Unlagged (`lagHax`) | Done | Position history recording/rewinding for hitscan accuracy (`g_unlagged.c`) |
+| Weapon systems | Done | Shotgun ring pellets, distance falloff, damage-through-surface, player cylinder traces |
+| Tiered armor | Done | `CheckArmor` rewrite, `Pickup_Armor` with armor tiers |
 | JSON stats reporting | Partial | Original uses C++ jsoncpp; JSON functions stubbed, non-JSON helpers preserved |
-| Race checkpoints | Pending | Race gametype init/checkpoint logic not yet implemented |
 | Loadout system | Pending | `g_loadout` cvar propagated but full loadout logic not audited |
-| Factories | Pending | Similar to the JSON stats reporting point.
-| Unlagged (`lagHax`)| Pending | Have to understand it first!
+| Factories | Pending | Factory file parsing present but C++ JSON config application not implemented |
+| Premium/subscription | Pending | QL had premium/pro account checks; needs removal or stubbing |
+| Access control lists | Pending | `g_accessFile` parsing present but Steam ID-based ACL not fully tested |
+| Admin commands | Pending | Privilege system (`priv`) present but admin actions (OP/deOP, put team) need testing |
+| Training mode | Pending | `g_training` cvar checked in multiple places; training mode logic not audited |
+| Map entities override | Pending | `sv_altEntDir` entity file loading present but not tested |
+
 #### Renderer
 
 | Area | Status | Notes |
 |------|--------|-------|
 | RT_RAIL_CORE | Done | Rendering case for grapple hook chain |
 | QL-specific shaders | Pending | Shader keywords not fully audited |
-| Additional render effects | Pending | Freeze/thaw effects, infection visuals not yet implemented |
-| Post-processing (bloom, etc) | Pending | IDK what I'm doing when it comes to OpenGL so it's on the backburner |
+| Freeze/thaw effects | Pending | Freeze Tag visual effects (ice shader, thaw progress) not implemented |
+| Infection visuals | Pending | Red Rover infection visual effects not implemented |
+| Post-processing (bloom) | Pending | Bloom is partially implemented in opengl2 but not QL-tuned |
+| Advertisement rendering | Pending | `UI_DRAW_ADVERTISEMENT` export exists but ad billboard rendering not implemented |
+| Damage plum rendering | Pending | Floating damage numbers partially implemented, needs verification |
 
 ## Building
 
