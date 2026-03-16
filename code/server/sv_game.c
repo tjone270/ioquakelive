@@ -1243,7 +1243,7 @@ void SV_InitGameProgs(void) {
     var = Cvar_Get("bot_enable", "1", CVAR_LATCH);
     bot_enable = var ? var->integer : 0;
 
-    // Extract qagame DLL from bin.pk3 (same mechanism as cgame/ui via VM_Create)
+    // Extract qagame DLL from iobin.pk3 (same mechanism as cgame/ui via VM_Create)
     if (FS_ExtractGamecode("qagame", dllPath) && dllPath[0] != '\0') {
         Com_Printf("Loading game DLL from pk3: %s\n", dllPath);
         sv_gameLibHandle = Sys_LoadLibrary(dllPath);

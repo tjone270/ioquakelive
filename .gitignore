@@ -52,7 +52,8 @@ profile
 /code/freetype-demos
 /code/jpeg-8c
 /code/zlib
-/code/tools
+/code/tools/*
+!/code/tools/Make-BinPk3.ps1
 *.lib
 *.pdb
 *.dll

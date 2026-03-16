@@ -4048,6 +4048,13 @@ qboolean FS_VerifyPureGamecode(void) {
 	return qfalse;
 }
 
+// The ioquakelive DLL pak is arch-specific: "iobin_x86" or "iobin_x86_64".
+#define IOBIN_PAKNAME "iobin_" ARCH_STRING
+
+static qboolean FS_IsGamecodePak(const char* pakBasename) {
+	return Q_stricmp(pakBasename, IOBIN_PAKNAME) == 0;
+}
+
 /*
 =====================
 FS_ExtractGamecode
@@ -4084,17 +4091,21 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 			continue;
 
 		if (fs_numServerPaks > 0) {
-			qboolean matched = qfalse;
-			checksum = pak->checksum;
+			// Always allow the local DLL pak for extraction - the client
+			// must load its own game modules, not the server's.
+			if (!FS_IsGamecodePak(pak->pakBasename)) {
+				qboolean matched = qfalse;
+				checksum = pak->checksum;
 
-			for (int i = 0; i < fs_numServerPaks; i++) {
-				if (fs_serverPaks[i] == checksum) {
-					matched = qtrue;
-					break;
+				for (int i = 0; i < fs_numServerPaks; i++) {
+					if (fs_serverPaks[i] == checksum) {
+						matched = qtrue;
+						break;
+					}
 				}
+				if (!matched)
+					continue;
 			}
-			if (!matched)
-				continue;
 		}
 
 		// Check if this pak is referenced by this module
@@ -4109,7 +4120,7 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 			Com_Error(ERR_FATAL, "FS_ExtractGamecode: invalid module name '%s'.", module);
 		}
 
-		if (Q_stricmp(pak->pakBasename, "bin") == 0 && pak->numfiles == 3) {
+		if (FS_IsGamecodePak(pak->pakBasename) && pak->numfiles == 3) {
 			pak->referenced |= FS_UI_REF | FS_CGAME_REF | FS_QAGAME_REF;
 		}
 
