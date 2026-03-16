@@ -1203,7 +1203,7 @@ typedef struct entityState_s {
 typedef enum {
     CA_UNINITIALIZED,
     CA_DISCONNECTED,  // not talking to a server
-    CA_AUTHORIZING,   // [Q3 remnant] unused placeholder — do not remove (would shift enum values)
+    CA_AUTHORIZING,   // [Q3 remnant] unused placeholder - do not remove (would shift enum values)
     CA_CONNECTING,    // sending request packets to the server
     CA_CHALLENGING,   // sending challenge packets to the server
     CA_CONNECTED,     // netchan_t established, getting gamestate

@@ -195,10 +195,12 @@ extern const char *gametypeDisplayNames[];  // full display names for UI
 
 // [QL] Round state for round-based game types (CA, AD, FT, RR)
 typedef enum {
-    RS_WARMUP,
-    RS_COUNTDOWN,
-    RS_PLAYING,
-    RS_ROUND_OVER
+    RS_WARMUP,          // 0
+    RS_COUNTDOWN,       // 1
+    RS_SHUFFLE,         // 2 (RR only - team shuffle before first round)
+    RS_PLAYING,         // 3
+    RS_ROUND_OVER,      // 4
+    RS_EXIT             // 5
 } roundStateState_t;
 
 typedef enum { GENDER_MALE,

@@ -211,7 +211,13 @@ vmCvar_t g_spawnItemAmmo;
 
 // [QL] game state management
 vmCvar_t g_gameState;
-vmCvar_t g_warmupReadyPercentage;
+vmCvar_t sv_warmupReadyPercentage;
+vmCvar_t g_warmupDelay;
+vmCvar_t g_warmupReadyDelay;
+vmCvar_t g_warmupReadyDelayAction;
+vmCvar_t g_lastManStandingMessage;
+vmCvar_t bot_autoReady;
+vmCvar_t g_teamForcePresent;
 vmCvar_t g_forfeit;
 
 // [QL] serverinfo cvars read by cgame
@@ -453,7 +459,13 @@ static cvarTable_t gameCvarTable[] = {
     {&g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, NULL},
     {&g_doWarmup, "g_doWarmup", "1", CVAR_ARCHIVE, 0, NULL},
     {&g_gameState, "g_gameState", "PRE_GAME", CVAR_ROM, 0, NULL},
-    {&g_warmupReadyPercentage, "g_warmupReadyPercentage", "0.51", CVAR_ARCHIVE, 0, NULL},
+    {&sv_warmupReadyPercentage, "sv_warmupReadyPercentage", "0.51", CVAR_ARCHIVE, 0, NULL},
+    {&g_warmupDelay, "g_warmupDelay", "15", 0, 0, NULL},
+    {&g_warmupReadyDelay, "g_warmupReadyDelay", "0", 0, 0, NULL},
+    {&g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", 0, 0, NULL},
+    {&g_lastManStandingMessage, "g_lastManStandingMessage", "You are the last standing", 0, 0, NULL},
+    {&bot_autoReady, "bot_autoReady", "1", 0, 0, NULL},
+    {&g_teamForcePresent, "g_teamForcePresent", "1", 0, 0, NULL},
     {&g_forfeit, "g_forfeit", "0", CVAR_ARCHIVE, 0, NULL},
     {&g_logfile, "g_log", "games.log", CVAR_ARCHIVE, 0, NULL},
     {&g_logfileSync, "g_logsync", "0", CVAR_ARCHIVE, 0, NULL},
@@ -1090,6 +1102,15 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
     G_RemapTeamShaders();
 
     trap_SetConfigstring(CS_INTERMISSION, "");
+
+    // [QL] Round-based gametype initialization
+    switch (g_gametype.integer) {
+    case GT_RR:
+        RR_InitRoundState();
+        break;
+    default:
+        break;
+    }
 
     // [QL] publish starting weapons bitmask
     trap_SetConfigstring(CS_STARTING_WEAPONS, va("%i", g_startingWeapons.integer));
@@ -2306,6 +2327,38 @@ void SetWarmupState(int warmupTime) {
 }
 
 /*
+=================
+BG_IsScoreBasedGameType
+Returns qtrue for team-based (score-based) gametypes (GT_TEAM and above).
+=================
+*/
+qboolean BG_IsScoreBasedGameType(void) {
+    return g_gametype.integer >= GT_TEAM;
+}
+
+/*
+=================
+G_CheckTeamBalance
+Binary: 0x100680e0
+Returns qtrue if teams are balanced (within 1 player), or g_teamForceBalance is off.
+=================
+*/
+qboolean G_CheckTeamBalance(void) {
+    int redCount, blueCount;
+
+    if (g_teamForceBalance.integer == 0)
+        return qtrue;
+
+    redCount = TeamCount(-1, TEAM_RED);
+    blueCount = TeamCount(-1, TEAM_BLUE);
+
+    if (redCount + 1 < blueCount || blueCount + 1 < redCount)
+        return qfalse;
+
+    return qtrue;
+}
+
+/*
 =============
 CheckWarmupMinPlayers
 
@@ -2314,22 +2367,29 @@ Checks g_doWarmup, ready percentage, team sizes, team balance.
 Binary: FUN_10057830 in qagamex86.dll
 =============
 */
-static qboolean CheckWarmupMinPlayers(void) {
+qboolean CheckWarmupMinPlayers(void) {
     int i;
     int numPlaying = 0;
     int numReady = 0;
     int redCount, blueCount;
     gclient_t *cl;
 
-    // [QL] Grace period: non-duel gametypes wait g_warmup seconds from map start
-    // before allowing countdown (but only during PRE_GAME with warmup enabled)
-    if (g_doWarmup.integer != 0 && g_gametype.integer != GT_DUEL &&
-        level.time - level.startTime < g_warmup.integer * 1000) {
+    // [QL] g_doWarmup 0: no warmup phase, match starts immediately
+    if (g_doWarmup.integer == 0) {
+        return qtrue;
+    }
+
+    // [QL] Grace period: non-duel gametypes wait g_warmupDelay seconds from map start
+    // before allowing countdown (binary: early check in FUN_10057830)
+    if (g_warmupDelay.integer != 0 && g_gametype.integer != GT_DUEL &&
+        level.time - level.startTime < g_warmupDelay.integer * 1000) {
         return qfalse;
     }
 
-    // During PRE_GAME: count playing and ready clients
+    // During PRE_GAME: count playing and ready clients, build readyMask
     if (level.warmupTime < 0) {
+        int readyMask = 0;
+
         for (i = 0; i < level.maxclients; i++) {
             cl = level.clients + i;
             if (cl->pers.connected != CON_CONNECTED) {
@@ -2341,21 +2401,37 @@ static qboolean CheckWarmupMinPlayers(void) {
 
             if (cl->pers.ready) {
                 numReady++;
+            } else {
+                // Bots count as ready if bot_autoReady is set
+                if (!(g_entities[i].r.svFlags & SVF_BOT) || bot_autoReady.integer == 0) {
+                    continue;
+                }
+                // bot with autoReady: count as effectively ready (but not in numReady)
             }
             numPlaying++;
+            if (i < 16) {
+                readyMask |= (1 << i);
+            }
         }
         level.numReadyClients = numPlaying;
         level.numReadyHumans = numReady;
+
+        // Broadcast readyMask to all connected clients via STAT_CLIENTS_READY
+        for (i = 0; i < level.maxclients; i++) {
+            cl = level.clients + i;
+            if (cl->pers.connected == CON_CONNECTED) {
+                cl->ps.stats[STAT_CLIENTS_READY] = readyMask;
+            }
+        }
     }
 
-    // Check g_teamSizeMin (team games need minimum players per team)
-    if (g_teamSizeMin.integer != 0) {
-        blueCount = TeamCount(-1, TEAM_BLUE);
+    // [QL] Check g_teamForcePresent / g_teamSizeMin (binary: 0x10068120)
+    if (g_teamForcePresent.integer != 0) {
         redCount = TeamCount(-1, TEAM_RED);
+        blueCount = TeamCount(-1, TEAM_BLUE);
 
-        // If team force balance is off, or teams are below minimum
-        if (g_teamForceBalance.integer == 0 ||
-            (blueCount < g_teamSizeMin.integer && level.numPlayingClients < g_teamSizeMin.integer)) {
+        if (g_forfeit.integer == 0 &&
+            !(redCount >= g_teamSizeMin.integer && level.numPlayingClients >= g_teamSizeMin.integer)) {
             if (g_gametype.integer < GT_TEAM) {
                 if (level.numPlayingClients < 2) {
                     return qfalse;
@@ -2372,12 +2448,8 @@ static qboolean CheckWarmupMinPlayers(void) {
     }
 
     // Check g_teamForceBalance (teams can't differ by more than 1)
-    if (g_teamForceBalance.integer != 0) {
-        blueCount = TeamCount(-1, TEAM_BLUE);
-        redCount = TeamCount(-1, TEAM_RED);
-        if (blueCount + 1 < redCount || redCount + 1 < blueCount) {
-            return qfalse;
-        }
+    if (!G_CheckTeamBalance()) {
+        return qfalse;
     }
 
     // Check ready requirements during PRE_GAME
@@ -2388,22 +2460,10 @@ static qboolean CheckWarmupMinPlayers(void) {
                 return qtrue;
             }
         } else {
-            // g_doWarmup 0: treat all players as ready (skip ready-up phase)
-            // Team games still require at least 1 player per team
-            if (g_doWarmup.integer == 0 && level.numPlayingClients > 0) {
-                if (g_gametype.integer >= GT_TEAM) {
-                    redCount = TeamCount(-1, TEAM_RED);
-                    blueCount = TeamCount(-1, TEAM_BLUE);
-                    if (redCount < 1 || blueCount < 1) {
-                        return qfalse;
-                    }
-                }
-                return qtrue;
-            }
             // Team/FFA: check ready percentage
             if ((numReady != 0 &&
-                 (float)numReady / (float)level.numPlayingClients >= g_warmupReadyPercentage.value) ||
-                g_warmupReadyPercentage.value == 0.0f) {
+                 (float)numReady / (float)level.numPlayingClients >= sv_warmupReadyPercentage.value) ||
+                sv_warmupReadyPercentage.value == 0.0f) {
                 return qtrue;
             }
         }

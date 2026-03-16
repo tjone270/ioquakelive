@@ -99,6 +99,70 @@ void RR_SurvivalBonus(int mode) {
 }
 
 // ============================================================================
+// RR_InitRoundState
+// Binary: 0x100656e0
+// Initializes the Red Rover round state at game start.
+// When g_forfeit is enabled and warmup is off, enters RS_SHUFFLE state
+// to force a team shuffle before the first round.
+// ============================================================================
+void RR_InitRoundState(void) {
+    level.infectedConscript = -1;
+    level.lastZombieSurvivor = -1;
+    level.zombieScoreTime = -1;
+
+    if (g_forfeit.integer != 0) {
+        level.roundState.tNext = level.time + 500;
+        // RS_SHUFFLE(2) if no warmup, RS_WARMUP(0) if warmup active
+        if (level.warmupTime == 0) {
+            level.roundState.eNext = RS_SHUFFLE;
+        } else {
+            level.roundState.eNext = RS_WARMUP;
+        }
+        level.roundState.round = 0;
+        return;
+    }
+
+    level.roundState.tNext = 0;
+    if (level.warmupTime == 0) {
+        level.roundState.eCurrent = RS_COUNTDOWN;
+    } else {
+        level.roundState.eCurrent = RS_WARMUP;
+    }
+    RR_RoundStateTransition();
+    level.roundState.round = 0;
+}
+
+// ============================================================================
+// RR_CheckExitRules
+// Binary: 0x10064770
+// Check if RR game should end (timelimit or roundlimit).
+// RR uses total rounds (red+blue) for roundlimit, not per-team scores.
+// No mercy limit for RR.
+// ============================================================================
+qboolean RR_CheckExitRules(int doExit) {
+    if (ScoreIsTied())
+        return qfalse;
+
+    if (g_timelimit.integer != 0 &&
+        g_timelimit.integer * 60000 <= level.time - level.startTime) {
+        if (!doExit) return qtrue;
+        trap_SendServerCommand(-1, "print \"Timelimit hit.\n\"");
+        LogExit(0, 0, "Timelimit hit.");
+        return qtrue;
+    }
+
+    if (roundlimit.integer != 0 &&
+        level.teamScores[TEAM_RED] + level.teamScores[TEAM_BLUE] >= roundlimit.integer) {
+        if (!doExit) return qtrue;
+        trap_SendServerCommand(-1, "print \"Game hit the roundlimit.\n\"");
+        LogExit(0, 0, "Roundlimit hit.");
+        return qtrue;
+    }
+
+    return qfalse;
+}
+
+// ============================================================================
 // RR_RoundStateTransition
 // ============================================================================
 void RR_RoundStateTransition(void) {
@@ -146,14 +210,24 @@ void RR_RoundStateTransition(void) {
                 level.time + g_roundWarmupDelay.integer, level.roundState.round));
         return;
 
+    case RS_SHUFFLE:
+        if (g_forfeit.integer == 0) {
+            Svcmd_ForceShuffle_f();
+            level.roundState.tNext = level.time + 1;
+            level.roundState.eNext = RS_COUNTDOWN;
+            return;
+        }
+        // When g_forfeit is enabled, shuffle is a no-op (binary returns here)
+        return;
+
     case RS_PLAYING:
         for (i = 0; i < level.maxclients; i++) {
             gclient_t *cl = &level.clients[i];
             if (cl->pers.connected == CON_CONNECTED) {
                 cl->ps.pm_flags &= ~PMF_FROZEN;
-                cl->pers.roundDamageDealt = 0;
-                cl->pers.roundShotsHit = 0;
-                cl->pers.roundKillCount = 0;
+                cl->round_shots = 0;
+                cl->round_hits = 0;
+                cl->round_damage = 0;
             }
         }
         level.roundState.round = level.teamScores[TEAM_BLUE] + level.teamScores[TEAM_RED] + 1;
@@ -206,7 +280,7 @@ void RR_RoundStateTransition(void) {
                  (roundlimit.integer <= level.teamScores[TEAM_RED] ||
                   roundlimit.integer <= level.teamScores[TEAM_BLUE]))) {
                 level.roundState.tNext = level.time + 1500;
-                level.roundState.eNext = (roundStateState_t)5;
+                level.roundState.eNext = RS_EXIT;
                 return;
             }
         }
@@ -220,13 +294,18 @@ void RR_RoundStateTransition(void) {
         }
 
         level.roundState.tNext = level.time + 3500;
-        level.roundState.eNext = RS_COUNTDOWN;
+        level.roundState.eNext = RS_SHUFFLE;
         trap_SetConfigstring(CS_ROUND_TIME, va("%d", -1));
         return;
     }
 
-    default:  // state 5 = exit
-        CA_CheckExitRules(1);
+    case RS_EXIT:
+        RR_CheckExitRules(1);
+        Svcmd_ForceShuffle_f();
+        return;
+
+    default:
+        G_Error("RR_RoundStateTransition: invalid state");
         return;
     }
 }

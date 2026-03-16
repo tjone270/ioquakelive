@@ -201,9 +201,9 @@ void AD_RoundStateTransition(void) {
             gclient_t *cl = &level.clients[i];
             if (cl->pers.connected == CON_CONNECTED) {
                 cl->ps.pm_flags &= ~PMF_FROZEN;
-                cl->pers.roundDamageDealt = 0;
-                cl->pers.roundShotsHit = 0;
-                cl->pers.roundKillCount = 0;
+                cl->round_shots = 0;
+                cl->round_hits = 0;
+                cl->round_damage = 0;
             }
         }
 
@@ -263,7 +263,7 @@ void AD_RoundStateTransition(void) {
                   (g_scorelimit.integer <= level.teamScores[TEAM_BLUE] &&
                    level.teamScores[TEAM_RED] < level.teamScores[TEAM_BLUE])))) {
                 level.roundState.tNext = level.time + 1500;
-                level.roundState.eNext = (roundStateState_t)5;
+                level.roundState.eNext = RS_EXIT;
                 goto toggleTurn;
             }
             if (g_mercylimit.integer != 0) {
@@ -272,7 +272,7 @@ void AD_RoundStateTransition(void) {
                     if (g_mercylimit.integer <= level.teamScores[TEAM_RED] - level.teamScores[TEAM_BLUE] ||
                         g_mercylimit.integer <= level.teamScores[TEAM_BLUE] - level.teamScores[TEAM_RED]) {
                         level.roundState.tNext = level.time + 1500;
-                        level.roundState.eNext = (roundStateState_t)5;
+                        level.roundState.eNext = RS_EXIT;
                         goto toggleTurn;
                     }
                 }

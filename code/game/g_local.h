@@ -209,6 +209,7 @@ typedef enum {
     TEAM_ACTIVE  // Now actively playing
 } playerTeamStateState_t;
 
+// [QL] 52 bytes (binary 0x2F8-0x32B within gclient_t)
 typedef struct {
     playerTeamStateState_t state;
 
@@ -217,7 +218,7 @@ typedef struct {
     int captures;
     int basedefense;
     int carrierdefense;
-    int flagrecovery;
+    int flagrecovery;       // [QL] also used as defends count
     int fragcarrier;
     int assists;
 
@@ -226,9 +227,7 @@ typedef struct {
     float flagsince;
     float lastfraggedcarrier;
 
-    int flagruntime;        // [QL] time carrying flag
-    int flagrunrelays;      // [QL] relay count
-    int lastkilltime;       // [QL] last kill timestamp
+    int dmgAccumulator;     // [QL] CA/AD: damage accumulator for score-per-100-damage
 } playerTeamState_t;
 
 // client data that stays across multiple levels or tournament restarts
@@ -257,43 +256,37 @@ typedef struct {
 #define MAX_NETNAME 36
 #define MAX_VOTE_COUNT 3
 
-// [QL] Expanded persistent data (248 bytes)
+// [QL] Persistent data (248 bytes, binary 0x250-0x347 within gclient_t)
 typedef struct {
-    clientConnected_t connected;
-    usercmd_t cmd;               // we would lose angles if not persistant
-    qboolean localClient;        // true if "ip" info key is "localhost"
-    qboolean initialSpawn;       // the first spawn should be at a cool location
-    qboolean predictItemPickup;  // based on cg_predictItems userinfo
-    char netname[40];            // [QL] was MAX_NETNAME (36), now 40
-    char country[24];            // [QL] GeoIP country code
-    uint64_t steamId;            // [QL] Steam ID
-    int maxHealth;                // for handicapping
-    int voteCount;                // to prevent people from constantly calling votes
-    int voteState;                // [QL] current vote state
-    int complaints;               // [QL]
-    int complaintClient;          // [QL]
-    int complaintEndTime;         // [QL]
-    int damageFromTeammates;      // [QL]
-    int damageToTeammates;        // [QL]
-    qboolean ready;               // [QL] ready-up state
-    int autoaction;               // [QL]
-    int timeouts;                 // [QL]
-    int enterTime;                // level.time the client entered the game
-    playerTeamState_t teamState;  // status in teamplay games
-    int damageResidual;           // [QL]
-    int inactivityTime;           // [QL] moved from gclient_s
-    int inactivityWarning;        // [QL] moved from gclient_s
-    int lastUserinfoUpdate;       // [QL]
-    int userInfoFloodInfractions; // [QL]
-    int lastMapVoteTime;          // [QL]
-    int lastMapVoteIndex;         // [QL]
-    int roundDamageTaken;         // [QL]
-    int roundDamageDealt;         // [QL]
-    int roundShotsHit;            // [QL]
-    int roundKillCount;           // [QL]
-    int localPlayerSpawnTime;     // [QL]
-    int caDamageAccum;            // [QL] CA: accumulated damage for +1 score per 100
-    qboolean teamInfo;            // send team overlay updates?
+    clientConnected_t connected;       // 0x00 (0x250)
+    usercmd_t cmd;                     // 0x04 (0x254) - 28 bytes
+    qboolean localClient;              // 0x20 (0x270)
+    qboolean initialSpawn;             // 0x24 (0x274)
+    qboolean predictItemPickup;        // 0x28 (0x278)
+    char netname[40];                  // 0x2C (0x27C) - [QL] was 36, now 40
+    char country[24];                  // 0x54 (0x2A4) - [QL] GeoIP country code
+    int _pad_steamId;                  // 0x6C (0x2BC) - alignment padding for uint64_t
+    uint64_t steamId;                  // 0x70 (0x2C0) - [QL] Steam ID
+    int maxHealth;                     // 0x78 (0x2C8)
+    int voteCount;                     // 0x7C (0x2CC)
+    int voteState;                     // 0x80 (0x2D0) - [QL]
+    int complaints;                    // 0x84 (0x2D4) - [QL]
+    int complaintClient;               // 0x88 (0x2D8) - [QL]
+    int complaintEndTime;              // 0x8C (0x2DC) - [QL]
+    int damageFromTeammates;           // 0x90 (0x2E0) - [QL]
+    int damageToTeammates;             // 0x94 (0x2E4) - [QL]
+    qboolean ready;                    // 0x98 (0x2E8) - [QL] ready-up state
+    int autoaction;                    // 0x9C (0x2EC) - [QL]
+    int timeouts;                      // 0xA0 (0x2F0) - [QL]
+    int enterTime;                     // 0xA4 (0x2F4)
+    playerTeamState_t teamState;       // 0xA8 (0x2F8) - 52 bytes
+    int inactivityTime;                // 0xDC (0x32C) - [QL]
+    int inactivityWarning;             // 0xE0 (0x330) - [QL]
+    int lastUserinfoUpdate;            // 0xE4 (0x334) - [QL]
+    int userInfoFloodInfractions;      // 0xE8 (0x338) - [QL]
+    int lastMapVoteTime;               // 0xEC (0x33C) - [QL]
+    int lastMapVoteIndex;              // 0xF0 (0x340) - [QL]
+    qboolean teamInfo;                 // 0xF4 (0x344)
 } clientPersistant_t;
 
 // [QL] Per-player expanded statistics (812 bytes)
@@ -771,6 +764,7 @@ qboolean SpotWouldTelefrag(gentity_t* spot);
 qboolean ConsoleCommand(void);
 void G_ProcessIPBans(void);
 qboolean G_FilterPacket(char* from);
+void Svcmd_ForceShuffle_f(void);
 
 //
 // g_weapon.c
@@ -809,6 +803,10 @@ void CheckTeamLeader(int team);
 void G_RunThink(gentity_t* ent);
 void AddTournamentQueue(gclient_t* client);
 void SetWarmupState(int warmupTime);
+qboolean CheckWarmupMinPlayers(void);
+qboolean G_CheckTeamBalance(void);
+qboolean BG_IsScoreBasedGameType(void);
+qboolean ScoreIsTied(void);
 void QDECL G_LogPrintf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 void LogExit(int isShutdown, int restart, const char* string);
 void SendScoreboardMessageToAllClients(void);
@@ -860,6 +858,8 @@ extern vmCvar_t g_rrInfectedSurvivorScoreRate;
 extern vmCvar_t g_rrInfectedSurvivorScoreBonus;
 
 // g_gametype_rr.c - Red Rover round state machine
+void RR_InitRoundState(void);
+qboolean RR_CheckExitRules(int doExit);
 void RR_RoundStateTransition(void);
 void RR_RunFrame(void);
 void RR_OnPlayerDeath(gentity_t *victim);
@@ -875,11 +875,11 @@ qboolean Freeze_TeamFrozen(int team);
 qboolean Freeze_GameIsOver(int *aliveCounts, int *healthTotals);
 
 // g_gametype_ca.c - Clan Arena round state machine
+int CA_CheckTimer(void);
 void CA_RoundStateTransition(void);
 qboolean CA_CheckExitRules(int doExit);
 qboolean CA_AccuracyMessage(gentity_t *target, gentity_t *attacker, int *damage, int *knockback);
 void CA_RunFrame(void);
-void CA_PlayerDied(gentity_t *self);
 void G_RegisterCvars(void);
 
 //
@@ -1013,7 +1013,13 @@ extern vmCvar_t g_motd;
 extern vmCvar_t g_warmup;
 extern vmCvar_t g_doWarmup;
 extern vmCvar_t g_gameState;
-extern vmCvar_t g_warmupReadyPercentage;
+extern vmCvar_t sv_warmupReadyPercentage;
+extern vmCvar_t g_warmupDelay;
+extern vmCvar_t g_warmupReadyDelay;
+extern vmCvar_t g_warmupReadyDelayAction;
+extern vmCvar_t g_lastManStandingMessage;
+extern vmCvar_t bot_autoReady;
+extern vmCvar_t g_teamForcePresent;
 extern vmCvar_t g_forfeit;
 extern vmCvar_t g_blood;
 extern vmCvar_t g_allowVote;

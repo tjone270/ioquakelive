@@ -661,7 +661,7 @@ void MSG_WriteDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* t
     }
     // [QL] field order and count differs from Q3 - must match binary exactly
     // QL moved forwardmove/rightmove/upmove to offsets 23-25 and added
-    // two unknown byte fields (generic1/generic2) at offsets 21-22.
+    // two QL-specific byte fields (weaponPrimary/fov) at offsets 21-22.
     if (from->angles[0] == to->angles[0] &&
         from->angles[1] == to->angles[1] &&
         from->angles[2] == to->angles[2] &&
@@ -702,7 +702,7 @@ void MSG_ReadDeltaUsercmdKey(msg_t* msg, int key, usercmd_t* from, usercmd_t* to
         to->serverTime = MSG_ReadBits(msg, 32);
     }
     // [QL] field order and count differs from Q3 - must match binary exactly
-    // QL order: angles, forwardmove, rightmove, upmove, buttons, weapon, generic1, generic2
+    // QL order: angles, forwardmove, rightmove, upmove, buttons, weapon, weaponPrimary, fov
     if (MSG_ReadBits(msg, 1)) {
         key ^= to->serverTime;
         to->angles[0] = MSG_ReadDeltaKey(msg, key, from->angles[0], 16);

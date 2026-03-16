@@ -675,8 +675,10 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
         Freeze_PlayerFrozen(self);
     } else if (g_gametype.integer == GT_RR) {
         RR_OnPlayerDeath(self);
-    } else if (g_gametype.integer == GT_CA || g_gametype.integer == GT_AD) {
-        CA_PlayerDied(self);
+    } else if (g_gametype.integer == GT_CA) {
+        CA_RunFrame();
+    } else if (g_gametype.integer == GT_AD) {
+        AD_RunFrame();
     }
 }
 

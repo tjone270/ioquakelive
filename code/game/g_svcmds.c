@@ -418,6 +418,45 @@ void Svcmd_ForceTeam_f(void) {
     SetTeam(&g_entities[cl - level.clients], str);
 }
 
+/*
+===================
+Svcmd_ForceShuffle_f
+
+Shuffle teams randomly. Used by "forceshuffle" console command
+and by RS_SHUFFLE state in Red Rover.
+===================
+*/
+void Svcmd_ForceShuffle_f(void) {
+    int i, count = 0;
+    int players[MAX_CLIENTS];
+    int team = (rand() & 1) ? TEAM_RED : TEAM_BLUE;
+
+    level.teamShuffleActive = qtrue;
+
+    for (i = 0; i < level.maxclients; i++) {
+        if (g_clients[i].pers.connected != CON_CONNECTED) continue;
+        if (g_clients[i].sess.sessionTeam != TEAM_RED &&
+            g_clients[i].sess.sessionTeam != TEAM_BLUE) continue;
+        players[count++] = i;
+    }
+
+    if (count < level.numNonSpectatorClients) {
+        G_Printf("Unable to shuffle: Not enough players.\n");
+    } else {
+        G_Printf("Shuffling Teams.\n");
+        // Simple alternating assignment
+        for (i = 0; i < count; i++) {
+            gentity_t* target = &g_entities[players[i]];
+            if (target->client->sess.sessionTeam != team) {
+                SetTeam(target, (team == TEAM_RED) ? "red" : "blue");
+            }
+            team = (team == TEAM_RED) ? TEAM_BLUE : TEAM_RED;
+        }
+    }
+
+    level.teamShuffleActive = qfalse;
+}
+
 char* ConcatArgs(int start);
 
 /*
@@ -478,34 +517,7 @@ qboolean ConsoleCommand(void) {
 
     // [QL] forceshuffle - shuffle teams randomly
     if (Q_stricmp(cmd, "forceshuffle") == 0) {
-        int i, count = 0;
-        int players[MAX_CLIENTS];
-        int team = (rand() & 1) ? TEAM_RED : TEAM_BLUE;
-
-        level.teamShuffleActive = qtrue;
-
-        for (i = 0; i < level.maxclients; i++) {
-            if (g_clients[i].pers.connected != CON_CONNECTED) continue;
-            if (g_clients[i].sess.sessionTeam != TEAM_RED &&
-                g_clients[i].sess.sessionTeam != TEAM_BLUE) continue;
-            players[count++] = i;
-        }
-
-        if (count < level.numNonSpectatorClients) {
-            G_Printf("Unable to shuffle: Not enough players.\n");
-        } else {
-            G_Printf("Shuffling Teams.\n");
-            // Simple alternating assignment
-            for (i = 0; i < count; i++) {
-                gentity_t* target = &g_entities[players[i]];
-                if (target->client->sess.sessionTeam != team) {
-                    SetTeam(target, (team == TEAM_RED) ? "red" : "blue");
-                }
-                team = (team == TEAM_RED) ? TEAM_BLUE : TEAM_RED;
-            }
-        }
-
-        level.teamShuffleActive = qfalse;
+        Svcmd_ForceShuffle_f();
         return qtrue;
     }
 

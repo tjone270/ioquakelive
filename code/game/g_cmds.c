@@ -1884,28 +1884,59 @@ static void Cmd_PStats_f(gentity_t* ent) {
 
 /*
 =================
-[QL] ReadyUp command - toggles player ready state during warmup
+[QL] ReadyUp command - toggles player ready state during warmup or intermission
 Binary: qagamex86.dll 0x10045db0
 =================
 */
 static void Cmd_ReadyUp_f(gentity_t* ent) {
     gclient_t* cl;
 
-    // Only during warmup (warmupTime < 0 means waiting for players)
-    if (level.warmupTime >= 0 && level.time >= level.warmupTime) {
+    // Valid during warmup (warmupTime < 0) or intermission
+    if (level.warmupTime >= 0 && level.intermissionTime == 0)
         return;
-    }
 
     cl = ent->client;
     if (!cl) return;
+    if (cl->ps.pm_type == PM_SPECTATOR) return;
     if (cl->sess.sessionTeam == TEAM_SPECTATOR) return;
-    if (cl->pers.connected != CON_CONNECTED) return;
+    if (cl->ps.pm_flags & PMF_FROZEN) return;
+
+    if (level.warmupTime < 0) {
+        // Validate minimum players
+        if (!CheckWarmupMinPlayers()) {
+            // If already ready, un-ready them
+            if (cl->pers.ready) {
+                cl->pers.ready = qfalse;
+                ClientUserinfoChanged(ent - g_entities);
+                return;
+            }
+            // Print appropriate error
+            if (BG_IsScoreBasedGameType()) {
+                trap_SendServerCommand(ent - g_entities,
+                    "print \"Players cannot ready up until both teams are present.\n\"");
+            } else {
+                trap_SendServerCommand(ent - g_entities,
+                    "print \"Cannot ready up until more players are present.\n\"");
+            }
+            return;
+        }
+        // Validate team balance
+        if (!G_CheckTeamBalance()) {
+            trap_SendServerCommand(ent - g_entities,
+                "print \"Players cannot ready up until both teams are fully present.\n\"");
+            return;
+        }
+    }
+
+    // During intermission, only allow toggling TO ready (not un-readying)
+    if (level.intermissionTime != 0 && cl->pers.ready)
+        return;
 
     // Toggle ready state
     cl->pers.ready = !cl->pers.ready;
     ClientUserinfoChanged(ent - g_entities);
 
-    // Announce
+    // Announce during warmup
     if (level.warmupTime < 0) {
         trap_SendServerCommand(-1, va("cp \"%s ^7is ^7%s\n\"",
             cl->pers.netname,
@@ -2034,21 +2065,32 @@ static void Cmd_Timein_f(gentity_t* ent) {
 }
 
 // "allready" - Force all players to ready state (referee+)
+// Binary: qagamex86.dll 0x10061860
 static void Cmd_AllReady_f(gentity_t* ent) {
     int i;
 
-    if (level.warmupTime >= 0) {
+    // Only valid during warmup
+    if (level.warmupTime == 0) {
         trap_SendServerCommand(ent - g_entities,
             "print \"allready is only available during warmup.\n\"");
         return;
     }
 
-    for (i = 0; i < level.maxclients; i++) {
-        if (g_clients[i].pers.connected != CON_CONNECTED) continue;
-        if (g_clients[i].sess.sessionTeam == TEAM_SPECTATOR) continue;
-        g_clients[i].pers.ready = qtrue;
+    // Duel: must have exactly 2 players
+    if (g_gametype.integer == GT_DUEL && level.numPlayingClients != 2) {
+        trap_SendServerCommand(ent - g_entities,
+            "print \"Allready may not be used until two players are in the match.\n\"");
+        return;
     }
-    trap_SendServerCommand(-1, "cp \"All players have been readied.\n\"");
+
+    // Set all connected non-spectator players to ready
+    for (i = 0; i < level.maxclients; i++) {
+        gentity_t* e = &g_entities[i];
+        gclient_t* cl = &level.clients[i];
+        if (e->client && cl->pers.connected == CON_CONNECTED) {
+            cl->pers.ready = qtrue;
+        }
+    }
 }
 
 // "pause" - Pause the match (referee+)
