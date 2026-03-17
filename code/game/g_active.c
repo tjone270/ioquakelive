@@ -499,6 +499,11 @@ void ClientTimerActions(gentity_t* ent, int msec) {
                     t = 1000;
                     break;
             }
+            // Skip ammo regen when ammo is infinite (-1)
+            if (client->ps.ammo[w] == -1) {
+                client->ammoTimes[w] = 0;
+                continue;
+            }
             client->ammoTimes[w] += msec;
             if (client->ps.ammo[w] >= max) {
                 client->ammoTimes[w] = 0;

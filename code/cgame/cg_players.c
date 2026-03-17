@@ -369,6 +369,10 @@ static qboolean CG_RegisterClientModelname(clientInfo_t* ci, const char* modelNa
         return qfalse;
     }
 
+    // [QL] initialize model scale (1.0 = no scaling)
+    // TODO: compute actual bounding box ratio when cg_scalePlayerModelsToBB is implemented
+    ci->modelScale = 1.0f;
+
     // load the animations
     Com_sprintf(filename, sizeof(filename), "models/players/%s/animation.cfg", modelName);
     if (!CG_ParseAnimationFile(filename, ci)) {

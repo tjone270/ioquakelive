@@ -74,14 +74,15 @@ void CG_CheckAmmo(void) {
 
     if (infiniteAmmo) {
         cg.lowAmmoWarning = 0;
-    } else {
-        previous = cg.lowAmmoWarning;
+        return;
+    }
 
-        if (total == 0) {
-            cg.lowAmmoWarning = 2;
-        } else {
-            cg.lowAmmoWarning = 1;
-        }
+    previous = cg.lowAmmoWarning;
+
+    if (total == 0) {
+        cg.lowAmmoWarning = 2;
+    } else {
+        cg.lowAmmoWarning = 1;
     }
 
     // play a sound on transitions
