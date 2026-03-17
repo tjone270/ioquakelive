@@ -2338,6 +2338,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 	// [QL] race timer is drawn by menu system via CG_DrawRaceTimes ownerdraw
 	// (removed hardcoded duplicate here)
 
+	// [QL] draw chat overlay
+	CG_DrawChat();
+
 	// don't draw center string if scoreboard is up
 	cg.scoreBoardShowing = CG_DrawScoreboard();
 	if (!cg.scoreBoardShowing) {

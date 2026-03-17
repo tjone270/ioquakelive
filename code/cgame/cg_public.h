@@ -181,7 +181,8 @@ typedef enum {
     CG_TESTPRINTFLOAT,
     CG_ACOS,
     CG_GET_ADVERTISEMENTS,
-    CG_KEY_KEYNUMTOSTRINGBUF
+    CG_KEY_KEYNUMTOSTRINGBUF,
+    CG_S_MUTECLIENT               // [QL] mute/unmute a client's voice
 } cgameImport_t;
 
 /*

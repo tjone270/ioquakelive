@@ -2572,6 +2572,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     cg.clientNum = clientNum;
     cg.race.nextCheckpointEnt = -1;
     cg.race.currentCheckpointEnt = -1;
+    CG_ClearChat();
 
     cgs.processedSnapshotNum = serverMessageNum;
     cgs.serverCommandSequence = serverCommandSequence;
@@ -2615,6 +2616,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     cg.speedBarColor2[2] = 0.0f; cg.speedBarColor2[3] = 1.0f;
 
     CG_RegisterCvars();
+    CG_InitColorWheel();
 
     // [QL] reset state cvars on map load
     trap_Cvar_Set("ui_mainmenu", "0");

@@ -415,3 +415,8 @@ qboolean trap_R_inPVS(const vec3_t p1, const vec3_t p2) {
 void trap_Key_KeynumToStringBuf(int keynum, char* buf, int buflen) {
     syscall(CG_KEY_KEYNUMTOSTRINGBUF, keynum, buf, buflen);
 }
+
+// [QL] Mute/unmute a client's voice audio
+void trap_S_MuteClient(int clientNum, qboolean mute) {
+    syscall(CG_S_MUTECLIENT, clientNum, mute);
+}
