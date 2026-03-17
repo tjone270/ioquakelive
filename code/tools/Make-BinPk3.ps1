@@ -47,12 +47,4 @@ Rename-Item $zipName $pk3Name -Force
 
 Write-Host "$pk3Name created with $($dlls.Count) DLL(s)"
 
-# In Release builds, remove the source DLLs (only the pk3 is needed)
-if ($baseq3 -match '(?i)\\Release\\') {
-    foreach ($dll in $dlls) {
-        Remove-Item $dll.FullName -Force
-    }
-    Write-Host "Release build: removed $($dlls.Count) source DLL(s)"
-}
-
 Pop-Location
