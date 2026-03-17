@@ -76,32 +76,23 @@ static void CG_Viewpos_f(void) {
               (int)cg.refdefViewAngles[YAW]);
 }
 
+// [QL] Binary-matched: simplified from Q3 version
 static void CG_ScoresDown_f(void) {
     CG_BuildSpectatorString();
-
     if (cg.scoresRequestTime + 2000 < cg.time) {
-        // the scores are more than two seconds out of data,
-        // so request new ones
         cg.scoresRequestTime = cg.time;
         trap_SendClientCommand("score");
-
-        // leave the current scores up if they were already
-        // displayed, but if this is the first hit, clear them out
-        if (!cg.showScores) {
-            cg.showScores = qtrue;
-            cg.numScores = 0;
+        if (cg.showScores) {
+            return;
         }
-    } else {
-        // show the cached contents even if they just pressed if it
-        // is within two seconds
-        cg.showScores = qtrue;
     }
+    cg.showScores = qtrue;
 }
 
+// [QL] Binary-matched: no scoreFadeTime
 static void CG_ScoresUp_f(void) {
     if (cg.showScores) {
         cg.showScores = qfalse;
-        cg.scoreFadeTime = cg.time;
     }
 }
 
@@ -177,28 +168,6 @@ static void CG_scrollScoresUp_f(void) {
         Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qfalse);
         Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qfalse);
     }
-}
-
-static void CG_spWin_f(void) {
-    trap_Cvar_Set("cg_cameraOrbit", "2");
-    trap_Cvar_Set("cg_cameraOrbitDelay", "35");
-    trap_Cvar_Set("cg_thirdPerson", "1");
-    trap_Cvar_Set("cg_thirdPersonAngle", "0");
-    trap_Cvar_Set("cg_thirdPersonRange", "100");
-    CG_AddBufferedSound(cgs.media.winnerSound);
-    // trap_S_StartLocalSound(cgs.media.winnerSound, CHAN_ANNOUNCER);
-    CG_CenterPrint("YOU WIN!", SCREEN_HEIGHT * .30, 0);
-}
-
-static void CG_spLose_f(void) {
-    trap_Cvar_Set("cg_cameraOrbit", "2");
-    trap_Cvar_Set("cg_cameraOrbitDelay", "35");
-    trap_Cvar_Set("cg_thirdPerson", "1");
-    trap_Cvar_Set("cg_thirdPersonAngle", "0");
-    trap_Cvar_Set("cg_thirdPersonRange", "100");
-    CG_AddBufferedSound(cgs.media.loserSound);
-    // trap_S_StartLocalSound(cgs.media.loserSound, CHAN_ANNOUNCER);
-    CG_CenterPrint("YOU LOSE...", SCREEN_HEIGHT * .30, 0);
 }
 
 static void CG_TellTarget_f(void) {
@@ -393,41 +362,6 @@ static void CG_TaskSuicide_f(void) {
     trap_SendClientCommand(command);
 }
 
-/*
-==================
-CG_TeamMenu_f
-==================
-*/
-/*
-static void CG_TeamMenu_f( void ) {
-  if (trap_Key_GetCatcher() & KEYCATCH_CGAME) {
-    CG_EventHandling(CGAME_EVENT_NONE);
-    trap_Key_SetCatcher(0);
-  } else {
-    CG_EventHandling(CGAME_EVENT_TEAMMENU);
-    //trap_Key_SetCatcher(KEYCATCH_CGAME);
-  }
-}
-*/
-
-/*
-==================
-CG_EditHud_f
-==================
-*/
-/*
-static void CG_EditHud_f( void ) {
-  //cls.keyCatchers ^= KEYCATCH_CGAME;
-  //VM_Call (cgvm, CG_EVENT_HANDLING, (cls.keyCatchers & KEYCATCH_CGAME) ? CGAME_EVENT_EDITHUD : CGAME_EVENT_NONE);
-}
-*/
-
-/*
-==================
-CG_StartOrbit_f
-==================
-*/
-
 static void CG_StartOrbit_f(void) {
     char var[MAX_TOKEN_CHARS];
 
@@ -446,58 +380,424 @@ static void CG_StartOrbit_f(void) {
     }
 }
 
-/*
-static void CG_Camera_f( void ) {
-    char name[1024];
-    trap_Argv( 1, name, sizeof(name));
-    if (trap_loadCamera(name)) {
-        cg.cameraMode = qtrue;
-        trap_startCamera(cg.time);
-    } else {
-        CG_Printf ("Unable to load camera %s\n",name);
+// =====================================================================
+// [QL] Drop commands
+// =====================================================================
+
+static void CG_DropFlag_f(void) {
+    if (cgs.gametype != GT_CTF && cgs.gametype != GT_1FCTF && cgs.gametype != GT_HARVESTER) {
+        CG_Printf("DropFlag is not available in non-flag gametypes.\n");
+        return;
+    }
+    trap_SendClientCommand("dropflag");
+}
+
+static void CG_DropPowerup_f(void) {
+    if ((int)cgs.gametype < GT_TEAM) {
+        CG_Printf("DropPowerup is not available in non-team gametypes.\n");
+        return;
+    }
+    if (cgs.gametype == GT_CA || cgs.gametype == GT_DOMINATION || cgs.gametype == GT_HARVESTER ||
+        cgs.gametype == GT_RACE) {
+        CG_Printf("DropPowerup is not available in %s.\n", gametypeDisplayNames[cgs.gametype]);
+        return;
+    }
+    if (cgs.dmflags & DF_INSTAGIB) {
+        CG_Printf("DropPowerup is not available in InstaGib.\n");
+        return;
+    }
+    trap_SendClientCommand("droppowerup");
+}
+
+static void CG_DropRune_f(void) {
+    if (cgs.gametype == GT_RACE) {
+        CG_Printf("DropRune not available in %s.\n", gametypeDisplayNames[GT_RACE]);
+        return;
+    }
+    trap_SendClientCommand("droprune");
+}
+
+static void CG_DropWeapon_f(void) {
+    if ((int)cgs.gametype < GT_TEAM) {
+        CG_Printf("DropWeapon is not available in non-team gametypes.\n");
+        return;
+    }
+    if (cgs.gametype == GT_CA || cgs.gametype == GT_DOMINATION || cgs.gametype == GT_HARVESTER ||
+        cgs.gametype == GT_RACE) {
+        CG_Printf("DropWeapon is not available in %s.\n", gametypeDisplayNames[cgs.gametype]);
+        return;
+    }
+    if (cgs.dmflags & DF_INSTAGIB) {
+        CG_Printf("DropWeapon is not available in InstaGib.\n");
+        return;
+    }
+    trap_SendClientCommand("dropweapon");
+}
+
+// =====================================================================
+// [QL] Readyup, team, forfeit, ragequit
+// =====================================================================
+
+static void CG_Readyup_f(void) {
+    if ((cg.warmup != 0 && cg.snap != NULL && cg.snap->ps.pm_type != PM_DEAD) ||
+        cg.snap->ps.pm_type == PM_INTERMISSION) {
+        trap_SendClientCommand("readyup");
     }
 }
-*/
 
-// [QL] Stats overlay toggles
-static void CG_StatsDown_f(void) { cg.statsShowing = qtrue; }
-static void CG_StatsUp_f(void) { cg.statsShowing = qfalse; }
-static void CG_AccDown_f(void) { cg.accShowing = qtrue; }
-static void CG_AccUp_f(void) { cg.accShowing = qfalse; }
-static void CG_PStatsDown_f(void) { cg.pstatsShowing = qtrue; }
-static void CG_PStatsUp_f(void) { cg.pstatsShowing = qfalse; }
+static void CG_Team_f(void) {
+    char message[128];
+    char command[128];
 
-// [QL] Score request (forwards to server)
-static void CG_Score_f(void) { trap_SendClientCommand("score"); }
+    trap_Args(message, 128);
+    Com_sprintf(command, 128, "team %s", message);
+    trap_SendClientCommand(command);
+    CG_CloseMenus();
+}
+
+static void CG_Forfeit_f(void) {
+    if (cgs.gametype != GT_FFA && cgs.gametype != GT_RACE && cgs.gametype != GT_RR) {
+        trap_SendClientCommand("forfeit");
+        return;
+    }
+    if ((int)cgs.gametype < GT_RR + 1) {
+        CG_Printf("Forfeit is not available in %s.\n", gametypeDisplayNames[cgs.gametype]);
+    } else {
+        CG_Printf("Forfeit is not available in %s.\n", "Unknown Gametype");
+    }
+}
+
+static void CG_Ragequit_f(void) {
+    trap_SendClientCommand("ragequit");
+    cg.disconnectRequest = 2;
+}
+
+// =====================================================================
+// [QL] Color commands
+// =====================================================================
+
+// [QL] Color wheel: 26 evenly-spaced hue colors for 'a'-'z'.
+// Binary has these as BSS arrays populated at runtime.
+// g_colorWheel = packed 0xRRGGBBAA, g_colorWheelNormalized = vec3_t RGB [0,1].
+unsigned int g_colorWheel[26];
+vec3_t g_colorWheelNormalized[26];
+
+void CG_InitColorWheel(void) {
+    int i;
+
+    for (i = 0; i < 26; i++) {
+        float hue = i * 360.0f / 26.0f;
+        float r, g, b;
+        float f, q, t;
+        int sector;
+
+        sector = (int)(hue / 60.0f);
+        f = hue / 60.0f - sector;
+        q = 1.0f - f;
+        t = f;
+
+        switch (sector) {
+        case 0:  r = 1.0f; g = t;    b = 0.0f; break;
+        case 1:  r = q;    g = 1.0f; b = 0.0f; break;
+        case 2:  r = 0.0f; g = 1.0f; b = t;    break;
+        case 3:  r = 0.0f; g = q;    b = 1.0f; break;
+        case 4:  r = t;    g = 0.0f; b = 1.0f; break;
+        case 5:  r = 1.0f; g = 0.0f; b = q;    break;
+        default: r = 1.0f; g = 0.0f; b = 0.0f; break;
+        }
+
+        g_colorWheelNormalized[i][0] = r;
+        g_colorWheelNormalized[i][1] = g;
+        g_colorWheelNormalized[i][2] = b;
+
+        g_colorWheel[i] = ((unsigned int)(r * 255.0f + 0.5f) << 24)
+                        | ((unsigned int)(g * 255.0f + 0.5f) << 16)
+                        | ((unsigned int)(b * 255.0f + 0.5f) << 8)
+                        | 0xFF;
+    }
+}
+
+static void CG_SetEnemyTeamColor(const char *prefix) {
+    char args[128];
+    char colorHex[128];
+    int len;
+    int i;
+
+    trap_Args(args, 128);
+
+    if (args[0] == '\0') {
+        char current[128];
+        memset(current, 0, sizeof(current));
+        trap_Cvar_VariableStringBuffer(va("cg_%scolor", prefix), current, 127);
+        CG_Printf("Current %s color: %s\n", prefix, current);
+        return;
+    }
+
+    len = strlen(args);
+    if (len > 3) {
+        len = 3;
+    }
+
+    // Set the base color cvar
+    trap_Cvar_Set(va("cg_%scolor", prefix), args);
+
+    // Set head/upper/lower colors from individual characters
+    for (i = 0; i < len; i++) {
+        if (args[i] != '\0') {
+            int ch = (args[i] >= 'A' && args[i] <= 'Z') ? args[i] + 32 : args[i];
+            int idx = ch - 'a';
+            if (idx < 0 || idx > 25) {
+                idx = 0;
+            }
+
+            Com_sprintf(colorHex, sizeof(colorHex), "0x%08x", g_colorWheel[idx]);
+
+            if (i == 0) {
+                trap_Cvar_Set(va("cg_%sHeadColor", prefix), colorHex);
+                trap_Cvar_Set(va("cg_%sUpperColor", prefix), colorHex);
+                trap_Cvar_Set(va("cg_%sLowerColor", prefix), colorHex);
+            } else if (i == 1) {
+                trap_Cvar_Set(va("cg_%sUpperColor", prefix), colorHex);
+                trap_Cvar_Set(va("cg_%sLowerColor", prefix), colorHex);
+            } else if (i == 2) {
+                trap_Cvar_Set(va("cg_%sHeadColor", prefix), colorHex);
+                trap_Cvar_Set(va("cg_%sLowerColor", prefix), colorHex);
+            }
+        }
+    }
+}
+
+static void CG_SetTeamColor_f(void) {
+    CG_SetEnemyTeamColor("team");
+}
+
+static void CG_SetEnemyColor_f(void) {
+    CG_SetEnemyTeamColor("enemy");
+}
+
+// =====================================================================
+// [QL] Chat history toggles
+// =====================================================================
+
+static void CG_ChatDown_f(void) {
+    if (!cg.chatHistoryShowing) {
+        cg.chatHistoryShowing = qtrue;
+    }
+}
+
+static void CG_ChatUp_f(void) {
+    if (cg.chatHistoryShowing) {
+        cg.chatHistoryShowing = qfalse;
+    }
+}
+
+static void CG_ToggleChatHistory_f(void) {
+    cg.chatHistoryShowing = !cg.chatHistoryShowing;
+}
+
+// =====================================================================
+// [QL] Print, kill, clientmute
+// =====================================================================
+
+// [QL] Chat system - ring buffer matching binary at 0x10006910
+void CG_ClearChat(void) {
+    memset(cg.chatLines, 0, sizeof(cg.chatLines));
+    memset(&cg.currentChatLine, 0, sizeof(cg.currentChatLine));
+    cg.chatIndex = MAX_CHAT_LINES - 1;
+}
+
+void CG_AddChat(const char *text, int teamOnly, int extraTime) {
+    int len;
+
+    len = strlen(text);
+
+    if (cg.currentChatLine.startTime != 0) {
+        // Push current line into ring buffer
+        cg.chatIndex = (cg.chatIndex + 1) % MAX_CHAT_LINES;
+        memcpy(&cg.chatLines[cg.chatIndex], &cg.currentChatLine, sizeof(cg.currentChatLine));
+    }
+
+    cg.currentChatLine.startTime = cg.time;
+    cg.currentChatLine.endTime = cg.time + 2000 + extraTime;
+    cg.currentChatLine.teamOnly = teamOnly;
+
+    Q_strncpyz(cg.currentChatLine.text, text,
+               len < CHAT_LINE_TEXT ? len + 1 : CHAT_LINE_TEXT);
+
+    // Also print to console
+    CG_Printf("%s", text);
+}
+
+// [QL] Draw chat overlay - binary at 0x10006A10
+// chatRect defaults to bottom-left area (x=1, y=350, h=120 from bottom)
+void CG_DrawChat(void) {
+    int maxLines;
+    float y;
+    float x;
+    float scale;
+    int i;
+
+    // Default chat area: bottom-left
+    x = 1.0f;
+    y = 478.0f;     // near bottom of 480-high screen
+    scale = 0.18f;   // default chat text scale
+
+    maxLines = 8;    // default visible history lines
+
+    // Draw the current (newest) chat line if active
+    if (cg.currentChatLine.startTime != 0) {
+        if (cg.currentChatLine.endTime < cg.time) {
+            // Expire: push into ring buffer
+            cg.chatIndex = (cg.chatIndex + 1) % MAX_CHAT_LINES;
+            memcpy(&cg.chatLines[cg.chatIndex], &cg.currentChatLine,
+                   sizeof(cg.currentChatLine));
+            memset(&cg.currentChatLine, 0, sizeof(cg.currentChatLine));
+        } else {
+            CG_SetWidescreen(WIDESCREEN_LEFT);
+            CG_DrawText(x, y, 1, scale, colorWhite,
+                        cg.currentChatLine.text, 0, 256, 3);
+            CG_SetWidescreen(WIDESCREEN_STRETCH);
+        }
+    }
+
+    // Determine how many history lines to show
+    if (cg.snap->ps.pm_type == PM_INTERMISSION) {
+        maxLines = 4;
+    } else if (cg.showScores) {
+        maxLines = 2;
+    }
+
+    // Draw chat history lines (when +chat held or scoreboard up)
+    if ((cg.chatHistoryShowing || cg.showScores) && maxLines > 0) {
+        i = cg.chatIndex;
+        do {
+            y -= 13.0f;
+            if (cg.chatLines[i].text[0]) {
+                CG_SetWidescreen(WIDESCREEN_LEFT);
+                CG_DrawText(x, y, 1, scale, colorWhite,
+                            cg.chatLines[i].text, 0, 256, 3);
+                CG_SetWidescreen(WIDESCREEN_STRETCH);
+            }
+            i--;
+            if (i < 0) {
+                i = MAX_CHAT_LINES - 1;
+            }
+            maxLines--;
+        } while (maxLines != 0);
+    }
+}
+
+static void CG_Print_f(void) {
+    char text[1024];
+    char arg[MAX_TOKEN_CHARS];
+    int i;
+    int argc;
+
+    text[0] = '\0';
+
+    argc = trap_Argc();
+    for (i = 1; i < argc; i++) {
+        trap_Argv(i, arg, sizeof(arg));
+        if (strlen(text) + strlen(arg) + 2 < sizeof(text)) {
+            Q_strcat(text, sizeof(text), arg);
+            Q_strcat(text, sizeof(text), " ");
+        }
+    }
+    CG_AddChat(text, 0, 0);
+}
+
+static void CG_Kill_f(void) {
+    cg.killRequested = qtrue;
+    trap_SendClientCommand("kill");
+}
+
+// [QL] clientmute - mute/unmute a client's voice by number
+// Binary: cgamex86.dll 0x10007E90
+static void CG_ClientMute_f(void) {
+    int clientNum;
+    char arg[MAX_TOKEN_CHARS];
+
+    if (trap_Argc() < 2) {
+        CG_Printf("Usage: clientmute <clientnum>\n");
+        return;
+    }
+
+    trap_Argv(1, arg, sizeof(arg));
+    clientNum = atoi(arg);
+
+    if (clientNum < 0 || clientNum >= MAX_CLIENTS) {
+        CG_Printf("Invalid client number.\n");
+        return;
+    }
+
+    if (!cgs.clientinfo[clientNum].infoValid) {
+        CG_Printf("Client %d not connected.\n", clientNum);
+        return;
+    }
+
+    trap_S_MuteClient(clientNum, qtrue);
+    CG_Printf("Client %d muted.\n", clientNum);
+}
+
+// [QL] Binary-matched acc/pstats handlers with spectator check and request throttling
+static void CG_AccDown_f(void) {
+    if (cg.snap->ps.pm_type != PM_SPECTATOR || (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
+        if (cg.accRequestTime + 1000 < cg.time) {
+            cg.accRequestTime = cg.time;
+            trap_SendClientCommand("acc");
+        }
+        cg.accShowing = qtrue;
+    }
+}
+
+static void CG_AccUp_f(void) {
+    if (cg.accShowing) {
+        cg.accShowing = qfalse;
+    }
+}
+
+static void CG_PStatsDown_f(void) {
+    if (cg.snap->ps.pm_type != PM_SPECTATOR || (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
+        if (cg.pstatsRequestTime + 1000 < cg.time) {
+            cg.pstatsRequestTime = cg.time;
+            trap_SendClientCommand("pstats");
+        }
+        cg.pstatsShowing = qtrue;
+    }
+}
+
+static void CG_PStatsUp_f(void) {
+    if (cg.pstatsShowing) {
+        cg.pstatsShowing = qfalse;
+    }
+}
 
 typedef struct {
     char* cmd;
     void (*function)(void);
 } consoleCommand_t;
 
+// [QL] Command table - matches cgamex86.dll binary at 0x10078DC0 (57 entries)
 static consoleCommand_t commands[] = {
-    {"testgun", CG_TestGun_f},
-    {"testmodel", CG_TestModel_f},
-    {"nextframe", CG_TestModelNextFrame_f},
-    {"prevframe", CG_TestModelPrevFrame_f},
-    {"nextskin", CG_TestModelNextSkin_f},
-    {"prevskin", CG_TestModelPrevSkin_f},
     {"viewpos", CG_Viewpos_f},
     {"+scores", CG_ScoresDown_f},
     {"-scores", CG_ScoresUp_f},
-    {"+zoom", CG_ZoomDown_f},
-    {"-zoom", CG_ZoomUp_f},
+    {"+acc", CG_AccDown_f},
+    {"-acc", CG_AccUp_f},
+    {"+pstats", CG_PStatsDown_f},
+    {"-pstats", CG_PStatsUp_f},
+    {"nextframe", CG_TestModelNextFrame_f},
+    {"prevframe", CG_TestModelPrevFrame_f},
     {"sizeup", CG_SizeUp_f},
     {"sizedown", CG_SizeDown_f},
     {"weapnext", CG_NextWeapon_f},
     {"weapprev", CG_PrevWeapon_f},
     {"weapon", CG_Weapon_f},
-    {"tcmd", CG_TargetCommand_f},
     {"tell_target", CG_TellTarget_f},
     {"tell_attacker", CG_TellAttacker_f},
-
     {"vtell_target", CG_VoiceTellTarget_f},
     {"vtell_attacker", CG_VoiceTellAttacker_f},
+    {"tcmd", CG_TargetCommand_f},
     {"loadhud", CG_LoadHud_f},
     {"nextTeamMember", CG_NextTeamMember_f},
     {"prevTeamMember", CG_PrevTeamMember_f},
@@ -518,22 +818,25 @@ static consoleCommand_t commands[] = {
     {"tauntTaunt", CG_TauntTaunt_f},
     {"tauntDeathInsult", CG_TauntDeathInsult_f},
     {"tauntGauntlet", CG_TauntGauntlet_f},
-    {"spWin", CG_spWin_f},
-    {"spLose", CG_spLose_f},
-    {"scoresDown", CG_scrollScoresDown_f},
-    {"scoresUp", CG_scrollScoresUp_f},
-
     {"startOrbit", CG_StartOrbit_f},
-    //{ "camera", CG_Camera_f },
     {"loaddeferred", CG_LoadDeferredPlayers},
-    // [QL] stats overlays
-    {"+stats", CG_StatsDown_f},
-    {"-stats", CG_StatsUp_f},
-    {"+acc", CG_AccDown_f},
-    {"-acc", CG_AccUp_f},
-    {"+pstats", CG_PStatsDown_f},
-    {"-pstats", CG_PStatsUp_f},
-    {"score", CG_Score_f},
+    // [QL] new commands
+    {"dropflag", CG_DropFlag_f},
+    {"droppowerup", CG_DropPowerup_f},
+    {"droprune", CG_DropRune_f},
+    {"dropweapon", CG_DropWeapon_f},
+    {"+chat", CG_ChatDown_f},
+    {"-chat", CG_ChatUp_f},
+    {"readyup", CG_Readyup_f},
+    {"team", CG_Team_f},
+    {"togglechathistory", CG_ToggleChatHistory_f},
+    {"forfeit", CG_Forfeit_f},
+    {"ragequit", CG_Ragequit_f},
+    {"setteamcolor", CG_SetTeamColor_f},
+    {"setenemycolor", CG_SetEnemyColor_f},
+    {"print", CG_Print_f},
+    {"kill", CG_Kill_f},
+    {"clientmute", CG_ClientMute_f},
 };
 
 /*
@@ -575,72 +878,53 @@ void CG_InitConsoleCommands(void) {
         trap_AddCommand(commands[i].cmd);
     }
 
-    //
-    // the game server will interpret these commands, which will be automatically
-    // forwarded to the server after they are not recognized locally
-    //
-    trap_AddCommand("kill");
-    trap_AddCommand("say");
-    trap_AddCommand("say_team");
-    trap_AddCommand("tell");
-
-    trap_AddCommand("give");
-    trap_AddCommand("god");
-    trap_AddCommand("notarget");
-    trap_AddCommand("noclip");
-    trap_AddCommand("where");
-    trap_AddCommand("team");
-    trap_AddCommand("follow");
-    trap_AddCommand("follownext");
-    trap_AddCommand("followprev");
-    trap_AddCommand("levelshot");
+    // Server-forwarded commands (alphabetical, matches QL binary)
+    trap_AddCommand("abort");
+    trap_AddCommand("addadmin");
     trap_AddCommand("addbot");
-    trap_AddCommand("setviewpos");
+    trap_AddCommand("addmod");
+    trap_AddCommand("addscore");
+    trap_AddCommand("addteamscore");
+    trap_AddCommand("allready");
+    trap_AddCommand("ban");
     trap_AddCommand("callvote");
-    trap_AddCommand("cv");
-    trap_AddCommand("vote");
-    trap_AddCommand("stats");
-    trap_AddCommand("teamtask");
-    trap_AddCommand("loaddefered");  // spelled wrong, but not changing for demo
-
-    // [QL] drop commands
+    trap_AddCommand("demote");
     trap_AddCommand("dropflag");
     trap_AddCommand("droppowerup");
     trap_AddCommand("droprune");
     trap_AddCommand("dropweapon");
-
-    // [QL] additional server-forwarded commands
-    trap_AddCommand("readyup");
+    trap_AddCommand("follow");
     trap_AddCommand("forfeit");
-    trap_AddCommand("ragequit");
-    trap_AddCommand("spec");
-    trap_AddCommand("specresp");
-    trap_AddCommand("acc");
-    trap_AddCommand("pstats");
-    trap_AddCommand("raceinit");
-    trap_AddCommand("racepoint");
-    // [QL] permission-based commands (forwarded to server)
-    trap_AddCommand("players");
-    trap_AddCommand("timeout");
-    trap_AddCommand("timein");
-    trap_AddCommand("pause");
-    trap_AddCommand("unpause");
-    trap_AddCommand("allready");
-    trap_AddCommand("lock");
-    trap_AddCommand("unlock");
-    trap_AddCommand("put");
-    trap_AddCommand("mute");
-    trap_AddCommand("unmute");
-    trap_AddCommand("tempban");
-    trap_AddCommand("ban");
-    trap_AddCommand("unban");
+    trap_AddCommand("give");
+    trap_AddCommand("god");
+    trap_AddCommand("kill");
+    trap_AddCommand("levelshot");
     trap_AddCommand("listaccess");
+    trap_AddCommand("loaddeferred");
+    trap_AddCommand("lock");
+    trap_AddCommand("mute");
+    trap_AddCommand("notarget");
+    trap_AddCommand("noclip");
     trap_AddCommand("opsay");
-    trap_AddCommand("addadmin");
-    trap_AddCommand("addmod");
-    trap_AddCommand("demote");
-    trap_AddCommand("abort");
-    trap_AddCommand("addscore");
-    trap_AddCommand("addteamscore");
+    trap_AddCommand("pause");
+    trap_AddCommand("players");
+    trap_AddCommand("put");
+    trap_AddCommand("ragequit");
+    trap_AddCommand("rcon");
+    trap_AddCommand("reload_access");
+    trap_AddCommand("say");
+    trap_AddCommand("say_team");
     trap_AddCommand("setmatchtime");
+    trap_AddCommand("setviewpos");
+    trap_AddCommand("spec");
+    trap_AddCommand("team");
+    trap_AddCommand("tell");
+    trap_AddCommand("tempban");
+    trap_AddCommand("timein");
+    trap_AddCommand("timeout");
+    trap_AddCommand("unban");
+    trap_AddCommand("unlock");
+    trap_AddCommand("unmute");
+    trap_AddCommand("unpause");
+    trap_AddCommand("vote");
 }

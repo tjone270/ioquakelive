@@ -606,6 +606,8 @@ typedef struct {
     qboolean statsShowing;     // [QL] +stats overlay active
     qboolean accShowing;       // [QL] +acc overlay active
     qboolean pstatsShowing;    // [QL] +pstats overlay active
+    int      accRequestTime;   // [QL] throttle for acc server requests
+    int      pstatsRequestTime;// [QL] throttle for pstats server requests
     int scoreFadeTime;
     char killerName[MAX_NAME_LENGTH];
     char spectatorList[MAX_STRING_CHARS];  // list of names
@@ -786,6 +788,28 @@ typedef struct {
     int speedHistoryIndex;
     vec4_t speedBarColor1;   // lower bar color (green)
     vec4_t speedBarColor2;   // upper/overflow bar color (yellow)
+
+    // [QL] chat history and misc client-side flags
+    qboolean chatHistoryShowing;
+    qboolean killRequested;
+    int      disconnectRequest;
+
+    // [QL] chat ring buffer (binary: 24 entries at DAT_10079950)
+    #define MAX_CHAT_LINES  24
+    #define CHAT_LINE_TEXT  256
+    struct {
+        int     startTime;
+        int     endTime;
+        int     teamOnly;
+        char    text[CHAT_LINE_TEXT];
+    } chatLines[MAX_CHAT_LINES];
+    struct {
+        int     startTime;
+        int     endTime;
+        int     teamOnly;
+        char    text[CHAT_LINE_TEXT];
+    } currentChatLine;
+    int chatIndex;
 
 } cg_t;
 
@@ -1309,6 +1333,10 @@ typedef struct {
 extern cgs_t cgs;
 extern cg_t cg;
 extern centity_t cg_entities[MAX_GENTITIES];
+
+// [QL] Color wheel arrays (runtime-initialized, 26 entries for 'a'-'z')
+extern unsigned int g_colorWheel[26];
+extern vec3_t g_colorWheelNormalized[26];
 extern weaponInfo_t cg_weapons[MAX_WEAPONS];
 extern itemInfo_t cg_items[MAX_ITEMS];
 extern markPoly_t cg_markPolys[MAX_MARK_POLYS];
@@ -1524,6 +1552,7 @@ void CG_AddBufferedSound(sfxHandle_t sfx);
 void CG_DrawAdvertisements(void);
 void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoPlayback);
 void CG_AddPOIMarkers(void);
+void CG_CloseMenus(void);
 
 //
 // cg_drawtools.c
@@ -1756,6 +1785,10 @@ void CG_DrawTourneyScoreboard(void);
 //
 qboolean CG_ConsoleCommand(void);
 void CG_InitConsoleCommands(void);
+void CG_ClearChat(void);
+void CG_AddChat(const char *text, int teamOnly, int extraTime);
+void CG_DrawChat(void);
+void CG_InitColorWheel(void);
 
 //
 // cg_servercmds.c
@@ -1938,6 +1971,7 @@ int trap_Key_GetCatcher(void);
 void trap_Key_SetCatcher(int catcher);
 int trap_Key_GetKey(const char* binding);
 void trap_Key_KeynumToStringBuf(int keynum, char* buf, int buflen);
+void trap_S_MuteClient(int clientNum, qboolean mute);
 
 void CG_KeyNameForCommand(const char* command, char* buf, int buflen);
 
