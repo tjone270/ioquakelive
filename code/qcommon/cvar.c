@@ -1362,6 +1362,54 @@ void Cvar_CompleteCvarName(char* args, int argNum) {
 
 /*
 ============
+[QL] Cvar_Add_f - cvarAdd <cvar> <value>
+============
+*/
+static void Cvar_Add_f(void) {
+    float val;
+
+    if (Cmd_Argc() != 3) {
+        Com_Printf("Usage: cvarAdd <variable> <value>\n");
+        return;
+    }
+
+    val = Cvar_VariableValue(Cmd_Argv(1));
+    Cvar_SetValue(Cmd_Argv(1), val + atof(Cmd_Argv(2)));
+}
+
+/*
+============
+[QL] Cvar_Mult_f - cvarMult <cvar> <value>
+============
+*/
+static void Cvar_Mult_f(void) {
+    float val;
+
+    if (Cmd_Argc() != 3) {
+        Com_Printf("Usage: cvarMult <variable> <value>\n");
+        return;
+    }
+
+    val = Cvar_VariableValue(Cmd_Argv(1));
+    Cvar_SetValue(Cmd_Argv(1), val * atof(Cmd_Argv(2)));
+}
+
+/*
+============
+[QL] Cvar_Clear_f - clearcvar <cvar>
+============
+*/
+static void Cvar_Clear_f(void) {
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Usage: clearcvar <variable>\n");
+        return;
+    }
+
+    Cvar_Set(Cmd_Argv(1), "");
+}
+
+/*
+============
 Cvar_Init
 
 Reads in all archived cvars
@@ -1393,4 +1441,9 @@ void Cvar_Init(void) {
     Cmd_AddCommand("listcvars", Cvar_List_f);
     Cmd_AddCommand("cvar_modified", Cvar_ListModified_f);
     Cmd_AddCommand("cvar_restart", Cvar_Restart_f);
+
+    // [QL] Additional cvar commands
+    Cmd_AddCommand("cvarAdd", Cvar_Add_f);
+    Cmd_AddCommand("cvarMult", Cvar_Mult_f);
+    Cmd_AddCommand("clearcvar", Cvar_Clear_f);
 }
