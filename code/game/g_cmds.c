@@ -1946,6 +1946,112 @@ static void Cmd_ReadyUp_f(gentity_t* ent) {
 
 /*
 =================
+[QL] BotSay command - send a chat message as a bot to a specific client
+Binary: qagamex86.dll 0x100413a0
+Usage: botsay <targetNum> <duration> <message>
+=================
+*/
+static void Cmd_BotSay_f(gentity_t* ent) {
+    int targetNum;
+    int duration;
+    char *p;
+    char arg[MAX_TOKEN_CHARS];
+    char name[64];
+
+    if (trap_Argc() < 3) return;
+    if (!(ent->r.svFlags & SVF_BOT)) return;
+
+    trap_Argv(1, arg, sizeof(arg));
+    targetNum = atoi(arg);
+    if (targetNum < 0 || targetNum >= level.maxclients) return;
+    if (!g_entities[targetNum].inuse || !g_entities[targetNum].client) return;
+    if (g_entities[targetNum].client->pers.connected != CON_CONNECTED) return;
+
+    trap_Argv(2, arg, sizeof(arg));
+    duration = atoi(arg);
+    if (duration < 0) return;
+
+    p = ConcatArgs(3);
+
+    Com_sprintf(name, sizeof(name), "%s\x19: ",
+        ent->client->pers.netname);
+    G_Printf("botSay: %s for %i seconds to client %i\n", p, duration, targetNum);
+
+    trap_SendServerCommand(targetNum,
+        va("bchat \"%s%c%c%s\" %i", name, Q_COLOR_ESCAPE, COLOR_GREEN, p, duration));
+}
+
+/*
+=================
+[QL] Spec command - filtered spectate/follow
+Binary: qagamex86.dll 0x100459a0
+Cycles through players matching a filter: stats, red/r, blue/b, powerup
+=================
+*/
+static void Cmd_Spec_f(gentity_t* ent) {
+    int clientnum, original;
+    char filter[MAX_TOKEN_CHARS];
+    gclient_t* cl;
+
+    if (trap_Argc() != 2) {
+        // No filter arg: just follow like normal
+        Cmd_Follow_f(ent);
+        return;
+    }
+
+    trap_Argv(1, filter, sizeof(filter));
+
+    clientnum = ent->client->sess.spectatorClient;
+    if (clientnum < 0 || clientnum >= level.maxclients) {
+        clientnum = 0;
+    }
+    original = clientnum;
+
+    do {
+        clientnum++;
+        if (clientnum >= level.maxclients) clientnum = 0;
+
+        cl = &g_clients[clientnum];
+        if (cl->pers.connected != CON_CONNECTED) continue;
+        if (cl->sess.sessionTeam == TEAM_SPECTATOR) continue;
+        if (cl->ps.pm_flags & PMF_FOLLOW) continue;
+
+        // Team filter in team gametypes
+        if (ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
+            g_gametype.integer >= GT_TEAM &&
+            cl->sess.sessionTeam != ent->client->sess.sessionTeam) {
+            continue;
+        }
+
+        // Apply filter
+        if (!Q_stricmp(filter, "stats")) {
+            if (cl->expandedStats.numKills == 0 &&
+                cl->expandedStats.numDeaths == 0 &&
+                cl->expandedStats.numAssists == 0) {
+                continue;
+            }
+        } else if (!Q_stricmp(filter, "red") || !Q_stricmp(filter, "r")) {
+            if (cl->sess.sessionTeam != TEAM_RED) continue;
+        } else if (!Q_stricmp(filter, "blue") || !Q_stricmp(filter, "b")) {
+            if (cl->sess.sessionTeam != TEAM_BLUE) continue;
+        } else if (!Q_stricmp(filter, "powerup")) {
+            int hasPowerup = 0;
+            int pw;
+            for (pw = PW_QUAD; pw <= PW_AMMOREGEN; pw++) {
+                if (cl->ps.powerups[pw] > 0) { hasPowerup = 1; break; }
+            }
+            if (!hasPowerup) continue;
+        }
+
+        // Found a valid target
+        ent->client->sess.spectatorClient = clientnum;
+        ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
+        return;
+    } while (clientnum != original);
+}
+
+/*
+=================
 [QL] Forfeit command - forfeit the current match
 Binary: qagamex86.dll 0x10045890
 =================
@@ -3014,8 +3120,10 @@ void ClientCommand(int clientNum) {
         Cmd_Forfeit_f(ent);
     else if (Q_stricmp(cmd, "ragequit") == 0)
         trap_DropClient(clientNum, "ragequit");
+    else if (Q_stricmp(cmd, "botsay") == 0)
+        Cmd_BotSay_f(ent);
     else if (Q_stricmp(cmd, "spec") == 0)
-        Cmd_Follow_f(ent);  // [QL] spec = follow with filter args
+        Cmd_Spec_f(ent);  // [QL] filtered follow (stats/red/blue/powerup)
     else if (Q_stricmp(cmd, "specresp") == 0)
         ;  // [QL] spectator respawn - stub (complex bot/spawn interaction)
     else if (Q_stricmp(cmd, "raceinit") == 0)

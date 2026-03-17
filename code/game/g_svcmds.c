@@ -460,6 +460,124 @@ void Svcmd_ForceShuffle_f(void) {
 char* ConcatArgs(int start);
 
 /*
+===================
+Svcmd_Kick_f
+
+[QL] Kick a player from the server by client number.
+===================
+*/
+static void Svcmd_Kick_f(void) {
+    char pidStr[MAX_TOKEN_CHARS];
+    int pid;
+
+    if (trap_Argc() < 2) {
+        G_Printf("Usage: kick <clientnum>\n");
+        return;
+    }
+
+    trap_Argv(1, pidStr, sizeof(pidStr));
+    pid = atoi(pidStr);
+
+    if (pid < 0 || pid >= level.maxclients ||
+        g_clients[pid].pers.connected != CON_CONNECTED) {
+        G_Printf("Player %d not found.\n", pid);
+        return;
+    }
+
+    trap_DropClient(pid, "was kicked");
+}
+
+/*
+===================
+Svcmd_PromoteAdmin_f
+
+[QL] Promote a player to admin - stub (access control system not fully implemented).
+===================
+*/
+static void Svcmd_PromoteAdmin_f(void) {
+    char pidStr[MAX_TOKEN_CHARS];
+    int pid;
+
+    if (trap_Argc() < 2) {
+        G_Printf("Usage: addadmin <clientnum>\n");
+        return;
+    }
+
+    trap_Argv(1, pidStr, sizeof(pidStr));
+    pid = atoi(pidStr);
+
+    if (pid < 0 || pid >= level.maxclients ||
+        g_clients[pid].pers.connected != CON_CONNECTED) {
+        G_Printf("Player %d not found.\n", pid);
+        return;
+    }
+
+    trap_SendServerCommand(-1,
+        va("print \"%s^7 has become an administrator\n\"",
+            g_clients[pid].pers.netname));
+}
+
+/*
+===================
+Svcmd_PromoteMod_f
+
+[QL] Promote a player to moderator - stub.
+===================
+*/
+static void Svcmd_PromoteMod_f(void) {
+    char pidStr[MAX_TOKEN_CHARS];
+    int pid;
+
+    if (trap_Argc() < 2) {
+        G_Printf("Usage: addmod <clientnum>\n");
+        return;
+    }
+
+    trap_Argv(1, pidStr, sizeof(pidStr));
+    pid = atoi(pidStr);
+
+    if (pid < 0 || pid >= level.maxclients ||
+        g_clients[pid].pers.connected != CON_CONNECTED) {
+        G_Printf("Player %d not found.\n", pid);
+        return;
+    }
+
+    trap_SendServerCommand(-1,
+        va("print \"%s^7 has become a moderator\n\"",
+            g_clients[pid].pers.netname));
+}
+
+/*
+===================
+Svcmd_Demote_f
+
+[QL] Remove a player's privileges - stub.
+===================
+*/
+static void Svcmd_Demote_f(void) {
+    char pidStr[MAX_TOKEN_CHARS];
+    int pid;
+
+    if (trap_Argc() < 2) {
+        G_Printf("Usage: demote <clientnum>\n");
+        return;
+    }
+
+    trap_Argv(1, pidStr, sizeof(pidStr));
+    pid = atoi(pidStr);
+
+    if (pid < 0 || pid >= level.maxclients ||
+        g_clients[pid].pers.connected != CON_CONNECTED) {
+        G_Printf("Player %d not found.\n", pid);
+        return;
+    }
+
+    trap_SendServerCommand(-1,
+        va("print \"%s^7 has had their privileges removed\n\"",
+            g_clients[pid].pers.netname));
+}
+
+/*
 =================
 ConsoleCommand
 
@@ -551,6 +669,32 @@ qboolean ConsoleCommand(void) {
     // [QL] reload_access - reload access control file
     if (Q_stricmp(cmd, "reload_access") == 0) {
         G_Printf("Access control reloaded.\n");
+        return qtrue;
+    }
+
+    // [QL] kick - kick player from server
+    if (Q_stricmp(cmd, "kick") == 0 || Q_stricmp(cmd, "kickban") == 0) {
+        Svcmd_Kick_f();
+        return qtrue;
+    }
+
+    // [QL] unban - unban by client number (simplified)
+    if (Q_stricmp(cmd, "unban") == 0) {
+        G_Printf("unban: access control system not yet implemented.\n");
+        return qtrue;
+    }
+
+    // [QL] addadmin / addmod / demote
+    if (Q_stricmp(cmd, "addadmin") == 0) {
+        Svcmd_PromoteAdmin_f();
+        return qtrue;
+    }
+    if (Q_stricmp(cmd, "addmod") == 0) {
+        Svcmd_PromoteMod_f();
+        return qtrue;
+    }
+    if (Q_stricmp(cmd, "demote") == 0) {
+        Svcmd_Demote_f();
         return qtrue;
     }
 
