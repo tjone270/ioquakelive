@@ -27,7 +27,7 @@ int g_console_field_width = 119;
 
 #define NUM_CON_TIMES 4
 
-#define CON_TEXTSIZE 131072
+#define CON_TEXTSIZE 524288
 typedef struct {
     qboolean initialized;
 
@@ -333,6 +333,51 @@ void Cmd_CompleteTxtName(char* args, int argNum) {
 
 /*
 ================
+[QL] Con_Find_f - search console buffer for a substring
+================
+*/
+static void Con_Find_f(void) {
+    char* search;
+    int l, x, i;
+    short* line;
+    char text[1024];
+
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Usage: find <string>\n");
+        return;
+    }
+
+    search = Cmd_Argv(1);
+
+    if (!con.initialized || !search[0]) {
+        return;
+    }
+
+    Com_Printf("--- find \"%s\" ---\n", search);
+
+    for (l = con.current - con.totallines + 1; l <= con.current; l++) {
+        line = con.text + (l % con.totallines) * con.linewidth;
+
+        // Extract text from this line
+        x = 0;
+        for (i = 0; i < con.linewidth && x < (int)sizeof(text) - 1; i++) {
+            text[x++] = line[i] & 0xff;
+        }
+        text[x] = '\0';
+
+        // Strip trailing spaces
+        while (x > 0 && text[x - 1] == ' ') {
+            text[--x] = '\0';
+        }
+
+        if (text[0] && Q_stristr(text, search)) {
+            Com_Printf("%s\n", text);
+        }
+    }
+}
+
+/*
+================
 Con_Init
 ================
 */
@@ -372,6 +417,9 @@ void Con_Init(void) {
     Cmd_AddCommand("clear", Con_Clear_f);
     Cmd_AddCommand("condump", Con_Dump_f);
     Cmd_SetCommandCompletionFunc("condump", Cmd_CompleteTxtName);
+
+    // [QL] find command - search console buffer for substring
+    Cmd_AddCommand("find", Con_Find_f);
 }
 
 /*

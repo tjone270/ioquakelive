@@ -3516,6 +3516,8 @@ static void ScanAndLoadShaderFiles(void) {
         SkipBracedSection(&p, 0);
     }
 
+    ri.Printf(PRINT_ALL, "ScanAndLoadShaderFiles: %d shader files, %d shaders total\n", numShaderFiles, size);
+
     return;
 }
 

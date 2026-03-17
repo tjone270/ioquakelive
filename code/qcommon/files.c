@@ -3123,6 +3123,10 @@ static void FS_Startup(const char* gameName) {
 	}
 
 	// add search path elements in reverse priority order
+	// Workshop pk3s have lowest priority - must not override pak00 resources
+#ifdef _WIN32
+	FS_AddWorkshopPaks();
+#endif
 	fs_steampath = Cvar_Get("fs_steampath", Sys_SteamPath(), CVAR_INIT | CVAR_PROTECTED);
 	if (fs_steampath->string[0]) {
 		FS_AddGameDirectory(fs_steampath->string, gameName);
@@ -3186,13 +3190,6 @@ static void FS_Startup(const char* gameName) {
 	FS_Path_f();
 
 	fs_gamedirvar->modified = qfalse;  // We just loaded, it's not modified
-
-#ifdef _WIN32
-	// Add Steam Workshop pk3s for Quake Live (app 282440).
-	// This runs inside FS_Startup so workshop paks are re-added on every
-	// filesystem restart (connect, disconnect, map_restart, etc.)
-	FS_AddWorkshopPaks();
-#endif
 
 	Com_Printf("----------------------\n");
 
@@ -4216,7 +4213,7 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 				Com_Error(ERR_FATAL, "FS_ExtractGamecode: short write");
 			}
 
-			Com_DPrintf("Extracted '%s' from '%s/%s.pk3' to '%s'\n", filename, pak->pakGamename, pak->pakBasename, path);
+			Com_Printf("Extracted '%s' (%d bytes) from '%s/%s.pk3' to '%s'\n", filename, fileLen, pak->pakGamename, pak->pakBasename, path);
 
 			Z_Free(buffer);
 			FS_FCloseFile(handleIn);
