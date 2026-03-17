@@ -2154,7 +2154,7 @@ hit splashes
 */
 static void CG_ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, int otherEntNum) {
     int i;
-    float r, u, angle, ringRadius;
+    float r, u, angle, ringRadius, jitter;
     vec3_t end;
     vec3_t forward, right, up;
 
@@ -2164,26 +2164,38 @@ static void CG_ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, int other
     PerpendicularVector(right, forward);
     CrossProduct(forward, right, up);
 
-    // [QL] ring-based pattern - must match server ShotgunPattern in g_weapon.c
-    // 3 rings: inner(6 pellets), middle(6), outer(8) = 20 total
-    for (i = 0; i < 20; i++) {
+    // [QL] Concentric ring pattern (binary-verified from cgamex86.dll 0x10055650)
+    // 3 rings: inner(6 pellets, r=4), middle(6, r=8), outer(8, r=12) = 20 total
+    for (i = 0; i < DEFAULT_SHOTGUN_COUNT; i++) {
         if (i < 6) {
-            ringRadius = 8;
-            angle = (float)(i - 20) * (M_PI / 3.0f);
+            jitter = 0.4f;
+            ringRadius = 4;
+            angle = (float)(i - 20) * 1.0471976f;   // pi/3 = 60 degree spacing
         } else if (i < 12) {
-            ringRadius = 16;
-            angle = (float)i * (M_PI / 3.0f) + (30.0f * M_PI / 180.0f);
+            jitter = 0.3f;
+            ringRadius = 8;
+            angle = (float)i * 1.0471976f + 30.0f;  // 30 radian offset (binary value)
         } else {
-            ringRadius = 24;
-            angle = (float)i * (M_PI / 4.0f);
+            jitter = 0.2f;
+            ringRadius = 12;
+            angle = (float)i * 0.7853982f;           // pi/4 = 45 degree spacing
         }
 
-        r = cos(angle) * ringRadius;
-        u = sin(angle) * ringRadius;
+        if (cgs.gametype == GT_FREEZE) {
+            jitter = 0.0f;
+        }
+
+        // LCG PRNG: seed = (seed * 0xDCD + 1) & 0xFFFF - 16-bit wrap
+        // (binary uses int but 1/65536 normalizer implies 16-bit range)
+        seed = (seed * 0xDCD + 1) & 0xFFFF;
+        r = (cos(angle) + ((float)seed * 1.5258789e-05f - 0.5f) * 2.0f * jitter) * ringRadius;
+
+        seed = (seed * 0xDCD + 1) & 0xFFFF;
+        u = (sin(angle) + ((float)seed * 1.5258789e-05f - 0.5f) * 2.0f * jitter) * ringRadius;
 
         VectorMA(origin, 8192 * 16, forward, end);
-        VectorMA(end, r, right, end);
-        VectorMA(end, u, up, end);
+        VectorMA(end, r * DEFAULT_SHOTGUN_SPREAD, right, end);
+        VectorMA(end, u * DEFAULT_SHOTGUN_SPREAD, up, end);
 
         CG_ShotgunPellet(origin, end, otherEntNum);
     }

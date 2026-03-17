@@ -36,7 +36,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define RANK_TIED_FLAG 0x4000
 
 #define DEFAULT_SHOTGUN_SPREAD 700
-#define DEFAULT_SHOTGUN_COUNT 11
+#define DEFAULT_SHOTGUN_COUNT 20
 
 #define ITEM_RADIUS 15  // item sizes are needed for client side pickup detection
 
@@ -862,6 +862,7 @@ qboolean BG_CanItemBeGrabbed(int gametype, const entityState_t* ent, const playe
 #define DF_NO_SELF_ARMOR_DAMAGE     8   // bit 3: no self armor damage
 #define DF_NO_FALLING_DAMAGE        16  // bit 4: no fall damage
 #define DF_NO_FOOTSTEPS             32  // bit 5: no footstep sounds
+#define DF_INSTAGIB                 0x20000  // bit 17: instagib mode
 
 // content masks
 #define MASK_ALL (-1)

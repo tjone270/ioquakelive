@@ -352,20 +352,18 @@ void ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, gentity_t* ent) {
         memset(ent->client->damagePlum, 0, sizeof(ent->client->damagePlum));
     }
 
-    for (i = 0; i < 20; i++) {
-        // [QL] ring-based pattern
+    // [QL] ring-based pattern (binary-verified from qagamex86.dll 0x1006d450)
+    // Server uses larger radii (8,16,24) and no jitter - clean ring pattern
+    for (i = 0; i < DEFAULT_SHOTGUN_COUNT; i++) {
         if (i < 6) {
-            // Inner ring: 6 pellets, radius 8, 60-degree spacing
             ringRadius = 8;
             angle = (float)(i - 20) * (M_PI / 3.0f);
             ring = 1;  // inner = full damage
         } else if (i < 12) {
-            // Middle ring: 6 pellets, radius 16
             ringRadius = 16;
             angle = (float)i * (M_PI / 3.0f) + (30.0f * M_PI / 180.0f);
             ring = 0;  // outer damage
         } else {
-            // Outer ring: 8 pellets, radius 24, 45-degree spacing
             ringRadius = 24;
             angle = (float)i * (M_PI / 4.0f);
             ring = 0;  // outer damage
@@ -375,8 +373,8 @@ void ShotgunPattern(vec3_t origin, vec3_t origin2, int seed, gentity_t* ent) {
         u = sin(angle) * ringRadius;
 
         VectorMA(origin, 8192 * 16, forward, end);
-        VectorMA(end, r, right, end);
-        VectorMA(end, u, up, end);
+        VectorMA(end, r * DEFAULT_SHOTGUN_SPREAD, right, end);
+        VectorMA(end, u * DEFAULT_SHOTGUN_SPREAD, up, end);
 
         if (ShotgunPellet(origin, end, ent, ring) && !hitClient) {
             hitClient = qtrue;
