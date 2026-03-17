@@ -781,6 +781,17 @@ void Cmd_ExecuteString(const char* text) {
         return;
     }
 
+    // [QL] check aliases
+    if (com_cl_running && com_cl_running->integer) {
+        void *CL_FindAlias(const char *name);
+        void CL_RunAlias(void);
+
+        if (CL_FindAlias(cmd_argv[0])) {
+            CL_RunAlias();
+            return;
+        }
+    }
+
     // send it as a server command if we are connected
     // this will usually result in a chat message
     CL_ForwardCommandToServer(text);

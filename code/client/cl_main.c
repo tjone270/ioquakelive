@@ -2168,11 +2168,7 @@ void CL_Frame(int msec) {
     }
 #endif
 
-    if (cls.cddialog) {
-        // bring up the cd error dialog if needed
-        cls.cddialog = qfalse;
-        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_NEED_CD);
-    } else if (clc.state == CA_DISCONNECTED && !(Key_GetCatcher() & KEYCATCH_UI) && !com_sv_running->integer && uivm) {
+    if (clc.state == CA_DISCONNECTED && !(Key_GetCatcher() & KEYCATCH_UI) && !com_sv_running->integer && uivm) {
         // if disconnected, bring up the menu
         S_StopAllSounds();
         VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN);
@@ -2628,6 +2624,186 @@ void CL_Sayto_f(void) {
 
 /*
 ====================
+CL_Web_ChangeHash_f
+
+[QL] This would usually change the web path Awesomium is looking at, but 
+for us we're just going to hijack it and display the legacy menus.
+====================
+*/
+void CL_Web_ChangeHash_f(void) {
+    char* web_path;
+
+    if (clc.state < CA_CONNECTED || !uivm) {
+        Com_Printf("You must be in-game to use this command.");
+        return;
+    }
+
+    if (Cmd_Argc() != 2) {
+        Com_Printf("Not enough arguments.\n");
+        return;
+    }
+
+    web_path = Cmd_Argv(1);
+
+	if (web_path[0] == "/") {
+		web_path++;
+	}
+    
+    if (Q_stristr(web_path, "settings")) {
+        Com_Printf("Opening in-game controls menu.\n");
+        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN_OPTIONS);
+    } else {
+        VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_NONE);
+    }
+}
+
+
+// =====================================================================
+// [QL] Alias system - binary-verified from quakelive_steam.exe
+// CL_FindAlias: 0x004B4F80, CL_RunAlias: 0x004B4FD0
+// CL_Alias_f: 0x004B5060, CL_Unalias_f: 0x004B5170, CL_UnaliasAll_f: 0x004B51C0
+// CL_ListAliases: 0x004B5020, Cmd_WriteAliases: 0x004B51F0
+// CL_InitAliases: 0x004B5240
+// =====================================================================
+
+#define MAX_ALIASES         100
+#define ALIAS_NAME_SIZE     32   // 0x20
+#define ALIAS_CMD_SIZE      256  // 0x100
+
+typedef struct {
+    char    name[ALIAS_NAME_SIZE];  // offset 0x00
+    char    cmd[ALIAS_CMD_SIZE];    // offset 0x20
+    int     active;                 // offset 0x120 (288)
+} alias_t;  // total: 0x124 (292) bytes
+
+static alias_t aliases[MAX_ALIASES];
+
+// 0x004B4F80 - Search for an alias by name (case-insensitive)
+void *CL_FindAlias(const char *name) {
+    int i;
+    for (i = 0; i < MAX_ALIASES; i++) {
+        if (aliases[i].active && !Q_stricmp(name, aliases[i].name)) {
+            return &aliases[i];
+        }
+    }
+    return NULL;
+}
+
+// 0x004B4FD0 - Execute the command text of an alias looked up by Cmd_Argv(0)
+void CL_RunAlias(void) {
+    const char *name;
+    alias_t *a;
+
+    name = Cmd_Argv(0);
+    a = (alias_t *)CL_FindAlias(name);
+    if (a) {
+        Cbuf_ExecuteText(EXEC_INSERT, va("%s\n", a->cmd));
+        return;
+    }
+    Com_Printf("^1ALIAS: %s not found^7\n", Cmd_Argv(0));
+}
+
+// 0x004B5020 - List all defined aliases
+static void CL_ListAliases(void) {
+    int i;
+    Com_Printf("Alias List:\n");
+    for (i = 0; i < MAX_ALIASES; i++) {
+        if (aliases[i].active) {
+            Com_Printf("  %s \"%s\"\n", aliases[i].name, aliases[i].cmd);
+        }
+    }
+}
+
+// 0x004B5060 - "alias [name] [command]"
+static void CL_Alias_f(void) {
+    alias_t *a;
+    int i;
+
+    if (Cmd_Argc() < 2) {
+        Com_Printf("Usage: alias \"command\"\n");
+        CL_ListAliases();
+        return;
+    }
+
+    if (Cmd_Argc() < 3) {
+        // [QL] Binary uses Cmd_Argv(0) here - looks up "alias" itself, which
+        // is never a valid alias name, so this path effectively does nothing.
+        a = (alias_t *)CL_FindAlias(Cmd_Argv(0));
+        if (a) {
+            Com_Printf("Alias: %s \"%s\"\n", a->name, a->cmd);
+        }
+        return;
+    }
+
+    // argc >= 3: create or update
+    a = (alias_t *)CL_FindAlias(Cmd_Argv(1));
+    if (a) {
+        // Update existing alias
+        Q_strncpyz(a->cmd, Cmd_Argv(2), ALIAS_CMD_SIZE);
+        return;
+    }
+
+    // Find a free slot
+    for (i = 0; i < MAX_ALIASES; i++) {
+        if (!aliases[i].active) {
+            Q_strncpyz(aliases[i].name, Cmd_Argv(1), ALIAS_NAME_SIZE);
+            Q_strncpyz(aliases[i].cmd, Cmd_Argv(2), ALIAS_CMD_SIZE);
+            aliases[i].active = 1;
+            return;
+        }
+    }
+
+    Com_Printf("^1No free alias slots. Use UnAlias to remove an alias before adding this one.^7\n");
+}
+
+// 0x004B5170 - "unalias <name>"
+static void CL_Unalias_f(void) {
+    alias_t *a;
+
+    if (Cmd_Argc() < 2) {
+        Com_Printf("Usage: unalias \"command\"\n");
+        CL_ListAliases();
+        return;
+    }
+
+    a = (alias_t *)CL_FindAlias(Cmd_Argv(1));
+    if (a) {
+        a->active = 0;
+        Cmd_RemoveCommand(a->name);
+    }
+}
+
+// 0x004B51C0 - "unaliasall"
+static void CL_UnaliasAll_f(void) {
+    int i;
+    for (i = 0; i < MAX_ALIASES; i++) {
+        aliases[i].active = 0;
+    }
+}
+
+// 0x004B51F0 - Write aliases to config file
+void Cmd_WriteAliases(fileHandle_t f) {
+    int i;
+    FS_Printf(f, "unaliasall\n");
+    for (i = 0; i < MAX_ALIASES; i++) {
+        if (aliases[i].active) {
+            FS_Printf(f, "alias %s \"%s\"\n", aliases[i].name, aliases[i].cmd);
+        }
+    }
+}
+
+// 0x004B5240 - Initialize the alias system
+void CL_InitAliases(void) {
+    memset(aliases, 0, sizeof(aliases));
+    Cmd_AddCommand("alias", CL_Alias_f);
+    Cmd_AddCommand("unalias", CL_Unalias_f);
+    Cmd_AddCommand("unaliasall", CL_UnaliasAll_f);
+}
+
+// =====================================================================
+
+/*
+====================
 CL_Init
 ====================
 */
@@ -2760,8 +2936,7 @@ void CL_Init(void) {
     Cvar_Get("snaps", "20", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
-    Cvar_Get("team_model", "james", CVAR_USERINFO | CVAR_ARCHIVE);
-    Cvar_Get("team_headmodel", "*james", CVAR_USERINFO | CVAR_ARCHIVE);
+
     Cvar_Get("color1", "4", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("color2", "5", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("handicap", "100", CVAR_USERINFO | CVAR_ARCHIVE);
@@ -2803,10 +2978,13 @@ void CL_Init(void) {
     Cmd_AddCommand("model", CL_SetModel_f);
     Cmd_AddCommand("video", CL_Video_f);
     Cmd_AddCommand("stopvideo", CL_StopVideo_f);
+    Cmd_AddCommand("web_changeHash", CL_Web_ChangeHash_f);
     if (!com_dedicated->integer) {
         Cmd_AddCommand("sayto", CL_Sayto_f);
         Cmd_SetCommandCompletionFunc("sayto", CL_CompletePlayerName);
     }
+    CL_InitAliases();
+
     CL_InitRef();
 
     SCR_Init();
