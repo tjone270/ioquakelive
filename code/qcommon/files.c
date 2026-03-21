@@ -3027,7 +3027,6 @@ void FS_Shutdown(qboolean closemfp) {
 	Cmd_RemoveCommand("dir");
 	Cmd_RemoveCommand("fdir");
 	Cmd_RemoveCommand("touchFile");
-	Cmd_RemoveCommand("which");
 
 #ifdef FS_MISSING
 	if (closemfp) {
@@ -3177,10 +3176,9 @@ static void FS_Startup(const char* gameName) {
 
 	// add our commands
 	Cmd_AddCommand("path", FS_Path_f);
-	Cmd_AddCommand("dir", FS_Dir_f);
+	Cmd_AddCommand("dir", FS_Which_f);   // [QL] "dir" replaces Q3's "which", same handler
 	Cmd_AddCommand("fdir", FS_NewDir_f);
 	Cmd_AddCommand("touchFile", FS_TouchFile_f);
-	Cmd_AddCommand("which", FS_Which_f);
 
 	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=506
 	// reorder the pure pk3 files according to server order

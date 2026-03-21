@@ -33,8 +33,6 @@ static int forced_unload;
 #define MAX_VM 3
 vm_t vmTable[MAX_VM];
 
-void VM_VmInfo_f(void);
-
 void VM_Debug(int level) {
     vm_debugLevel = level;
 }
@@ -45,8 +43,6 @@ VM_Init
 ==============
 */
 void VM_Init(void) {
-    Cmd_AddCommand("vminfo", VM_VmInfo_f);
-
     Com_Memset(vmTable, 0, sizeof(vmTable));
 }
 
@@ -289,23 +285,3 @@ intptr_t QDECL VM_Call(vm_t* vm, int callnum, ...) {
     return r;
 }
 
-//=================================================================
-
-/*
-==============
-VM_VmInfo_f
-==============
-*/
-void VM_VmInfo_f(void) {
-    vm_t* vm;
-    int i;
-
-    Com_Printf("Registered virtual machines:\n");
-    for (i = 0; i < MAX_VM; i++) {
-        vm = &vmTable[i];
-        if (!vm->name[0]) {
-            break;
-        }
-        Com_Printf("%s : native\n", vm->name);
-    }
-}

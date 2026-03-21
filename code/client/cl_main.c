@@ -34,7 +34,6 @@ cvar_t* cl_renderer;
 cvar_t* cl_nodelta;
 cvar_t* cl_debugMove;
 
-cvar_t* cl_noprint;
 #ifdef UPDATE_SERVER_NAME
 cvar_t* cl_motd;
 #endif
@@ -46,6 +45,7 @@ cvar_t* cl_timeout;
 cvar_t* cl_maxpackets;
 cvar_t* cl_packetdup;
 cvar_t* cl_timeNudge;
+cvar_t* cl_autoTimeNudge;
 cvar_t* cl_showTimeDelta;
 cvar_t* cl_freezeDemo;
 
@@ -138,7 +138,8 @@ static int noGameRestart = qfalse;
 extern void SV_BotFrame(int time);
 void CL_CheckForResend(void);
 void CL_ShowIP_f(void);
-void CL_ServerStatus_f(void);
+void CL_PostProcessRestart_f(void);
+void CL_Userinfo_f(void);
 void CL_ServerStatusResponse(netadr_t from, msg_t* msg);
 
 /*
@@ -1408,6 +1409,30 @@ void CL_Clientinfo_f(void) {
     Com_Printf("--------------------------------------\n");
 }
 
+/*
+==============
+CL_PostProcessRestart_f
+
+[QL] Restart post-processing pipeline.
+In the binary this calls through a renderer function pointer.
+No-op in ioquakelive since we don't have a separate post-process pipeline.
+==============
+*/
+void CL_PostProcessRestart_f(void) {
+}
+
+/*
+==============
+CL_Userinfo_f
+
+[QL] Dump current userinfo string
+==============
+*/
+void CL_Userinfo_f(void) {
+    Com_Printf("User info settings:\n");
+    Info_Print(Cvar_InfoString(CVAR_USERINFO));
+}
+
 //====================================================================
 
 /*
@@ -2514,66 +2539,6 @@ void CL_SetModel_f(void) {
 
 //===========================================================================================
 
-/*
-===============
-CL_Video_f
-
-video
-video [filename]
-===============
-*/
-void CL_Video_f(void) {
-    char filename[MAX_OSPATH];
-    int i, last;
-
-    if (!clc.demoplaying) {
-        Com_Printf("The video command can only be used when playing back demos\n");
-        return;
-    }
-
-    if (Cmd_Argc() == 2) {
-        // explicit filename
-        Com_sprintf(filename, MAX_OSPATH, "videos/%s.avi", Cmd_Argv(1));
-    } else {
-        // scan for a free filename
-        for (i = 0; i <= 9999; i++) {
-            int a, b, c, d;
-
-            last = i;
-
-            a = last / 1000;
-            last -= a * 1000;
-            b = last / 100;
-            last -= b * 100;
-            c = last / 10;
-            last -= c * 10;
-            d = last;
-
-            Com_sprintf(filename, MAX_OSPATH, "videos/video%d%d%d%d.avi",
-                        a, b, c, d);
-
-            if (!FS_FileExists(filename))
-                break;  // file doesn't exist
-        }
-
-        if (i > 9999) {
-            Com_Printf(S_COLOR_RED "ERROR: no free file names to create video\n");
-            return;
-        }
-    }
-
-    CL_OpenAVIForWriting(filename);
-}
-
-/*
-===============
-CL_StopVideo_f
-===============
-*/
-void CL_StopVideo_f(void) {
-    CL_CloseAVI();
-}
-
 void CL_Sayto_f(void) {
     char* rawname;
     char name[MAX_NAME_LENGTH];
@@ -2825,14 +2790,16 @@ void CL_Init(void) {
     //
     // register our variables
     //
-    cl_noprint = Cvar_Get("cl_noprint", "0", 0);
 #ifdef UPDATE_SERVER_NAME
     cl_motd = Cvar_Get("cl_motd", "1", 0);
 #endif
 
     cl_timeout = Cvar_Get("cl_timeout", "200", 0);
 
-    cl_timeNudge = Cvar_Get("cl_timeNudge", "0", CVAR_TEMP);
+    cl_timeNudge = Cvar_Get("cl_timeNudge", "0", CVAR_ARCHIVE);
+    Cvar_CheckRange(cl_timeNudge, -20, 0, qtrue);
+    cl_autoTimeNudge = Cvar_Get("cl_autoTimeNudge", "0", CVAR_ARCHIVE);
+    Cvar_CheckRange(cl_autoTimeNudge, 0, 1, qtrue);
     cl_shownet = Cvar_Get("cl_shownet", "0", CVAR_TEMP);
     cl_showSend = Cvar_Get("cl_showSend", "0", CVAR_TEMP);
     cl_showTimeDelta = Cvar_Get("cl_showTimeDelta", "0", CVAR_TEMP);
@@ -2933,7 +2900,7 @@ void CL_Init(void) {
     // userinfo
     Cvar_Get("name", "UnnamedPlayer", CVAR_USERINFO | CVAR_ARCHIVE);
     cl_rate = Cvar_Get("rate", "25000", CVAR_USERINFO | CVAR_ARCHIVE);
-    Cvar_Get("snaps", "20", CVAR_USERINFO | CVAR_ARCHIVE);
+    Cvar_CheckRange(cl_rate, 8000, 25000, qtrue);
     Cvar_Get("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
     Cvar_Get("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE);
 
@@ -2964,21 +2931,19 @@ void CL_Init(void) {
     Cmd_AddCommand("record", CL_Record_f);
     Cmd_AddCommand("demo", CL_PlayDemo_f);
     Cmd_SetCommandCompletionFunc("demo", CL_CompleteDemoName);
-    Cmd_AddCommand("cinematic", CL_PlayCinematic_f);
     Cmd_AddCommand("stoprecord", CL_StopRecord_f);
     Cmd_AddCommand("connect", CL_Connect_f);
     Cmd_AddCommand("reconnect", CL_Reconnect_f);
     Cmd_AddCommand("rcon", CL_Rcon_f);
     Cmd_SetCommandCompletionFunc("rcon", CL_CompleteRcon);
-    Cmd_AddCommand("ping", CL_Ping_f);
-    Cmd_AddCommand("serverstatus", CL_ServerStatus_f);
     Cmd_AddCommand("showip", CL_ShowIP_f);
     Cmd_AddCommand("fs_openedList", CL_OpenedPK3List_f);
     Cmd_AddCommand("fs_referencedList", CL_ReferencedPK3List_f);
     Cmd_AddCommand("model", CL_SetModel_f);
-    Cmd_AddCommand("video", CL_Video_f);
-    Cmd_AddCommand("stopvideo", CL_StopVideo_f);
     Cmd_AddCommand("web_changeHash", CL_Web_ChangeHash_f);
+    // [QL] additional client commands
+    Cmd_AddCommand("postprocess_restart", CL_PostProcessRestart_f);
+    Cmd_AddCommand("userinfo", CL_Userinfo_f);
     if (!com_dedicated->integer) {
         Cmd_AddCommand("sayto", CL_Sayto_f);
         Cmd_SetCommandCompletionFunc("sayto", CL_CompletePlayerName);
@@ -3033,21 +2998,16 @@ void CL_Shutdown(char* finalmsg, qboolean disconnect, qboolean quit) {
     Cmd_RemoveCommand("disconnect");
     Cmd_RemoveCommand("record");
     Cmd_RemoveCommand("demo");
-    Cmd_RemoveCommand("cinematic");
     Cmd_RemoveCommand("stoprecord");
     Cmd_RemoveCommand("connect");
     Cmd_RemoveCommand("reconnect");
-    Cmd_RemoveCommand("localservers");
-    Cmd_RemoveCommand("globalservers");
     Cmd_RemoveCommand("rcon");
-    Cmd_RemoveCommand("ping");
-    Cmd_RemoveCommand("serverstatus");
     Cmd_RemoveCommand("showip");
     Cmd_RemoveCommand("fs_openedList");
     Cmd_RemoveCommand("fs_referencedList");
     Cmd_RemoveCommand("model");
-    Cmd_RemoveCommand("video");
-    Cmd_RemoveCommand("stopvideo");
+    Cmd_RemoveCommand("postprocess_restart");
+    Cmd_RemoveCommand("userinfo");
 
     CL_ShutdownInput();
     Con_Shutdown();
@@ -3568,55 +3528,6 @@ ping_t* CL_GetFreePing(void) {
 
 /*
 ==================
-CL_Ping_f
-==================
-*/
-void CL_Ping_f(void) {
-    netadr_t to;
-    ping_t* pingptr;
-    char* server;
-    int argc;
-    netadrtype_t family = NA_UNSPEC;
-
-    argc = Cmd_Argc();
-
-    if (argc != 2 && argc != 3) {
-        Com_Printf("usage: ping [-4|-6] server\n");
-        return;
-    }
-
-    if (argc == 2)
-        server = Cmd_Argv(1);
-    else {
-        if (!strcmp(Cmd_Argv(1), "-4"))
-            family = NA_IP;
-        else if (!strcmp(Cmd_Argv(1), "-6"))
-            family = NA_IP6;
-        else
-            Com_Printf("warning: only -4 or -6 as address type understood.\n");
-
-        server = Cmd_Argv(2);
-    }
-
-    Com_Memset(&to, 0, sizeof(netadr_t));
-
-    if (!NET_StringToAdr(server, &to, family)) {
-        return;
-    }
-
-    pingptr = CL_GetFreePing();
-
-    memcpy(&pingptr->adr, &to, sizeof(netadr_t));
-    pingptr->start = Sys_Milliseconds();
-    pingptr->time = 0;
-
-    CL_SetServerInfoByAddress(pingptr->adr, NULL, 0);
-
-    NET_OutOfBandPrint(NS_CLIENT, to, "getinfo xxx");
-}
-
-/*
-==================
 CL_UpdateVisiblePings_f
 ==================
 */
@@ -3717,59 +3628,6 @@ qboolean CL_UpdateVisiblePings_f(int source) {
     }
 
     return status;
-}
-
-/*
-==================
-CL_ServerStatus_f
-==================
-*/
-void CL_ServerStatus_f(void) {
-    netadr_t to, *toptr = NULL;
-    char* server;
-    serverStatus_t* serverStatus;
-    int argc;
-    netadrtype_t family = NA_UNSPEC;
-
-    argc = Cmd_Argc();
-
-    if (argc != 2 && argc != 3) {
-        if (clc.state != CA_ACTIVE || clc.demoplaying) {
-            Com_Printf("Not connected to a server.\n");
-            Com_Printf("usage: serverstatus [-4|-6] server\n");
-            return;
-        }
-
-        toptr = &clc.serverAddress;
-    }
-
-    if (!toptr) {
-        Com_Memset(&to, 0, sizeof(netadr_t));
-
-        if (argc == 2)
-            server = Cmd_Argv(1);
-        else {
-            if (!strcmp(Cmd_Argv(1), "-4"))
-                family = NA_IP;
-            else if (!strcmp(Cmd_Argv(1), "-6"))
-                family = NA_IP6;
-            else
-                Com_Printf("warning: only -4 or -6 as address type understood.\n");
-
-            server = Cmd_Argv(2);
-        }
-
-        toptr = &to;
-        if (!NET_StringToAdr(server, toptr, family))
-            return;
-    }
-
-    NET_OutOfBandPrint(NS_CLIENT, *toptr, "getstatus");
-
-    serverStatus = CL_GetServerStatus(*toptr);
-    serverStatus->address = *toptr;
-    serverStatus->print = qtrue;
-    serverStatus->pending = qtrue;
 }
 
 /*

@@ -2337,21 +2337,6 @@ void Com_GameRestart(int checksumFeed, qboolean disconnect) {
 }
 
 /*
-==================
-Com_GameRestart_f
-
-Expose possibility to change current running mod to the user
-==================
-*/
-
-void Com_GameRestart_f(void) {
-    Cvar_Set("fs_game", Cmd_Argv(1));
-
-    Com_GameRestart(0, qtrue);
-}
-
-
-/*
 =================
 Com_InitRand
 Seed the random number generator, if possible with an OS supplied random seed.
@@ -2431,7 +2416,6 @@ void Com_Init(char* commandLine) {
     Cmd_AddCommand("writeconfig", Com_WriteConfig_f);
     Cmd_SetCommandCompletionFunc("writeconfig", Cmd_CompleteCfgName);
     Cmd_AddCommand("writeClientConfig", Com_WriteClientConfig_f);
-    Cmd_AddCommand("game_restart", Com_GameRestart_f);
 
     Com_ExecuteCfg();
 

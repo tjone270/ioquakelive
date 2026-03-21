@@ -321,13 +321,13 @@ extern refexport_t re;  // interface to refresh .dll
 //
 extern cvar_t* cl_nodelta;
 extern cvar_t* cl_debugMove;
-extern cvar_t* cl_noprint;
 extern cvar_t* cl_timegraph;
 extern cvar_t* cl_maxpackets;
 extern cvar_t* cl_packetdup;
 extern cvar_t* cl_shownet;
 extern cvar_t* cl_showSend;
 extern cvar_t* cl_timeNudge;
+extern cvar_t* cl_autoTimeNudge;
 extern cvar_t* cl_showTimeDelta;
 extern cvar_t* cl_freezeDemo;
 
@@ -452,7 +452,6 @@ void CL_ServerInfoPacket(netadr_t from, msg_t* msg);
 void CL_LocalServers_f(void);
 void CL_GlobalServers_f(void);
 void CL_FavoriteServers_f(void);
-void CL_Ping_f(void);
 qboolean CL_UpdateVisiblePings_f(int source);
 
 //

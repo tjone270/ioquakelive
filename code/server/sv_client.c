@@ -409,9 +409,6 @@ gotnewcl:
             count++;
         }
     }
-    if (count == 1 || count == sv_maxclients->integer) {
-        SV_Heartbeat_f();
-    }
 }
 
 /*
@@ -503,9 +500,6 @@ void SV_DropClient(client_t* drop, const char* reason) {
         if (svs.clients[i].state >= CS_CONNECTED) {
             break;
         }
-    }
-    if (i == sv_maxclients->integer) {
-        SV_Heartbeat_f();
     }
 }
 
@@ -1161,50 +1155,24 @@ void SV_UserinfoChanged(client_t* cl) {
     Q_strncpyz(cl->name, Info_ValueForKey(cl->userinfo, "name"), sizeof(cl->name));
 
     // rate command
-
-    // if the client is on the same subnet as the server and we aren't running an
-    // internet public server, assume they don't need a rate choke
-    if (Sys_IsLANAddress(cl->netchan.remoteAddress) && com_dedicated->integer != 2 && sv_lanForceRate->integer == 1) {
-        cl->rate = 99999;  // lans should not rate limit
+    val = Info_ValueForKey(cl->userinfo, "rate");
+    if (strlen(val)) {
+        i = atoi(val);
+        // [QL] clamp 4000-50000 (Q3 was 1000-90000)
+        if (i < 4000)
+            i = 4000;
+        else if (i > 50000)
+            i = 50000;
+        cl->rate = i;
     } else {
-        val = Info_ValueForKey(cl->userinfo, "rate");
-        if (strlen(val)) {
-            i = atoi(val);
-            cl->rate = i;
-            if (cl->rate < 1000) {
-                cl->rate = 1000;
-            } else if (cl->rate > 90000) {
-                cl->rate = 90000;
-            }
-        } else {
-            cl->rate = 3000;
-        }
+        cl->rate = 8000;  // [QL] default (Q3 was 3000)
     }
-    val = Info_ValueForKey(cl->userinfo, "handicap");
-    if (strlen(val)) {
-        i = atoi(val);
-        if (i <= 0 || i > 100 || strlen(val) > 4) {
-            Info_SetValueForKey(cl->userinfo, "handicap", "100");
-        }
+    if (Sys_IsLANAddress(cl->netchan.remoteAddress) && sv_lanForceRate->integer == 1) {
+        cl->rate = 99999;
     }
-
-    // snaps command
-    val = Info_ValueForKey(cl->userinfo, "snaps");
-
-    if (strlen(val)) {
-        i = atoi(val);
-
-        if (i < 1)
-            i = 1;
-        else if (i > sv_fps->integer)
-            i = sv_fps->integer;
-
-        i = 1000 / i;
-    } else
-        i = 50;
-
+    // [QL] snapshot rate is always locked to sv_fps - no client "snaps" negotiation
+    i = 1000 / sv_fps->integer;
     if (i != cl->snapshotMsec) {
-        // Reset last sent snapshot so we avoid desync between server frame time and snapshot send time
         cl->nextSnapshotTime = 0;
         cl->snapshotMsec = i;
     }

@@ -327,11 +327,6 @@ int SV_SendDownloadMessages(void);
 int SV_SendQueuedMessages(void);
 
 //
-// sv_ccmds.c
-//
-void SV_Heartbeat_f(void);
-
-//
 // sv_snapshot.c
 //
 void SV_AddServerCommand(client_t* client, const char* cmd);

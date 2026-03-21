@@ -570,9 +570,6 @@ void SV_SpawnServer(char* server, qboolean killBots) {
     // to all clients
     sv.state = SS_GAME;
 
-    // send a heartbeat now so the master will get up to date info
-    SV_Heartbeat_f();
-
     Hunk_SetMark();
 
 #ifndef DEDICATED
@@ -649,8 +646,6 @@ void SV_Init(void) {
     // init the botlib here because we need the pre-compiler in the UI
     SV_BotInitBotLib();
 
-    // Load saved bans
-    Cbuf_AddText("rehashbans\n");
 }
 
 /*

@@ -716,33 +716,6 @@ qboolean Cvar_Command(void) {
 
 /*
 ============
-Cvar_Print_f
-
-Prints the contents of a cvar
-(preferred over Cvar_Command where cvar names and commands conflict)
-============
-*/
-void Cvar_Print_f(void) {
-    char* name;
-    cvar_t* cv;
-
-    if (Cmd_Argc() != 2) {
-        Com_Printf("usage: print <variable>\n");
-        return;
-    }
-
-    name = Cmd_Argv(1);
-
-    cv = Cvar_FindVar(name);
-
-    if (cv)
-        Cvar_Print(cv);
-    else
-        Com_Printf("Cvar %s does not exist.\n", name);
-}
-
-/*
-============
 Cvar_Toggle_f
 
 Toggles a cvar for easy single key binding, optionally through a list of
@@ -805,7 +778,11 @@ void Cvar_Set_f(void) {
         return;
     }
     if (c == 2) {
-        Cvar_Print_f();
+        v = Cvar_FindVar(Cmd_Argv(1));
+        if (v)
+            Cvar_Print(v);
+        else
+            Com_Printf("Cvar %s does not exist.\n", Cmd_Argv(1));
         return;
     }
 
@@ -813,25 +790,12 @@ void Cvar_Set_f(void) {
     if (!v) {
         return;
     }
-    switch (cmd[3]) {
-        case 'a':
-            if (!(v->flags & CVAR_ARCHIVE)) {
-                v->flags |= CVAR_ARCHIVE;
-                cvar_modifiedFlags |= CVAR_ARCHIVE;
-            }
-            break;
-        case 'u':
-            if (!(v->flags & CVAR_USERINFO)) {
-                v->flags |= CVAR_USERINFO;
-                cvar_modifiedFlags |= CVAR_USERINFO;
-            }
-            break;
-        case 's':
-            if (!(v->flags & CVAR_SERVERINFO)) {
-                v->flags |= CVAR_SERVERINFO;
-                cvar_modifiedFlags |= CVAR_SERVERINFO;
-            }
-            break;
+    // "seta" - mark as archived
+    if (cmd[3] == 'a') {
+        if (!(v->flags & CVAR_ARCHIVE)) {
+            v->flags |= CVAR_ARCHIVE;
+            cvar_modifiedFlags |= CVAR_ARCHIVE;
+        }
     }
 }
 
@@ -978,89 +942,6 @@ void Cvar_List_f(void) {
 
 /*
 ============
-Cvar_ListModified_f
-============
-*/
-void Cvar_ListModified_f(void) {
-    cvar_t* var;
-    int totalModified;
-    char* value;
-    char* match;
-
-    if (Cmd_Argc() > 1) {
-        match = Cmd_Argv(1);
-    } else {
-        match = NULL;
-    }
-
-    totalModified = 0;
-    for (var = cvar_vars; var; var = var->next) {
-        if (!var->name || !var->modificationCount)
-            continue;
-
-        value = var->latchedString ? var->latchedString : var->string;
-        if (!strcmp(value, var->resetString))
-            continue;
-
-        totalModified++;
-
-        if (match && !Com_Filter(match, var->name, qfalse))
-            continue;
-
-        if (var->flags & CVAR_SERVERINFO) {
-            Com_Printf("S");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_SYSTEMINFO) {
-            Com_Printf("s");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_USERINFO) {
-            Com_Printf("U");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_ROM) {
-            Com_Printf("R");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_INIT) {
-            Com_Printf("I");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_ARCHIVE) {
-            Com_Printf("A");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_LATCH) {
-            Com_Printf("L");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_CHEAT) {
-            Com_Printf("C");
-        } else {
-            Com_Printf(" ");
-        }
-        if (var->flags & CVAR_USER_CREATED) {
-            Com_Printf("?");
-        } else {
-            Com_Printf(" ");
-        }
-
-        Com_Printf(" %s \"%s\", default \"%s\"\n", var->name, value, var->resetString);
-    }
-
-    Com_Printf("\n%i total modified cvars\n", totalModified);
-}
-
-/*
-============
 Cvar_Unset
 
 Unsets a cvar
@@ -1101,33 +982,6 @@ cvar_t* Cvar_Unset(cvar_t* cv) {
     Com_Memset(cv, '\0', sizeof(*cv));
 
     return next;
-}
-
-/*
-============
-Cvar_Unset_f
-
-Unsets a userdefined cvar
-============
-*/
-
-void Cvar_Unset_f(void) {
-    cvar_t* cv;
-
-    if (Cmd_Argc() != 2) {
-        Com_Printf("Usage: %s <varname>\n", Cmd_Argv(0));
-        return;
-    }
-
-    cv = Cvar_FindVar(Cmd_Argv(1));
-
-    if (!cv)
-        return;
-
-    if (cv->flags & CVAR_USER_CREATED)
-        Cvar_Unset(cv);
-    else
-        Com_Printf("Error: %s: Variable %s is not user created.\n", Cmd_Argv(0), cv->name);
 }
 
 /*
@@ -1421,25 +1275,17 @@ void Cvar_Init(void) {
 
     cvar_cheats = Cvar_Get("sv_cheats", "1", CVAR_ROM | CVAR_SYSTEMINFO);
 
-    Cmd_AddCommand("print", Cvar_Print_f);
     Cmd_AddCommand("toggle", Cvar_Toggle_f);
     Cmd_SetCommandCompletionFunc("toggle", Cvar_CompleteCvarName);
     Cmd_AddCommand("set", Cvar_Set_f);
     Cmd_SetCommandCompletionFunc("set", Cvar_CompleteCvarName);
-    Cmd_AddCommand("sets", Cvar_Set_f);
-    Cmd_SetCommandCompletionFunc("sets", Cvar_CompleteCvarName);
-    Cmd_AddCommand("setu", Cvar_Set_f);
-    Cmd_SetCommandCompletionFunc("setu", Cvar_CompleteCvarName);
     Cmd_AddCommand("seta", Cvar_Set_f);
     Cmd_SetCommandCompletionFunc("seta", Cvar_CompleteCvarName);
     Cmd_AddCommand("reset", Cvar_Reset_f);
     Cmd_SetCommandCompletionFunc("reset", Cvar_CompleteCvarName);
-    Cmd_AddCommand("unset", Cvar_Unset_f);
-    Cmd_SetCommandCompletionFunc("unset", Cvar_CompleteCvarName);
 
     Cmd_AddCommand("cvarlist", Cvar_List_f);
     Cmd_AddCommand("listcvars", Cvar_List_f);
-    Cmd_AddCommand("cvar_modified", Cvar_ListModified_f);
     Cmd_AddCommand("cvar_restart", Cvar_Restart_f);
 
     // [QL] Additional cvar commands

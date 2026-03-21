@@ -251,18 +251,14 @@ Cmd_Exec_f
 ===============
 */
 void Cmd_Exec_f(void) {
-    qboolean quiet;
     union {
         char* c;
         void* v;
     } f;
     char filename[MAX_QPATH];
 
-    quiet = !Q_stricmp(Cmd_Argv(0), "execq");
-
     if (Cmd_Argc() != 2) {
-        Com_Printf("exec%s <filename> : execute a script file%s\n",
-                   quiet ? "q" : "", quiet ? " without notification" : "");
+        Com_Printf("exec <filename> : execute a script file\n");
         return;
     }
 
@@ -273,8 +269,7 @@ void Cmd_Exec_f(void) {
         Com_Printf("couldn't exec %s\n", filename);
         return;
     }
-    if (!quiet)
-        Com_Printf("execing %s\n", filename);
+    Com_Printf("execing %s\n", filename);
 
     Cbuf_InsertText(f.c);
 
@@ -844,9 +839,7 @@ void Cmd_Init(void) {
     Cmd_AddCommand("cmdlist", Cmd_List_f);
     Cmd_AddCommand("listcmds", Cmd_List_f);
     Cmd_AddCommand("exec", Cmd_Exec_f);
-    Cmd_AddCommand("execq", Cmd_Exec_f);
     Cmd_SetCommandCompletionFunc("exec", Cmd_CompleteCfgName);
-    Cmd_SetCommandCompletionFunc("execq", Cmd_CompleteCfgName);
     Cmd_AddCommand("vstr", Cmd_Vstr_f);
     Cmd_SetCommandCompletionFunc("vstr", Cvar_CompleteCvarName);
     Cmd_AddCommand("echo", Cmd_Echo_f);

@@ -924,7 +924,12 @@ void CL_SetCGameTime(void) {
     }
 
     if (cl.snap.serverTime < cl.oldFrameServerTime) {
-        Com_Error(ERR_DROP, "cl.snap.serverTime < cl.oldFrameServerTime");
+        // [QL] only fatal if already active; otherwise just warn
+        if (clc.state == CA_ACTIVE) {
+            Com_Error(ERR_DROP, "cl.snap.serverTime < cl.oldFrameServerTime");
+        } else {
+            Com_Printf("^3CL_SetCGameTime: cl.snap.serverTime < cl.oldFrameServerTime\n");
+        }
     }
     cl.oldFrameServerTime = cl.snap.serverTime;
 
@@ -934,16 +939,25 @@ void CL_SetCGameTime(void) {
         // cl_freezeDemo is used to lock a demo in place for single frame advances
 
     } else {
-        // cl_timeNudge is a user adjustable cvar that allows more
-        // or less latency to be added in the interest of better
-        // smoothness or better responsiveness.
+        // [QL] timeNudge: disabled for spectators and LAN connections
         int tn;
 
-        tn = cl_timeNudge->integer;
-        if (tn < -30) {
-            tn = -30;
-        } else if (tn > 30) {
-            tn = 30;
+        if (Cvar_VariableIntegerValue("cg_spectating") ||
+            Sys_IsLANAddress(clc.netchan.remoteAddress)) {
+            tn = 0;
+        } else if (cl_autoTimeNudge->integer == 0) {
+            // Manual mode: use cl_timeNudge directly (cvar already clamped -20..0)
+            tn = cl_timeNudge->integer;
+        } else {
+            // Auto mode: use half the current ping as negative nudge
+            tn = (int)(cl.snap.ping * -0.5);
+
+            // Clamp to -20..0
+            if (tn < -20) {
+                tn = -20;
+            } else if (tn > 0) {
+                tn = 0;
+            }
         }
 
         cl.serverTime = cls.realtime + cl.serverTimeDelta - tn;
