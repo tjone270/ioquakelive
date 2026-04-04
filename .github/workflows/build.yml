@@ -55,7 +55,7 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install VS 2025 Build Tools (v145)
+    - name: Install VS 2026 Build Tools (v145)
       shell: pwsh
       run: |
         Write-Host "Installing VS 2026 Build Tools..."
@@ -67,19 +67,8 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
 
-    - name: Build libcurl
-      shell: bash
-      run: |
-        cd code/curl
-        cmake -B build -A x64 -DBUILD_SHARED_LIBS=OFF \
-          -DCURL_USE_SCHANNEL=ON -DBUILD_CURL_EXE=OFF \
-          -DBUILD_TESTING=OFF -DCURL_USE_LIBSSH2=OFF -DHTTP_ONLY=ON
-        cmake --build build --config Release
-        mkdir -p ../libs/win64
-        cp build/lib/Release/libcurl_a.lib ../libs/win64/
-
     - name: Build Solution
-      run: msbuild misc/msvc142/ioquakelive.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 /m
+      run: msbuild misc/msvc/ioquakelive.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 /m
 
     - name: Collect artifacts
       shell: bash
@@ -87,6 +76,7 @@ jobs:
         mkdir -p release
         find build/ -name "*.exe" -exec cp {} release/ \; 2>/dev/null || true
         find build/ -name "*.dll" -exec cp {} release/ \; 2>/dev/null || true
+        find build/ -name "*.pk3" -exec cp {} release/ \; 2>/dev/null || true
         cp code/libs/win64/SDL2.dll release/ 2>/dev/null || true
 
     - uses: actions/upload-artifact@v4
