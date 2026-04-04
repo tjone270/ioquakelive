@@ -36,9 +36,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../AL/al.h"
 #include "../AL/alc.h"
 #else
-#if defined(_MSC_VER) || defined(__APPLE__)
-// MSVC users must install the OpenAL SDK which doesn't use the AL/*.h scheme.
-// OSX framework also needs this
+#if defined(__APPLE__)
+#include <OpenAL/al.h>
+#include <OpenAL/alc.h>
+#elif defined(_MSC_VER)
 #include <al.h>
 #include <alc.h>
 #else

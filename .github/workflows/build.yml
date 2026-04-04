@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -18,16 +17,16 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev \
-          libfreetype-dev libogg-dev libvorbis-dev libopusfile-dev
+        sudo apt-get install -y libsdl2-dev \
+          libfreetype-dev libogg-dev libvorbis-dev
     - name: Compile
       run: make release -j$(nproc)
-      env:
-        ARCHIVE: 1
+    - name: Package
+      run: cd build/release-linux-x86_64 && zip -r9 ../../build/quakelive-linux-x86_64.zip quakelive.x86_64 quakelive_dedicated.x86_64 opengl2x86_64.so baseq3/*.pk3
     - uses: actions/upload-artifact@v4
       with:
         name: linux-x86_64
-        path: build/*.zip
+        path: build/quakelive-linux-x86_64.zip
 
   macos:
     name: macOS
@@ -37,18 +36,21 @@ jobs:
       with:
         submodules: recursive
     - name: Install Dependencies
-      run: brew install sdl2 curl freetype libogg libvorbis opus opusfile
+      run: brew install sdl2 freetype libogg libvorbis
     - name: Compile
-      run: make release -j$(sysctl -n hw.logicalcpu)
-      env:
-        ARCHIVE: 1
+      run: make release USE_LOCAL_HEADERS=0 ARCH=arm64 -j$(sysctl -n hw.logicalcpu)
+    - name: Create App Bundle
+      run: |
+        chmod +x make-macosx-app.sh
+        ./make-macosx-app.sh release arm64
+        cd build/release-darwin-arm64 && zip -r9 ../../build/quakelive-macos-arm64.zip quakelive.app baseq3/*.pk3
     - uses: actions/upload-artifact@v4
       with:
         name: macos-arm64
-        path: build/*.zip
+        path: build/quakelive-macos-arm64.zip
 
-  windows-msvc:
-    name: Windows (MSVC)
+  windows:
+    name: Windows
     runs-on: windows-2022
     steps:
     - uses: actions/checkout@v4
@@ -70,51 +72,48 @@ jobs:
     - name: Build Solution
       run: msbuild misc/msvc/ioquakelive.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 /m
 
-    - name: Collect artifacts
-      shell: bash
+    - name: Package
+      shell: pwsh
       run: |
-        mkdir -p release
-        find build/ -name "*.exe" -exec cp {} release/ \; 2>/dev/null || true
-        find build/ -name "*.dll" -exec cp {} release/ \; 2>/dev/null || true
-        find build/ -name "*.pk3" -exec cp {} release/ \; 2>/dev/null || true
-        cp code/libs/win64/SDL2.dll release/ 2>/dev/null || true
+        $staging = "build/staging"
+        New-Item -ItemType Directory -Force -Path "$staging/baseq3" | Out-Null
+        Copy-Item build/Release/x64/*.exe $staging/
+        Copy-Item build/Release/x64/*.dll $staging/
+        Copy-Item build/Release/x64/baseq3/*.pk3 $staging/baseq3/
+        Compress-Archive -Path "$staging/*" -DestinationPath build/quakelive-windows-x64.zip
 
     - uses: actions/upload-artifact@v4
       with:
         name: windows-x64
-        path: release/
-
-  windows-mingw:
-    name: Windows (MinGW)
-    runs-on: windows-2022
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: Compile
-      run: |
-        choco install zip
-        make release -j $env:NUMBER_OF_PROCESSORS
-      env:
-        ARCHIVE: 1
-    - uses: actions/upload-artifact@v4
-      with:
-        name: windows-x64-mingw
-        path: build/*.zip
+        path: build/quakelive-windows-x64.zip
 
   release:
     name: Create Release
-    needs: [linux, macos, windows-msvc, windows-mingw]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, macos, windows]
+    if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release:')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+    - uses: actions/checkout@v4
+    - name: Extract version from commit message
+      id: version
+      run: |
+        MSG="${{ github.event.head_commit.message }}"
+        VERSION=$(echo "$MSG" | head -1 | sed 's/^release: *//')
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+    - name: Create tag
+      run: |
+        git tag "${{ steps.version.outputs.tag }}"
+        git push origin "${{ steps.version.outputs.tag }}"
     - uses: actions/download-artifact@v4
       with:
         path: artifacts
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: ${{ steps.version.outputs.version }}
         files: artifacts/**/*
         generate_release_notes: true

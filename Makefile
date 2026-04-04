@@ -174,7 +174,7 @@ USE_CODEC_VORBIS=1
 endif
 
 ifndef USE_CODEC_OPUS
-USE_CODEC_OPUS=1
+USE_CODEC_OPUS=0
 endif
 
 ifndef USE_MUMBLE
@@ -182,7 +182,7 @@ USE_MUMBLE=1
 endif
 
 ifndef USE_VOIP
-USE_VOIP=1
+USE_VOIP=0
 endif
 
 ifndef USE_FREETYPE
@@ -552,45 +552,10 @@ ifeq ($(PLATFORM),darwin)
   CLIENT_LIBS += -framework IOKit
   RENDERER_LIBS += -framework OpenGL
 
-  ifeq ($(USE_LOCAL_HEADERS),1)
-    ifeq ($(shell test $(MAC_OS_X_VERSION_MIN_REQUIRED) -ge 1090; echo $$?),0)
-      # Universal Binary 2 - for running on macOS 10.9 or later
-      # x86_64 (10.9 or later), arm64 (11.0 or later)
-      MACLIBSDIR=$(LIBSDIR)/macosx-ub2
-      BASE_CFLAGS += -I$(SDLHDIR)/include
-    else
-      # Universal Binary - for running on Mac OS X 10.5 or later
-      # ppc (10.5/10.6), x86 (10.6 or later), x86_64 (10.6 or later)
-      #
-      # x86/x86_64 on 10.5 will run the ppc build.
-      #
-      # SDL 2.0.1,  last with Mac OS X PowerPC
-      # SDL 2.0.4,  last with Mac OS X 10.5 (x86/x86_64)
-      # SDL 2.0.22, last with Mac OS X 10.6 (x86/x86_64)
-      #
-      # code/libs/macosx-ub/libSDL2-2.0.0.dylib contents
-      # - ppc build is SDL 2.0.1 with a header change so it compiles
-      # - x86/x86_64 build are SDL 2.0.22
-      MACLIBSDIR=$(LIBSDIR)/macosx-ub
-      ifneq ($(findstring $(ARCH),ppc ppc64),)
-        BASE_CFLAGS += -I$(SDLHDIR)/include-macppc
-      else
-        BASE_CFLAGS += -I$(SDLHDIR)/include-2.0.22
-      endif
-    endif
-
-    # We copy sdlmain before ranlib'ing it so that subversion doesn't think
-    #  the file has been modified by each build.
-    LIBSDLMAIN=$(B)/libSDL2main.a
-    LIBSDLMAINSRC=$(MACLIBSDIR)/libSDL2main.a
-    CLIENT_LIBS += $(MACLIBSDIR)/libSDL2-2.0.0.dylib
-    RENDERER_LIBS += $(MACLIBSDIR)/libSDL2-2.0.0.dylib
-    CLIENT_EXTRA_FILES += $(MACLIBSDIR)/libSDL2-2.0.0.dylib
-  else
-    BASE_CFLAGS += -I/Library/Frameworks/SDL2.framework/Headers
-    CLIENT_LIBS += -framework SDL2
-    RENDERER_LIBS += -framework SDL2
-  endif
+  # Use system SDL2 (Homebrew or framework)
+  BASE_CFLAGS += $(shell sdl2-config --cflags 2>/dev/null || echo -I/Library/Frameworks/SDL2.framework/Headers)
+  CLIENT_LIBS += $(shell sdl2-config --libs 2>/dev/null || echo -framework SDL2)
+  RENDERER_LIBS += $(shell sdl2-config --libs 2>/dev/null || echo -framework SDL2)
 
   OPTIMIZE = $(OPTIMIZEVM) -ffast-math
 
@@ -714,7 +679,7 @@ ifdef MINGW
   RENDERER_LIBS = -lgdi32 -lole32 -static-libgcc
 
   ifeq ($(USE_FREETYPE),1)
-    FREETYPE_CFLAGS = -Ifreetype2
+    FREETYPE_CFLAGS = -I$(MOUNT_DIR)/freetype/include
   endif
 
   ifeq ($(USE_CURL),1)
@@ -754,12 +719,12 @@ ifdef MINGW
     SDLDLL=SDL2.dll
     CLIENT_EXTRA_FILES += $(LIBSDIR)/win32/SDL2.dll
     else
-    CLIENT_LIBS += $(LIBSDIR)/win64/libSDL264main.a \
-                      $(LIBSDIR)/win64/libSDL264.dll.a
-    RENDERER_LIBS += $(LIBSDIR)/win64/libSDL264main.a \
-                      $(LIBSDIR)/win64/libSDL264.dll.a
-    SDLDLL=SDL264.dll
-    CLIENT_EXTRA_FILES += $(LIBSDIR)/win64/SDL264.dll
+    CLIENT_LIBS += $(LIBSDIR)/win64/SDL2main.lib \
+                      $(LIBSDIR)/win64/SDL2.lib
+    RENDERER_LIBS += $(LIBSDIR)/win64/SDL2main.lib \
+                      $(LIBSDIR)/win64/SDL2.lib
+    SDLDLL=SDL2.dll
+    CLIENT_EXTRA_FILES += $(LIBSDIR)/win64/SDL2.dll
     endif
   else
     CLIENT_CFLAGS += $(SDL_CFLAGS)
@@ -1120,7 +1085,7 @@ ifneq ($(BUILD_CLIENT),0)
   ifneq ($(USE_RENDERER_DLOPEN),0)
     TARGETS += $(B)/$(CLIENTBIN)$(FULLBINEXT)
     ifneq ($(BUILD_RENDERER_OPENGL2),0)
-      TARGETS += $(B)/renderer_opengl2_$(SHLIBNAME)
+      TARGETS += $(B)/opengl2$(SHLIBNAME)
     endif
   else
     ifneq ($(BUILD_RENDERER_OPENGL2),0)
@@ -1324,19 +1289,9 @@ $(echo_cmd) "CC $<"
 $(Q)$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) $(CLIENT_CFLAGS) $(OPTIMIZE) -o $@ -c $<
 endef
 
-define DO_CC_ALTIVEC
-$(echo_cmd) "CC $<"
-$(Q)$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) $(CLIENT_CFLAGS) $(OPTIMIZE) $(ALTIVEC_CFLAGS) -o $@ -c $<
-endef
-
 define DO_REF_CC
 $(echo_cmd) "REF_CC $<"
 $(Q)$(CC) $(SHLIBCFLAGS) $(CFLAGS) $(CLIENT_CFLAGS) $(OPTIMIZE) -o $@ -c $<
-endef
-
-define DO_REF_CC_ALTIVEC
-$(echo_cmd) "REF_CC $<"
-$(Q)$(CC) $(SHLIBCFLAGS) $(CFLAGS) $(CLIENT_CFLAGS) $(OPTIMIZE) $(ALTIVEC_CFLAGS) -o $@ -c $<
 endef
 
 define DO_REF_STR
@@ -1510,6 +1465,7 @@ makedirs:
 	@$(MKDIR) $(B)/client/vorbis
 	@$(MKDIR) $(B)/renderergl2
 	@$(MKDIR) $(B)/renderergl2/glsl
+	@$(MKDIR) $(B)/tools
 	@$(MKDIR) $(B)/ded
 	@$(MKDIR) $(B)/$(BASEGAME)/cgame
 	@$(MKDIR) $(B)/$(BASEGAME)/game
@@ -1576,7 +1532,6 @@ Q3OBJ = \
   $(B)/client/net_ip.o \
   $(B)/client/huffman.o \
   \
-  $(B)/client/snd_altivec.o \
   $(B)/client/snd_adpcm.o \
   $(B)/client/snd_dma.o \
   $(B)/client/snd_mem.o \
@@ -1587,7 +1542,6 @@ Q3OBJ = \
   $(B)/client/snd_codec.o \
   $(B)/client/snd_codec_wav.o \
   $(B)/client/snd_codec_ogg.o \
-  $(B)/client/snd_codec_opus.o \
   \
   $(B)/client/qal.o \
   $(B)/client/snd_openal.o \
@@ -1645,6 +1599,8 @@ Q3OBJ = \
   $(B)/client/sdl_snd.o \
   \
   $(B)/client/con_log.o \
+  $(B)/client/sys_autoupdater.o \
+  $(B)/client/q_math_sse.o \
   $(B)/client/sys_main.o
 
 ifdef MINGW
@@ -1804,6 +1760,7 @@ Q3OBJ += \
   $(B)/client/opus/opus_multistream_encoder.o \
   $(B)/client/opus/opus_multistream_decoder.o \
   $(B)/client/opus/repacketizer.o \
+  $(B)/client/opus/extensions.o \
   \
   $(B)/client/opus/bands.o \
   $(B)/client/opus/celt.o \
@@ -2000,10 +1957,6 @@ ifeq ($(PLATFORM),darwin)
     $(B)/client/sys_osx.o
 endif
 
-ifeq ($(USE_MUMBLE),1)
-  Q3OBJ += \
-    $(B)/client/libmumblelink.o
-endif
 
 ifneq ($(USE_RENDERER_DLOPEN),0)
 $(B)/$(CLIENTBIN)$(FULLBINEXT): $(Q3OBJ) $(LIBSDLMAIN)
@@ -2012,7 +1965,7 @@ $(B)/$(CLIENTBIN)$(FULLBINEXT): $(Q3OBJ) $(LIBSDLMAIN)
 		-o $@ $(Q3OBJ) \
 		$(LIBSDLMAIN) $(CLIENT_LIBS) $(LIBS)
 
-$(B)/renderer_opengl2_$(SHLIBNAME): $(Q3R2OBJ) $(Q3R2STRINGOBJ) $(JPGOBJ)
+$(B)/opengl2$(SHLIBNAME): $(Q3R2OBJ) $(Q3R2STRINGOBJ) $(JPGOBJ)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CFLAGS) $(SHLIBLDFLAGS) -o $@ $(Q3R2OBJ) $(Q3R2STRINGOBJ) $(JPGOBJ) \
 		$(THREAD_LIBS) $(LIBSDLMAIN) $(RENDERER_LIBS) $(LIBS)
@@ -2108,6 +2061,8 @@ Q3DOBJ = \
   $(B)/ded/null_snddma.o \
   \
   $(B)/ded/con_log.o \
+  $(B)/ded/sys_autoupdater.o \
+  $(B)/ded/q_math_sse.o \
   $(B)/ded/sys_main.o
 
 
@@ -2152,8 +2107,8 @@ Q3CGOBJ_ = \
   $(B)/$(BASEGAME)/cgame/bg_misc.o \
   $(B)/$(BASEGAME)/cgame/bg_pmove.o \
   $(B)/$(BASEGAME)/cgame/bg_slidemove.o \
-  $(B)/$(BASEGAME)/cgame/bg_lib.o \
   $(B)/$(BASEGAME)/cgame/cg_consolecmds.o \
+  $(B)/$(BASEGAME)/cgame/cg_newdraw.o \
   $(B)/$(BASEGAME)/cgame/cg_draw.o \
   $(B)/$(BASEGAME)/cgame/cg_drawtools.o \
   $(B)/$(BASEGAME)/cgame/cg_effects.o \
@@ -2171,6 +2126,7 @@ Q3CGOBJ_ = \
   $(B)/$(BASEGAME)/cgame/cg_snapshot.o \
   $(B)/$(BASEGAME)/cgame/cg_view.o \
   $(B)/$(BASEGAME)/cgame/cg_weapons.o \
+  $(B)/$(BASEGAME)/ui/ui_shared.o \
   \
   $(B)/$(BASEGAME)/qcommon/q_math.o \
   $(B)/$(BASEGAME)/qcommon/q_shared.o
@@ -2198,7 +2154,6 @@ Q3GOBJ_ = \
   $(B)/$(BASEGAME)/game/bg_misc.o \
   $(B)/$(BASEGAME)/game/bg_pmove.o \
   $(B)/$(BASEGAME)/game/bg_slidemove.o \
-  $(B)/$(BASEGAME)/game/bg_lib.o \
   $(B)/$(BASEGAME)/game/g_active.o \
   $(B)/$(BASEGAME)/game/g_arenas.o \
   $(B)/$(BASEGAME)/game/g_bot.o \
@@ -2250,46 +2205,11 @@ $(B)/$(BASEGAME)/qagame$(SHLIBNAME): $(Q3GOBJ)
 
 Q3UIOBJ_ = \
   $(B)/$(BASEGAME)/ui/ui_main.o \
-  $(B)/$(BASEGAME)/ui/bg_misc.o \
-  $(B)/$(BASEGAME)/ui/bg_lib.o \
-  $(B)/$(BASEGAME)/ui/ui_addbots.o \
   $(B)/$(BASEGAME)/ui/ui_atoms.o \
-  $(B)/$(BASEGAME)/ui/ui_cdkey.o \
-  $(B)/$(BASEGAME)/ui/ui_cinematics.o \
-  $(B)/$(BASEGAME)/ui/ui_confirm.o \
-  $(B)/$(BASEGAME)/ui/ui_connect.o \
-  $(B)/$(BASEGAME)/ui/ui_controls2.o \
-  $(B)/$(BASEGAME)/ui/ui_credits.o \
-  $(B)/$(BASEGAME)/ui/ui_demo2.o \
-  $(B)/$(BASEGAME)/ui/ui_display.o \
   $(B)/$(BASEGAME)/ui/ui_gameinfo.o \
-  $(B)/$(BASEGAME)/ui/ui_ingame.o \
-  $(B)/$(BASEGAME)/ui/ui_loadconfig.o \
-  $(B)/$(BASEGAME)/ui/ui_menu.o \
-  $(B)/$(BASEGAME)/ui/ui_mfield.o \
-  $(B)/$(BASEGAME)/ui/ui_mods.o \
-  $(B)/$(BASEGAME)/ui/ui_network.o \
-  $(B)/$(BASEGAME)/ui/ui_options.o \
-  $(B)/$(BASEGAME)/ui/ui_playermodel.o \
   $(B)/$(BASEGAME)/ui/ui_players.o \
-  $(B)/$(BASEGAME)/ui/ui_playersettings.o \
-  $(B)/$(BASEGAME)/ui/ui_preferences.o \
-  $(B)/$(BASEGAME)/ui/ui_qmenu.o \
-  $(B)/$(BASEGAME)/ui/ui_removebots.o \
-  $(B)/$(BASEGAME)/ui/ui_saveconfig.o \
-  $(B)/$(BASEGAME)/ui/ui_serverinfo.o \
-  $(B)/$(BASEGAME)/ui/ui_servers2.o \
-  $(B)/$(BASEGAME)/ui/ui_setup.o \
-  $(B)/$(BASEGAME)/ui/ui_sound.o \
-  $(B)/$(BASEGAME)/ui/ui_sparena.o \
-  $(B)/$(BASEGAME)/ui/ui_specifyserver.o \
-  $(B)/$(BASEGAME)/ui/ui_splevel.o \
-  $(B)/$(BASEGAME)/ui/ui_sppostgame.o \
-  $(B)/$(BASEGAME)/ui/ui_spskill.o \
-  $(B)/$(BASEGAME)/ui/ui_startserver.o \
-  $(B)/$(BASEGAME)/ui/ui_team.o \
-  $(B)/$(BASEGAME)/ui/ui_teamorders.o \
-  $(B)/$(BASEGAME)/ui/ui_video.o \
+  $(B)/$(BASEGAME)/ui/ui_shared.o \
+  $(B)/$(BASEGAME)/ui/bg_misc.o \
   \
   $(B)/$(BASEGAME)/qcommon/q_math.o \
   $(B)/$(BASEGAME)/qcommon/q_shared.o
@@ -2331,9 +2251,6 @@ $(PAK01_PK3): $(PAK01_FILES)
 #############################################################################
 ## CLIENT/SERVER RULES
 #############################################################################
-
-$(B)/client/snd_altivec.o: $(CDIR)/snd_altivec.c
-	$(DO_CC_ALTIVEC)
 
 $(B)/client/%.o: $(CDIR)/%.c
 	$(DO_CC)
@@ -2388,6 +2305,15 @@ $(B)/renderergl2/glsl/%.c: $(RGL2DIR)/glsl/%.glsl $(STRINGIFY)
 	$(DO_REF_STR)
 
 $(B)/renderergl2/glsl/%.o: $(B)/renderergl2/glsl/%.c
+	$(DO_REF_CC)
+
+$(B)/renderergl2/%.o: $(CMDIR)/%.c
+	$(DO_REF_CC)
+
+$(B)/renderergl2/%.o: $(SDLDIR)/%.c
+	$(DO_REF_CC)
+
+$(B)/renderergl2/%.o: $(JPDIR)/%.c
 	$(DO_REF_CC)
 
 $(B)/renderergl2/%.o: $(RCOMMONDIR)/%.c
@@ -2489,7 +2415,7 @@ ifneq ($(BUILD_CLIENT),0)
   ifneq ($(USE_RENDERER_DLOPEN),0)
 	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/$(CLIENTBIN)$(FULLBINEXT) $(COPYBINDIR)/$(CLIENTBIN)$(FULLBINEXT)
     ifneq ($(BUILD_RENDERER_OPENGL2),0)
-	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/renderer_opengl2_$(SHLIBNAME) $(COPYBINDIR)/renderer_opengl2_$(SHLIBNAME)
+	$(INSTALL) $(STRIP_FLAG) -m 0755 $(BR)/opengl2$(SHLIBNAME) $(COPYBINDIR)/opengl2$(SHLIBNAME)
     endif
   else
     ifneq ($(BUILD_RENDERER_OPENGL2),0)

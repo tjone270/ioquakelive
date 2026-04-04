@@ -1070,7 +1070,7 @@ CG_ParseTeamStats
 [QL] Parse team stats (tdmstats/castats/ctfstats) - item pickup counts
 =================
 */
-static void CG_ParseTeamStats(void) {
+void CG_ParseTeamStats(void) {
     int i = 1;
     cg.teamPickups.rra = atoi(CG_Argv(i++));
     cg.teamPickups.rya = atoi(CG_Argv(i++));
@@ -1098,7 +1098,7 @@ CG_ParseAccuracy
 [QL] Parse accuracy stats (per-weapon accuracy percentages)
 =================
 */
-static void CG_ParseAccuracy(void) {
+void CG_ParseAccuracy(void) {
     int i;
     for (i = 0; i < MAX_WEAPONS && i < trap_Argc() - 1; i++) {
         cg.accuracyStats.accuracy[i] = atoi(CG_Argv(i + 1));
@@ -1115,7 +1115,7 @@ CG_ParseDuelScores
 [QL] Parse duel-specific score data with per-weapon stats
 =================
 */
-static void CG_ParseDuelScores(void) {
+void CG_ParseDuelScores(void) {
     int i, j, idx;
 
     idx = 1;

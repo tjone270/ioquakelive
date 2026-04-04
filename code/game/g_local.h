@@ -1467,3 +1467,6 @@ void trap_BotResetWeaponState(int weaponstate);
 int trap_GeneticParentsAndChildSelection(int numranks, float* ranks, int* parent1, int* parent2, int* child);
 
 void trap_SnapVector(float* v);
+
+void trap_IncrementSteamStat(int clientNum, int statID);
+int trap_GetSteamStat(int clientNum, int statID);

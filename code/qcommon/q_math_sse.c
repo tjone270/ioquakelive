@@ -20,33 +20,40 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 
-// q_math_sse.c -- SSE implementations of Q_ftol and Q_SnapVector
-// Replaces the old asm/ftola.asm and asm/snapvector.asm files.
+// q_math_sse.c -- Q_ftol and Q_SnapVector implementations
+// SSE on x86/x86_64, generic C fallbacks on other architectures (ARM, etc.)
 
 #include "q_shared.h"
+
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+
 #include <emmintrin.h>
 
-/*
- * Truncate float to long using SSE cvttss2si.
- * This is the truncation (round-toward-zero) variant, matching
- * the original qftolsse assembly.
- */
 long Q_ftol(float f) {
     return (long)_mm_cvttss_si32(_mm_set_ss(f));
 }
 
-/*
- * Round each component of a vec3_t to the nearest integer.
- * Uses SSE2 cvtps2dq (round-to-nearest) matching the original
- * qsnapvectorsse assembly.
- */
 void Q_SnapVector(vec3_t vec) {
-    __m128 v = _mm_loadu_ps(vec);             // load 3 floats (4th is garbage)
-    __m128i vi = _mm_cvtps_epi32(v);          // round to nearest int
-    __m128 rounded = _mm_cvtepi32_ps(vi);     // convert back to float
-
-    // Write back only 3 components
+    __m128 v = _mm_loadu_ps(vec);
+    __m128i vi = _mm_cvtps_epi32(v);
+    __m128 rounded = _mm_cvtepi32_ps(vi);
     vec[0] = _mm_cvtss_f32(rounded);
     vec[1] = _mm_cvtss_f32(_mm_shuffle_ps(rounded, rounded, _MM_SHUFFLE(1,1,1,1)));
     vec[2] = _mm_cvtss_f32(_mm_shuffle_ps(rounded, rounded, _MM_SHUFFLE(2,2,2,2)));
 }
+
+#else
+
+#include <math.h>
+
+long Q_ftol(float f) {
+    return (long)f;
+}
+
+void Q_SnapVector(vec3_t vec) {
+    vec[0] = rintf(vec[0]);
+    vec[1] = rintf(vec[1]);
+    vec[2] = rintf(vec[2]);
+}
+
+#endif

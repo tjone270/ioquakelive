@@ -91,3 +91,13 @@ void CL_InitRef(void) {
 void CL_Snd_Shutdown(void) {
 }
 
+void *CL_FindAlias(const char *name) {
+    return NULL;
+}
+
+void CL_RunAlias(void) {
+}
+
+void Cmd_WriteAliases(fileHandle_t f) {
+}
+
