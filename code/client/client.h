@@ -321,6 +321,7 @@ extern refexport_t re;  // interface to refresh .dll
 //
 extern cvar_t* cl_nodelta;
 extern cvar_t* cl_debugMove;
+extern cvar_t* cl_noprint;
 extern cvar_t* cl_timegraph;
 extern cvar_t* cl_maxpackets;
 extern cvar_t* cl_packetdup;

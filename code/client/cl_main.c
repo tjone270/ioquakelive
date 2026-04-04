@@ -34,6 +34,7 @@ cvar_t* cl_renderer;
 cvar_t* cl_nodelta;
 cvar_t* cl_debugMove;
 
+cvar_t* cl_noprint;
 #ifdef UPDATE_SERVER_NAME
 cvar_t* cl_motd;
 #endif
@@ -2790,6 +2791,7 @@ void CL_Init(void) {
     //
     // register our variables
     //
+    cl_noprint = Cvar_Get("cl_noprint", "0", 0);
 #ifdef UPDATE_SERVER_NAME
     cl_motd = Cvar_Get("cl_motd", "1", 0);
 #endif
@@ -2799,7 +2801,7 @@ void CL_Init(void) {
     cl_timeNudge = Cvar_Get("cl_timeNudge", "0", CVAR_ARCHIVE);
     Cvar_CheckRange(cl_timeNudge, -20, 0, qtrue);
     cl_autoTimeNudge = Cvar_Get("cl_autoTimeNudge", "0", CVAR_ARCHIVE);
-    Cvar_CheckRange(cl_autoTimeNudge, 0, 1, qtrue);
+    Cvar_CheckRange(cl_autoTimeNudge, -20, 0, qtrue);
     cl_shownet = Cvar_Get("cl_shownet", "0", CVAR_TEMP);
     cl_showSend = Cvar_Get("cl_showSend", "0", CVAR_TEMP);
     cl_showTimeDelta = Cvar_Get("cl_showTimeDelta", "0", CVAR_TEMP);
@@ -3628,6 +3630,59 @@ qboolean CL_UpdateVisiblePings_f(int source) {
     }
 
     return status;
+}
+
+/*
+==================
+CL_ServerStatus_f
+==================
+*/
+void CL_ServerStatus_f(void) {
+    netadr_t to, *toptr = NULL;
+    char* server;
+    serverStatus_t* serverStatus;
+    int argc;
+    netadrtype_t family = NA_UNSPEC;
+
+    argc = Cmd_Argc();
+
+    if (argc != 2 && argc != 3) {
+        if (clc.state != CA_ACTIVE || clc.demoplaying) {
+            Com_Printf("Not connected to a server.\n");
+            Com_Printf("usage: serverstatus [-4|-6] server\n");
+            return;
+        }
+
+        toptr = &clc.serverAddress;
+    }
+
+    if (!toptr) {
+        Com_Memset(&to, 0, sizeof(netadr_t));
+
+        if (argc == 2)
+            server = Cmd_Argv(1);
+        else {
+            if (!strcmp(Cmd_Argv(1), "-4"))
+                family = NA_IP;
+            else if (!strcmp(Cmd_Argv(1), "-6"))
+                family = NA_IP6;
+            else
+                Com_Printf("warning: only -4 or -6 as address type understood.\n");
+
+            server = Cmd_Argv(2);
+        }
+
+        toptr = &to;
+        if (!NET_StringToAdr(server, toptr, family))
+            return;
+    }
+
+    NET_OutOfBandPrint(NS_CLIENT, *toptr, "getstatus");
+
+    serverStatus = CL_GetServerStatus(*toptr);
+    serverStatus->address = *toptr;
+    serverStatus->print = qtrue;
+    serverStatus->pending = qtrue;
 }
 
 /*

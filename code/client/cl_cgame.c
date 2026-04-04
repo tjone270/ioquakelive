@@ -940,6 +940,7 @@ void CL_SetCGameTime(void) {
 
     } else {
         // [QL] timeNudge: disabled for spectators and LAN connections
+        static int prevTimeNudge;
         int tn;
 
         if (Cvar_VariableIntegerValue("cg_spectating") ||
@@ -952,6 +953,11 @@ void CL_SetCGameTime(void) {
             // Auto mode: use half the current ping as negative nudge
             tn = (int)(cl.snap.ping * -0.5);
 
+            // Smooth transitions: hold previous value unless it matches
+            if (prevTimeNudge != 0 && prevTimeNudge != tn) {
+                tn = prevTimeNudge;
+            }
+
             // Clamp to -20..0
             if (tn < -20) {
                 tn = -20;
@@ -961,6 +967,7 @@ void CL_SetCGameTime(void) {
         }
 
         cl.serverTime = cls.realtime + cl.serverTimeDelta - tn;
+        prevTimeNudge = tn;
 
         // guarantee that time will never flow backwards, even if
         // serverTimeDelta made an adjustment or cl_timeNudge was changed

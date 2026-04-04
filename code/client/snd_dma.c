@@ -169,7 +169,7 @@ void S_ChannelSetup(void) {
 
     *(channel_t**)q = NULL;
     freelist = p + MAX_CHANNELS - 1;
-    Com_DPrintf("Channel memory manager started\n");
+    Com_DPrintf("S_ChannelSetup(): Channel memory manager started\n");
 }
 
 // =======================================================================
@@ -1307,10 +1307,6 @@ static void S_OpenBackgroundStream(const char* filename) {
     if (!s_backgroundStream) {
         Com_Printf(S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", filename);
         return;
-    }
-
-    if (s_backgroundStream->info.channels != 2 || s_backgroundStream->info.rate != 22050) {
-        Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", filename);
     }
 }
 

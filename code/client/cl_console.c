@@ -62,33 +62,27 @@ cvar_t* con_scale;
 cvar_t* con_speed;
 cvar_t* con_timestamps;
 
-// [QL] Console base character sizes (binary uses 12x24, not Q3's 8x16)
-#define CON_CHARW 12
-#define CON_CHARH 24
-
 /*
 ================
 Con_CharW / Con_CharH
 
-Returns scaled console character dimensions based on con_scale.
-Base size is CON_CHARW x CON_CHARH (12x24), matching the QL binary.
-At con_scale 0.5 (default): 6x12.  At con_scale 1.0: 12x24.
+Returns scaled console character dimensions based on con_scale
 ================
 */
 static int Con_CharW(void) {
     if (con_scale) {
-        int w = (int)(CON_CHARW * con_scale->value);
+        int w = (int)(SMALLCHAR_WIDTH * con_scale->value);
         return w > 0 ? w : 1;
     }
-    return CON_CHARW;
+    return SMALLCHAR_WIDTH;
 }
 
 static int Con_CharH(void) {
     if (con_scale) {
-        int h = (int)(CON_CHARH * con_scale->value);
+        int h = (int)(SMALLCHAR_HEIGHT * con_scale->value);
         return h > 0 ? h : 1;
     }
-    return CON_CHARH;
+    return SMALLCHAR_HEIGHT;
 }
 
 /*
@@ -147,6 +141,16 @@ void Con_ToggleConsole_f(void) {
 }
 
 /*
+===================
+Con_ToggleMenu_f
+===================
+*/
+void Con_ToggleMenu_f(void) {
+    CL_KeyEvent(K_ESCAPE, qtrue, Sys_Milliseconds());
+    CL_KeyEvent(K_ESCAPE, qfalse, Sys_Milliseconds());
+}
+
+/*
 ================
 Con_MessageMode_f
 ================
@@ -170,6 +174,40 @@ void Con_MessageMode2_f(void) {
     chat_team = qtrue;
     Field_Clear(&chatField);
     chatField.widthInChars = 25;
+    Key_SetCatcher(Key_GetCatcher() ^ KEYCATCH_MESSAGE);
+}
+
+/*
+================
+Con_MessageMode3_f
+================
+*/
+void Con_MessageMode3_f(void) {
+    chat_playerNum = VM_Call(cgvm, CG_CROSSHAIR_PLAYER);
+    if (chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS) {
+        chat_playerNum = -1;
+        return;
+    }
+    chat_team = qfalse;
+    Field_Clear(&chatField);
+    chatField.widthInChars = 30;
+    Key_SetCatcher(Key_GetCatcher() ^ KEYCATCH_MESSAGE);
+}
+
+/*
+================
+Con_MessageMode4_f
+================
+*/
+void Con_MessageMode4_f(void) {
+    chat_playerNum = VM_Call(cgvm, CG_LAST_ATTACKER);
+    if (chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS) {
+        chat_playerNum = -1;
+        return;
+    }
+    chat_team = qfalse;
+    Field_Clear(&chatField);
+    chatField.widthInChars = 30;
     Key_SetCatcher(Key_GetCatcher() ^ KEYCATCH_MESSAGE);
 }
 
@@ -293,9 +331,9 @@ void Con_CheckResize(void) {
     // [QL] calculate linewidth from vidWidth and con_scale
     con.xadjust = 0;
     if (con_scale && cls.glconfig.vidWidth > 0) {
-        width = (int)(cls.glconfig.vidWidth / (con_scale->value * CON_CHARW)) - 2;
+        width = (int)(cls.glconfig.vidWidth / (con_scale->value * SMALLCHAR_WIDTH)) - 2;
     } else {
-        width = cls.glconfig.vidWidth / CON_CHARW - 2;
+        width = cls.glconfig.vidWidth / SMALLCHAR_WIDTH - 2;
     }
     if (width < 1) {
         width = 78;  // fallback before video init
@@ -304,11 +342,12 @@ void Con_CheckResize(void) {
     if (width == con.linewidth)
         return;
 
-    if (con.linewidth <= 0) {
-        // first-time init: zero-fill the buffer
+    if (width < 1)  // video hasn't been initialized yet
+    {
         con.linewidth = width;
         con.totallines = CON_TEXTSIZE / con.linewidth;
         for (i = 0; i < CON_TEXTSIZE; i++)
+
             con.text[i] = (ColorIndex(COLOR_WHITE) << 8) | ' ';
     } else {
         oldwidth = con.linewidth;
@@ -360,7 +399,7 @@ void Cmd_CompleteTxtName(char* args, int argNum) {
 
 /*
 ================
-[QL] Con_Find_f - search console buffer for a substring
+[QL] Con_Find_f — search console buffer for a substring
 ================
 */
 static void Con_Find_f(void) {
@@ -411,7 +450,7 @@ static void Con_Find_f(void) {
         }
 
         // [QL] Search with match limiting and output filtering
-        if (text[0] && Q_stristr(text, search) &&
+        if (text[0] && strstr(text, search) &&
             !strstr(text, "\\find") && !strstr(text, "\\##")) {
             matchCount++;
             if (matchCount <= matchLimit) {
@@ -573,9 +612,6 @@ void CL_ConsolePrint(char* txt) {
 
         p = tsbuf;
         while (*p) {
-            if (con.x >= con.linewidth) {
-                Con_Linefeed(qfalse);
-            }
             y = con.current % con.totallines;
             con.text[y * con.linewidth + con.x] = (ColorIndex(COLOR_WHITE) << 8) | *p;
             con.x++;
@@ -653,85 +689,23 @@ Draw the editline after a ] prompt
 ================
 */
 void Con_DrawInput(void) {
-    int y, xx;
-    int charW = Con_CharW();
-    int charH = Con_CharH();
-    int len, drawLen, prestep, i;
-    int cursorChar;
-    char str[MAX_STRING_CHARS];
-    const char *s;
-    int currentColor;
+    int y;
 
     if (clc.state != CA_DISCONNECTED && !(Key_GetCatcher() & KEYCATCH_CONSOLE)) {
         return;
     }
 
+    int charW = Con_CharW();
+    int charH = Con_CharH();
+
     y = con.vislines - (charH * 2);
 
     re.SetColor(con.color);
 
-    // draw ']' prompt
-    Con_DrawCharScaled((int)(con.xadjust + charW), y, charW, charH, ']');
+    Con_DrawCharScaled(con.xadjust + 1 * charW, y, charW, charH, ']');
 
-    // draw the input field text (inline, scaled)
-    drawLen = g_consoleField.widthInChars - 1;
-    len = strlen(g_consoleField.buffer);
-
-    if (len <= drawLen) {
-        prestep = 0;
-    } else {
-        if (g_consoleField.scroll + drawLen > len) {
-            g_consoleField.scroll = len - drawLen;
-            if (g_consoleField.scroll < 0) {
-                g_consoleField.scroll = 0;
-            }
-        }
-        prestep = g_consoleField.scroll;
-    }
-
-    if (prestep + drawLen > len) {
-        drawLen = len - prestep;
-    }
-
-    if (drawLen >= MAX_STRING_CHARS) {
-        drawLen = MAX_STRING_CHARS - 1;
-    }
-
-    Com_Memcpy(str, g_consoleField.buffer + prestep, drawLen);
-    str[drawLen] = 0;
-
-    // draw text characters
-    s = str;
-    xx = (int)(con.xadjust + 2 * charW);
-    currentColor = ColorIndex(COLOR_WHITE);
-    re.SetColor(g_color_table[currentColor]);
-
-    while (*s) {
-        if (Q_IsColorString(s)) {
-            currentColor = ColorIndex(*(s + 1));
-            re.SetColor(g_color_table[currentColor]);
-            s += 2;
-            continue;
-        }
-        Con_DrawCharScaled(xx, y, charW, charH, *s);
-        xx += charW;
-        s++;
-    }
-
-    // draw the cursor
-    if ((int)(cls.realtime >> 8) & 1) {
-        re.SetColor(NULL);
-        return;  // off blink
-    }
-
-    cursorChar = key_overstrikeMode ? 11 : 10;
-
-    i = drawLen - strlen(str);
-    re.SetColor(con.color);
-    Con_DrawCharScaled((int)(con.xadjust + (2 + g_consoleField.cursor - prestep - i) * charW),
-                       y, charW, charH, cursorChar);
-
-    re.SetColor(NULL);
+    Field_Draw(&g_consoleField, con.xadjust + 2 * charW, y,
+               SCREEN_WIDTH - 3 * charW, qtrue, qtrue);
 }
 
 /*
@@ -768,7 +742,6 @@ void Con_DrawNotify(void) {
             continue;
         }
 
-        // [QL] notify text is not scaled by con_scale - always at base SMALLCHAR size
         for (x = 0; x < con.linewidth; x++) {
             if ((text[x] & 0xff) == ' ') {
                 continue;

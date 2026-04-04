@@ -33,7 +33,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define BASEGAME                "baseqz"  // [QL] protocol/game name (sent over network)
 #define BASEGAME_DIR            "baseq3"  // filesystem directory for game data
 #define CLIENT_WINDOW_TITLE     "Quake Live"
-#define CLIENT_WINDOW_MIN_TITLE "QL"
 #define HOMEPATH_NAME_UNIX      ".quakelive"
 #define HOMEPATH_NAME_WIN       "quakelive"
 #define HOMEPATH_NAME_MACOSX    HOMEPATH_NAME_WIN
@@ -54,7 +53,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 
 #define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " - " PRODUCT_DATE " @ " PRODUCT_TIME
-
 
 #define MAX_TEAMNAME 32
 
