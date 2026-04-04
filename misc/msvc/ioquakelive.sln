@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.1.11312.151 d18.0
+VisualStudioVersion = 18.1.11312.151
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgame", "cgame.vcxproj", "{C878E295-CB82-4B40-8ECF-5CE5525466FA}"
 EndProject
@@ -33,14 +33,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SDL2main", "..\..\code\SDL2
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "freetype", "..\..\code\freetype\builds\windows\vc2010\freetype.vcxproj", "{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libogg", "..\..\code\libogg\win32\VS2015\libogg.vcxproj", "{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libogg", "libogg.vcxproj", "{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libvorbis", "..\..\code\libvorbis\win32\VS2010\libvorbis\libvorbis_dynamic.vcxproj", "{3A214E06-B95E-4D61-A291-1F8DF2EC10FD}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libvorbis", "libvorbis.vcxproj", "{3A214E06-B95E-4D61-A291-1F8DF2EC10FD}"
 	ProjectSection(ProjectDependencies) = postProject
 		{AFF27A26-C088-444B-BC2A-0BA94A02AFA7} = {AFF27A26-C088-444B-BC2A-0BA94A02AFA7}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libvorbisfile", "..\..\code\libvorbis\win32\VS2010\libvorbisfile\libvorbisfile_dynamic.vcxproj", "{CEBDE98B-A6AA-46E6-BC79-FAAF823DB9EC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libvorbisfile", "libvorbisfile.vcxproj", "{CEBDE98B-A6AA-46E6-BC79-FAAF823DB9EC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{AFF27A26-C088-444B-BC2A-0BA94A02AFA7} = {AFF27A26-C088-444B-BC2A-0BA94A02AFA7}
 	EndProjectSection
@@ -109,14 +109,14 @@ Global
 		{DA956FD3-E142-46F2-9DD5-C78BEBB56B7A}.Release|Win32.Build.0 = Release|Win32
 		{DA956FD3-E142-46F2-9DD5-C78BEBB56B7A}.Release|x64.ActiveCfg = Release|x64
 		{DA956FD3-E142-46F2-9DD5-C78BEBB56B7A}.Release|x64.Build.0 = Release|x64
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|Win32.ActiveCfg = Debug|Win32
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|Win32.Build.0 = Debug|Win32
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|x64.ActiveCfg = Debug|x64
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|x64.Build.0 = Debug|x64
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|Win32.ActiveCfg = Release|Win32
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|Win32.Build.0 = Release|Win32
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|x64.ActiveCfg = Release|x64
-		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|x64.Build.0 = Release|x64
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|Win32.ActiveCfg = Debug Static|Win32
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|Win32.Build.0 = Debug Static|Win32
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|x64.ActiveCfg = Debug Static|x64
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Debug|x64.Build.0 = Debug Static|x64
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|Win32.ActiveCfg = Release Static|Win32
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|Win32.Build.0 = Release Static|Win32
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|x64.ActiveCfg = Release Static|x64
+		{78B079BD-9FC7-4B9E-B4A6-96DA0F00248B}.Release|x64.Build.0 = Release Static|x64
 		{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}.Debug|Win32.ActiveCfg = Debug|Win32
 		{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}.Debug|Win32.Build.0 = Debug|Win32
 		{AFF27A26-C088-444B-BC2A-0BA94A02AFA7}.Debug|x64.ActiveCfg = Debug|x64

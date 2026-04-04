@@ -127,7 +127,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;psapi.lib;gdi32.lib;libogg.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;psapi.lib;gdi32.lib;libogg.lib;libvorbis.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)\$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>..\..\code\libs\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -186,7 +186,7 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
       <ResourceOutputFileName>$(ProductName).res</ResourceOutputFileName>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;msvcrtd.lib;psapi.lib;gdi32.lib;libcurl_a.lib;libogg.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;msvcrtd.lib;psapi.lib;gdi32.lib;libcurl_a.lib;libogg.lib;libvorbis.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>..\..\code\libs\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -238,7 +238,7 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;psapi.lib;gdi32.lib;libogg.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;psapi.lib;gdi32.lib;libogg.lib;libvorbis.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)\$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>..\..\code\libs\win64;..\..\code\SDL2\VisualC\SDL\x64\Debug;..\..\code\SDL2\VisualC\SDLmain\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -293,7 +293,7 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
       <ResourceOutputFileName>$(ProductName).res</ResourceOutputFileName>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;msvcrtd.lib;psapi.lib;gdi32.lib;libcurl_a.lib;libogg.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>user32.lib;advapi32.lib;winmm.lib;wsock32.lib;ws2_32.lib;SDL2main.lib;SDL2.lib;OpenGL32.lib;msvcrtd.lib;psapi.lib;gdi32.lib;libcurl_a.lib;libogg.lib;libvorbis.lib;libvorbisfile.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>..\..\code\libs\win64;..\..\code\SDL2\VisualC\SDL\x64\Debug;..\..\code\SDL2\VisualC\SDLmain\x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
