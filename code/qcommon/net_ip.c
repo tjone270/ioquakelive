@@ -787,9 +787,9 @@ SOCKET NET_IPSocket(char* net_interface, int port, int* err) {
     *err = 0;
 
     if (net_interface) {
-        Com_Printf("Opening IP socket: %s:%i\n", net_interface, port);
+        Com_Printf("Opening IPv4 socket: %s:%i\n", net_interface, port);
     } else {
-        Com_Printf("Opening IP socket: 0.0.0.0:%i\n", port);
+        Com_Printf("Opening IPv4 socket: 0.0.0.0:%i\n", port);
     }
 
     if ((newsocket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
@@ -851,11 +851,11 @@ SOCKET NET_IP6Socket(char* net_interface, int port, struct sockaddr_in6* bindto,
     if (net_interface) {
         // Print the name in brackets if there is a colon:
         if (Q_CountChar(net_interface, ':'))
-            Com_Printf("Opening IP6 socket: [%s]:%i\n", net_interface, port);
+            Com_Printf("Opening IPv6 socket: [%s]:%i\n", net_interface, port);
         else
-            Com_Printf("Opening IP6 socket: %s:%i\n", net_interface, port);
+            Com_Printf("Opening IPv6 socket: %s:%i\n", net_interface, port);
     } else
-        Com_Printf("Opening IP6 socket: [::]:%i\n", port);
+        Com_Printf("Opening IPv6 socket: [::]:%i\n", port);
 
     if ((newsocket = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET) {
         *err = socketError;
