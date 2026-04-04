@@ -48,6 +48,7 @@ profile
 /code/libs/
 /code/tools/*
 !/code/tools/Make-BinPk3.ps1
+!/code/tools/Make-Pak01Pk3.ps1
 *.lib
 *.pdb
 *.dll

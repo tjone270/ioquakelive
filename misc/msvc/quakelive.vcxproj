@@ -149,7 +149,8 @@
 copy /Y "..\..\code\libs\win32\libvorbis.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win32\libvorbisfile.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win32\freetype.dll" "$(OutDir)" 2&gt;nul
-powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-Pak01Pk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -204,7 +205,8 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
 copy /Y "..\..\code\libs\win32\libvorbis.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win32\libvorbisfile.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win32\freetype.dll" "$(OutDir)" 2&gt;nul
-powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-Pak01Pk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -257,7 +259,8 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
 copy /Y "..\..\code\libs\win64\libvorbis.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win64\libvorbisfile.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win64\freetype.dll" "$(OutDir)" 2&gt;nul
-powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-Pak01Pk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -309,7 +312,8 @@ powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinP
 copy /Y "..\..\code\libs\win64\libvorbis.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win64\libvorbisfile.dll" "$(OutDir)" 2&gt;nul
 copy /Y "..\..\code\libs\win64\freetype.dll" "$(OutDir)" 2&gt;nul
-powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"</Command>
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-BinPk3.ps1" "$(TargetDir)"
+powershell.exe -NoLogo -ExecutionPolicy Bypass -File "..\..\code\tools\Make-Pak01Pk3.ps1" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
