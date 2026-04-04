@@ -44,14 +44,8 @@ profile
 *.suo
 /.vs
 
-/code/curl/
-/code/freetype/
-/code/libogg/
-/code/libvorbis/
-/code/SDL2/
 /code/freetype-demos
-/code/jpeg-8c
-/code/zlib
+/code/libs/
 /code/tools/*
 !/code/tools/Make-BinPk3.ps1
 *.lib
@@ -62,4 +56,3 @@ profile
 *.exp
 *.pk3
 misc/msvc142/.res
-*.lib

@@ -1,21 +1,28 @@
 [submodule "code/SDL2"]
 	path = code/SDL2
 	url = https://github.com/libsdl-org/SDL.git
+	shallow = true
 [submodule "code/freetype"]
 	path = code/freetype
 	url = https://github.com/freetype/freetype.git
+	shallow = true
 [submodule "code/libogg"]
 	path = code/libogg
 	url = https://github.com/xiph/ogg.git
+	shallow = true
 [submodule "code/libvorbis"]
 	path = code/libvorbis
 	url = https://github.com/xiph/vorbis.git
+	shallow = true
 [submodule "code/curl"]
 	path = code/curl
 	url = https://github.com/curl/curl.git
+	shallow = true
 [submodule "code/opus"]
 	path = code/opus
 	url = https://github.com/xiph/opus.git
+	shallow = true
 [submodule "code/opusfile"]
 	path = code/opusfile
 	url = https://github.com/xiph/opusfile.git
+	shallow = true
