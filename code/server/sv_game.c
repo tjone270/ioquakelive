@@ -278,7 +278,12 @@ static int sv_apiVersion;
 
 // --- Core trap wrappers ---
 
-static void SV_GI_Printf(const char *text) {
+static void QDECL SV_GI_Printf(const char *fmt, ...) {
+    va_list ap;
+    char text[1024];
+    va_start(ap, fmt);
+    Q_vsnprintf(text, sizeof(text), fmt, ap);
+    va_end(ap);
     Com_Printf("%s", text);
 }
 
