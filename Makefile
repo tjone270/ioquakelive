@@ -240,7 +240,6 @@ RCOMMONDIR=$(MOUNT_DIR)/renderercommon
 RGL2DIR=$(MOUNT_DIR)/renderergl2
 CMDIR=$(MOUNT_DIR)/qcommon
 SDLDIR=$(MOUNT_DIR)/sdl
-ASMDIR=$(MOUNT_DIR)/asm
 SYSDIR=$(MOUNT_DIR)/sys
 GDIR=$(MOUNT_DIR)/game
 CGDIR=$(MOUNT_DIR)/cgame
@@ -1136,7 +1135,8 @@ ifneq ($(BUILD_GAME_SO),0)
       $(B)/$(BASEGAME)/cgame$(SHLIBNAME) \
       $(B)/$(BASEGAME)/qagame$(SHLIBNAME) \
       $(B)/$(BASEGAME)/ui$(SHLIBNAME) \
-      $(B)/$(BASEGAME)/iobin_$(ARCH).pk3
+      $(B)/$(BASEGAME)/iobin_$(ARCH).pk3 \
+      $(B)/$(BASEGAME)/pak01.pk3
   endif
 endif
 
@@ -1370,11 +1370,6 @@ $(echo_cmd) "UI_CC $<"
 $(Q)$(CC) $(BASEGAME_CFLAGS) -DUI $(SHLIBCFLAGS) $(CFLAGS) $(OPTIMIZEVM) -o $@ -c $<
 endef
 
-
-define DO_AS
-$(echo_cmd) "AS $<"
-$(Q)$(CC) $(CFLAGS) $(OPTIMIZE) -x assembler-with-cpp -o $@ -c $<
-endef
 
 define DO_DED_CC
 $(echo_cmd) "DED_CC $<"
@@ -1795,18 +1790,6 @@ ifneq ($(USE_INTERNAL_JPEG),0)
     $(B)/renderergl2/jutils.o
 endif
 
-ifeq ($(ARCH),x86)
-  Q3OBJ += \
-    $(B)/client/snd_mixa.o \
-    $(B)/client/matha.o \
-    $(B)/client/snapvector.o \
-    $(B)/client/ftola.o
-endif
-ifeq ($(ARCH),x86_64)
-  Q3OBJ += \
-    $(B)/client/snapvector.o \
-    $(B)/client/ftola.o
-endif
 
 ifeq ($(NEED_OPUS),1)
 ifeq ($(USE_INTERNAL_OPUS),1)
@@ -2127,17 +2110,6 @@ Q3DOBJ = \
   $(B)/ded/con_log.o \
   $(B)/ded/sys_main.o
 
-ifeq ($(ARCH),x86)
-  Q3DOBJ += \
-      $(B)/ded/matha.o \
-      $(B)/ded/snapvector.o \
-      $(B)/ded/ftola.o
-endif
-ifeq ($(ARCH),x86_64)
-  Q3DOBJ += \
-      $(B)/ded/snapvector.o \
-      $(B)/ded/ftola.o
-endif
 
 ifeq ($(USE_INTERNAL_ZLIB),1)
 Q3DOBJ += \
@@ -2344,15 +2316,21 @@ $(IOBIN_PK3): $(GAME_SO_TARGETS)
 	$(Q)cd $(B)/$(BASEGAME) && zip -j9 iobin_$(ARCH).pk3 cgame$(SHLIBNAME) qagame$(SHLIBNAME) ui$(SHLIBNAME)
 
 #############################################################################
-## CLIENT/SERVER RULES
+## PAK01 PK3 (content overrides)
 #############################################################################
 
-$(B)/client/%.o: $(ASMDIR)/%.s
-	$(DO_AS)
+PAK01_SRCDIR=content/pak01
+PAK01_PK3 = $(B)/$(BASEGAME)/pak01.pk3
+PAK01_FILES = $(shell find $(PAK01_SRCDIR) -type f 2>/dev/null)
 
-# k8 so inline assembler knows about SSE
-$(B)/client/%.o: $(ASMDIR)/%.c
-	$(DO_CC) -march=k8
+$(PAK01_PK3): $(PAK01_FILES)
+	$(echo_cmd) "PK3 $@"
+	@rm -f $@
+	$(Q)cd $(PAK01_SRCDIR) && zip -r9 $(CURDIR)/$@ .
+
+#############################################################################
+## CLIENT/SERVER RULES
+#############################################################################
 
 $(B)/client/snd_altivec.o: $(CDIR)/snd_altivec.c
 	$(DO_CC_ALTIVEC)
@@ -2418,13 +2396,6 @@ $(B)/renderergl2/%.o: $(RCOMMONDIR)/%.c
 $(B)/renderergl2/%.o: $(RGL2DIR)/%.c
 	$(DO_REF_CC)
 
-
-$(B)/ded/%.o: $(ASMDIR)/%.s
-	$(DO_AS)
-
-# k8 so inline assembler knows about SSE
-$(B)/ded/%.o: $(ASMDIR)/%.c
-	$(DO_CC) -march=k8
 
 $(B)/ded/%.o: $(SDIR)/%.c
 	$(DO_DED_CC)
