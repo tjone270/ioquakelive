@@ -56,10 +56,13 @@ jobs:
         submodules: recursive
 
     - name: Install VS 2025 Build Tools (v145)
-      shell: powershell
+      shell: pwsh
       run: |
-        choco install visualstudio2025buildtools --package-parameters `
-          "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64" -y
+        Write-Host "Installing VS 2026 Build Tools..."
+        choco install visualstudio2026buildtools `
+          --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --includeRecommended --quiet" `
+          -y --ignore-package-exit-codes=3010
+        Write-Host "VS 2026 Build Tools installation completed"
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
