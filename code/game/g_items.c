@@ -202,7 +202,7 @@ int Pickup_Holdable(gentity_t* ent, gentity_t* other) {
 
 // [QL] Per-weapon ammo data from binary weapon table (qagamex86.dll 0x1008ff00)
 // Short names used for g_startingAmmo_<name> cvars (DOM gametype max ammo)
-static const char *weaponShortName[WP_NUM_WEAPONS] = {
+const char *weaponShortName[WP_NUM_WEAPONS] = {
     "",     // WP_NONE
     "g",    // WP_GAUNTLET
     "mg",   // WP_MACHINEGUN
@@ -257,6 +257,37 @@ static const int maxAmmoStandard[WP_NUM_WEAPONS] = {
     200,  // WP_CHAINGUN
     150,  // WP_HMG
 };
+
+/*
+===============
+BG_ParseGametypeStringtoFlag
+
+[QL] Parses space-separated weapon short names (e.g., "sg rl lg") into a weapon
+bitmask. Used by SP_worldspawn to parse the "disable_loadout" entity key.
+Binary: 0x1002da40
+===============
+*/
+int BG_ParseGametypeStringtoFlag(const char *str) {
+    char buf[MAX_STRING_CHARS];
+    char *tok;
+    int mask = 0, i;
+
+    if (!str || !str[0])
+        return 0;
+
+    Q_strncpyz(buf, str, sizeof(buf));
+    tok = strtok(buf, " ");
+    while (tok) {
+        for (i = WP_GAUNTLET; i < WP_NUM_WEAPONS; i++) {
+            if (weaponShortName[i][0] && !Q_stricmp(tok, weaponShortName[i])) {
+                mask |= (1 << i);
+                break;
+            }
+        }
+        tok = strtok(NULL, " ");
+    }
+    return mask;
+}
 
 /*
 ===============

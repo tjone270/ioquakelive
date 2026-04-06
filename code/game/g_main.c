@@ -203,6 +203,7 @@ vmCvar_t g_guidedRocket;
 
 // [QL] loadout system
 vmCvar_t g_loadout;
+int g_disableLoadoutMask = 0;  // bitmask of disabled weapons (from worldspawn "disable_loadout")
 
 // [QL] ammo system
 vmCvar_t g_ammoPack;

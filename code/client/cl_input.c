@@ -631,6 +631,8 @@ void CL_FinishMove(usercmd_t* cmd) {
 
     // copy the state that the cgame is currently sending
     cmd->weapon = cl.cgameUserCmdValue;
+    // [QL] queued loadout primary weapon (usercmd_t offset 0x15)
+    cmd->weaponPrimary = (byte)cl.cgameUserCmdWeaponPrimary;
 
     // send the current server time so the amount of movement
     // can be determined without allowing cheating

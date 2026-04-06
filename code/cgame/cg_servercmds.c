@@ -45,6 +45,38 @@ static const orderTask_t validOrders[] = {
 
 static const int numValidOrders = ARRAY_LEN(validOrders);
 
+// [QL] Mirror CS_DISABLE_LOADOUT bitmask into the per-weapon
+// cg_disableLoadout_* cvars queried by ui/ingame_about.menu + ui/intro.menu.
+// Cvar names match cgamex86.dll string table (0x1006bb04 area).
+static const char* cg_disableLoadoutCvarNames[WP_NUM_WEAPONS] = {
+    NULL,                     // WP_NONE
+    "cg_disableLoadout_g",    // WP_GAUNTLET
+    "cg_disableLoadout_mg",   // WP_MACHINEGUN
+    "cg_disableLoadout_sg",   // WP_SHOTGUN
+    "cg_disableLoadout_gl",   // WP_GRENADE_LAUNCHER
+    "cg_disableLoadout_rl",   // WP_ROCKET_LAUNCHER
+    "cg_disableLoadout_lg",   // WP_LIGHTNING
+    "cg_disableLoadout_rg",   // WP_RAILGUN
+    "cg_disableLoadout_pg",   // WP_PLASMAGUN
+    "cg_disableLoadout_bfg",  // WP_BFG
+    "cg_disableLoadout_gh",   // WP_GRAPPLING_HOOK
+    "cg_disableLoadout_ng",   // WP_NAILGUN
+    "cg_disableLoadout_pl",   // WP_PROX_LAUNCHER
+    "cg_disableLoadout_cg",   // WP_CHAINGUN
+    "cg_disableLoadout_hmg",  // WP_HMG
+};
+
+static void CG_ParseDisableLoadout(const char* s) {
+    int mask = atoi(s);
+    int i;
+    for (i = WP_GAUNTLET; i < WP_NUM_WEAPONS; i++) {
+        if (cg_disableLoadoutCvarNames[i]) {
+            trap_Cvar_Set(cg_disableLoadoutCvarNames[i],
+                          (mask & (1 << i)) ? "1" : "0");
+        }
+    }
+}
+
 static int CG_ValidOrder(const char* p) {
     int i;
     for (i = 0; i < numValidOrders; i++) {
@@ -788,6 +820,8 @@ void CG_SetConfigValues(void) {
         cgs.flagStatus = s[0] - '0';
     }
     cg.warmup = atoi(Info_ValueForKey(CG_ConfigString(CS_WARMUP), "time"));
+    // [QL] seed cg_disableLoadout_* cvars from CS_DISABLE_LOADOUT bitmask
+    CG_ParseDisableLoadout(CG_ConfigString(CS_DISABLE_LOADOUT));
 }
 
 /*
@@ -923,6 +957,8 @@ static void CG_ConfigStringModified(void) {
         CG_ShaderStateChanged();
     } else if (num == CS_PMOVEINFO) {
         CG_ParsePmoveParams();
+    } else if (num == CS_DISABLE_LOADOUT) {
+        CG_ParseDisableLoadout(str);
     }
 }
 

@@ -1959,7 +1959,9 @@ int trap_GetCurrentCmdNumber(void);
 qboolean trap_GetUserCmd(int cmdNumber, usercmd_t* ucmd);
 
 // used for the weapon select and zoom
-void trap_SetUserCmdValue(int stateValue, float sensitivityScale);
+// [QL] weaponPrimary added for loadout UI — passes queued primary weapon
+//      through to usercmd_t.weaponPrimary (offset 0x15). See cg_view.c.
+void trap_SetUserCmdValue(int stateValue, int weaponPrimary, float sensitivityScale);
 
 // aids for VM testing
 void testPrintInt(char* string, int i);

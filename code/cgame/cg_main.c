@@ -758,13 +758,13 @@ static cvarTable_t cvarTable[] = {
     {&cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ARCHIVE},
-    {&cg_disableLoadout_gt, "cg_disableLoadout_gt", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_gt, "cg_disableLoadout_g",  "0", CVAR_ARCHIVE},  // [QL] cvar name matches cgamex86.dll string table
     {&cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ARCHIVE},
-    {&cg_disableLoadout_pm, "cg_disableLoadout_pm", "0", CVAR_ARCHIVE},
+    {&cg_disableLoadout_pm, "cg_disableLoadout_pl", "0", CVAR_ARCHIVE},  // [QL] cvar name matches cgamex86.dll string table
     {&cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ARCHIVE},
     {&cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ARCHIVE},
@@ -792,7 +792,7 @@ static cvarTable_t cvarTable[] = {
     {&cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ROM},
     {&cg_lastmsg, "cg_lastmsg", "", CVAR_ROM},
     {&cg_trackPlayer, "cg_trackPlayer", "-1", 0},
-    {&cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_ROM},
+    {&cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP},  // [QL] menu writes via exec; binary uses CVAR_TEMP
 
     // [QL] UI state cvars (shared with UI module)
     {&ui_endMapVotingDisabled, "ui_endMapVotingDisabled", "0", CVAR_ROM},

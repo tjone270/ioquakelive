@@ -1122,6 +1122,14 @@ void ClientEndFrame(gentity_t* ent) {
         return;
     }
 
+    // [QL] Persist the latest loadout primary weapon from pmove so the next
+    // ClientSpawn (after kill/respawn) uses it. bg_pmove.c already copies
+    // cmd.weaponPrimary → ps.weaponPrimary each frame; we snapshot it into
+    // the session struct here. Matches qagamex86.dll ClientEndFrame.
+    if (ent->client->ps.weaponPrimary != 0) {
+        ent->client->sess.weaponPrimary = ent->client->ps.weaponPrimary;
+    }
+
     // turn off any expired powerups
     for (i = 0; i < MAX_POWERUPS; i++) {
         if (ent->client->ps.powerups[i] < level.time) {

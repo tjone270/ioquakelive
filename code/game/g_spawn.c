@@ -611,6 +611,20 @@ void SP_worldspawn(void) {
     g_entities[ENTITYNUM_NONE].r.ownerNum = ENTITYNUM_NONE;
     g_entities[ENTITYNUM_NONE].classname = "nothing";
 
+    // [QL] Parse loadout weapon disabling from worldspawn entity (binary: SP_worldspawn)
+    // Binary sets both the configstring and the g_disableLoadout cvar.
+    if (g_loadout.integer) {
+        G_SpawnString("disable_loadout", "", &s);
+        g_disableLoadoutMask = BG_ParseGametypeStringtoFlag(s);
+        trap_SetConfigstring(CS_DISABLE_LOADOUT, va("%i", g_disableLoadoutMask));
+        trap_Cvar_Set("g_disableLoadout", va("%i", g_disableLoadoutMask));
+    } else {
+        // [QL] clear any stale mask so loadout toggle off propagates to the client
+        g_disableLoadoutMask = 0;
+        trap_SetConfigstring(CS_DISABLE_LOADOUT, "0");
+        trap_Cvar_Set("g_disableLoadout", "0");
+    }
+
     // see if we want a warmup time
     if (g_restarted.integer) {
         trap_Cvar_Set("g_restarted", "0");

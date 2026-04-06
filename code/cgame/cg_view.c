@@ -940,6 +940,50 @@ void CG_DrawAdvertisements(void) {
 
 /*
 =================
+CG_WeaponPrimaryFromCvar
+
+[QL] Translate cg_weaponPrimaryQueued cvar string ("hmg", "rl", ...) into a
+WP_* index so it can be passed through trap_SetUserCmdValue into the usercmd.
+Keyed off the same short-names used by weaponShortName[] in g_items.c:205.
+Returns 0 (unchanged) if the cvar is empty or unrecognized.
+=================
+*/
+static int CG_WeaponPrimaryFromCvar(void) {
+    static const struct {
+        const char* name;
+        int wp;
+    } map[] = {
+        {"g",   WP_GAUNTLET},
+        {"mg",  WP_MACHINEGUN},
+        {"sg",  WP_SHOTGUN},
+        {"gl",  WP_GRENADE_LAUNCHER},
+        {"rl",  WP_ROCKET_LAUNCHER},
+        {"lg",  WP_LIGHTNING},
+        {"rg",  WP_RAILGUN},
+        {"pg",  WP_PLASMAGUN},
+        {"bfg", WP_BFG},
+        {"gh",  WP_GRAPPLING_HOOK},
+        {"ng",  WP_NAILGUN},
+        {"pl",  WP_PROX_LAUNCHER},
+        {"cg",  WP_CHAINGUN},
+        {"hmg", WP_HMG},
+    };
+    char buf[16];
+    int i;
+    trap_Cvar_VariableStringBuffer("cg_weaponPrimaryQueued", buf, sizeof(buf));
+    if (!buf[0]) {
+        return 0;
+    }
+    for (i = 0; i < (int)ARRAY_LEN(map); i++) {
+        if (!Q_stricmp(buf, map[i].name)) {
+            return map[i].wp;
+        }
+    }
+    return 0;
+}
+
+/*
+=================
 CG_DrawActiveFrame
 
 Generates and draws a game scene and status information at the given time.
@@ -979,7 +1023,10 @@ void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoP
     }
 
     // let the client system know what our weapon and zoom settings are
-    trap_SetUserCmdValue(cg.weaponSelect, cg.zoomSensitivity);
+    // [QL] also pass through the queued loadout primary weapon so the engine
+    //      can stamp cmd->weaponPrimary every frame for the server to pick up
+    trap_SetUserCmdValue(cg.weaponSelect, CG_WeaponPrimaryFromCvar(),
+                         cg.zoomSensitivity);
 
     // this counter will be bumped for every valid scene we generate
     cg.clientFrame++;

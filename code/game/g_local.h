@@ -1187,6 +1187,8 @@ extern vmCvar_t pmove_NoPlayerClip;
 
 // [QL] loadout system
 extern vmCvar_t g_loadout;
+extern int g_disableLoadoutMask;
+int BG_ParseGametypeStringtoFlag(const char *str);
 
 // [QL] ammo system
 extern vmCvar_t g_ammoPack;

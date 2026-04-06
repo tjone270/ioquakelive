@@ -1154,7 +1154,8 @@ void ClientSpawn(gentity_t* ent) {
 
     client->ps.clientNum = index;
 
-    // [QL] Starting weapons from g_startingWeapons bitmask + g_startingAmmo_* cvars
+    // [QL] Starting weapons: loadout + bitmask + warmup extras
+    // Binary: GiveDefaultWeapons (0x1003b8d0) + GiveStartingAmmo (0x1003b470)
     {
         static vmCvar_t *startingAmmoCvars[WP_NUM_WEAPONS] = {
             NULL,                   // WP_NONE = 0
@@ -1174,8 +1175,46 @@ void ClientSpawn(gentity_t* ent) {
             &g_startingAmmo_hmg,    // WP_HMG = 14
         };
         int w;
+        qboolean isBot = (ent->r.svFlags & SVF_BOT) != 0;
 
-        // Binary uses bit (w-1) for weapon w: bit 0=gauntlet, bit 1=MG, etc.
+        // Validate/default weaponPrimary for loadout mode (binary: GiveDefaultWeapons)
+        // Only re-default if current primary is out of range or disabled by map.
+        if (g_loadout.integer && !(client->ps.pm_flags & PMF_FROZEN)) {
+            int wp = client->sess.weaponPrimary;
+            qboolean invalid = (wp <= 0 || wp >= WP_NUM_WEAPONS ||
+                                (g_disableLoadoutMask & (1 << wp)) != 0);
+            if (invalid) {
+                if (!isBot) {
+                    client->sess.weaponPrimary = WP_HMG;
+                } else {
+                    // Bots: try up to 16 random weapons, pick first valid one
+                    int tries;
+                    int picked = 0;
+                    for (tries = 0; tries < 16 && picked == 0; tries++) {
+                        int r = (rand() % (WP_NUM_WEAPONS - 1)) + 1;
+                        if (!(g_disableLoadoutMask & (1 << r))) {
+                            picked = r;
+                        }
+                    }
+                    client->sess.weaponPrimary = picked ? picked : WP_HMG;
+                }
+            }
+        }
+
+        // Path 1: Loadout grant — weaponPrimary (if loadout enabled, not frozen, not disabled)
+        // Binary: GiveStartingAmmo first loop
+        if (g_loadout.integer && !(client->ps.pm_flags & PMF_FROZEN)) {
+            int wp = client->sess.weaponPrimary;
+            if (wp > 0 && wp < WP_NUM_WEAPONS && !(g_disableLoadoutMask & (1 << wp))) {
+                client->ps.stats[STAT_WEAPONS] |= (1 << wp);
+                if (startingAmmoCvars[wp]) {
+                    client->ps.ammo[wp] = startingAmmoCvars[wp]->integer;
+                }
+            }
+        }
+
+        // Path 2: Normal bitmask grant — runs regardless of loadout mode
+        // Binary: GiveStartingAmmo second block (unconditional on loadout)
         for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
             if (g_startingWeapons.integer & (1 << (w - 1))) {
                 client->ps.stats[STAT_WEAPONS] |= (1 << w);
@@ -1184,17 +1223,43 @@ void ClientSpawn(gentity_t* ent) {
         }
 
         // Gauntlet and grapple always have infinite ammo when present
-        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GAUNTLET)) {
+        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GAUNTLET))
             client->ps.ammo[WP_GAUNTLET] = -1;
-        }
-        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GRAPPLING_HOOK)) {
+        if (client->ps.stats[STAT_WEAPONS] & (1 << WP_GRAPPLING_HOOK))
             client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
-        }
 
-        // g_infiniteAmmo override: set all weapon ammo to -1
-        if (g_infiniteAmmo.integer) {
+        // Loadout or instagib: ALL ammo = infinite
+        if (g_loadout.integer || (g_dmflags.integer & DF_INSTAGIB)) {
             for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
                 client->ps.ammo[w] = -1;
+            }
+        }
+        // Non-loadout g_infiniteAmmo override
+        else if (g_infiniteAmmo.integer) {
+            for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
+                client->ps.ammo[w] = -1;
+            }
+        }
+
+        // Warmup extras: grant weapons 2..14 during warmup (binary: GiveDefaultWeapons end)
+        // Only when loadout is OFF, not bot-only, and not instagib.
+        // MG (2) and grapple (10) are only granted if already in g_startingWeapons.
+        // RR infected red team (zombies) don't get warmup extras.
+        if (level.warmupTime && !g_loadout.integer &&
+            !(g_dmflags.integer & DF_INSTAGIB)) {
+            qboolean infectedRedZombie = (g_gametype.integer == GT_RR &&
+                                          g_rrInfected.integer != 0 &&
+                                          client->sess.sessionTeam == TEAM_RED);
+            for (w = WP_MACHINEGUN; w < WP_NUM_WEAPONS; w++) {
+                // MG and grapple are gated on g_startingWeapons bits
+                if (w == WP_MACHINEGUN && !(g_startingWeapons.integer & 0x2))
+                    continue;
+                if (w == WP_GRAPPLING_HOOK && !(g_startingWeapons.integer & 0x200))
+                    continue;
+                if (!infectedRedZombie) {
+                    client->ps.stats[STAT_WEAPONS] |= (1 << w);
+                }
+                client->ps.ammo[w] = startingAmmoCvars[w]->integer;
             }
         }
     }
