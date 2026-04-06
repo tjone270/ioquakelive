@@ -87,7 +87,6 @@ void Touch_RaceCheckpoint(gentity_t *self, gentity_t *other, trace_t *trace) {
         // Check personal best
         {
             qboolean newBest = qfalse;
-            int i;
 
             if (ri->lastTime < cl->ps.localPersistant[0] || cl->ps.localPersistant[0] == 0) {
                 cl->ps.localPersistant[0] = ri->lastTime;
@@ -138,6 +137,12 @@ void Touch_RaceCheckpoint(gentity_t *self, gentity_t *other, trace_t *trace) {
         }
 
         ri->nextRacePoint = next;
+        // Two-level lookahead: resolve next-next checkpoint
+        if (next->target) {
+            ri->nextRacePoint2 = G_PickTarget(next->target);
+        } else {
+            ri->nextRacePoint2 = NULL;
+        }
         ri->startTime = level.time;
         ri->racingActive = qtrue;
         ri->currentCheckPoint = 0;
@@ -168,23 +173,39 @@ void Touch_RaceCheckpoint(gentity_t *self, gentity_t *other, trace_t *trace) {
         ri->current_race[ri->currentCheckPoint] = level.time - ri->startTime;
         ri->currentCheckPoint++;
 
-        // Advance to next checkpoint and highlight it
+        // Compute split time delta from personal best
         {
-            gentity_t *next = G_PickTarget(self->target);
-            ri->nextRacePoint = next;
-            if (next) {
-                next->s.generic1 = 1;
+            int splitTime = ri->current_race[ri->currentCheckPoint - 1];
+            int timeDiff = 0;
+            if (ri->best_race[ri->currentCheckPoint - 1] != 0) {
+                timeDiff = splitTime - ri->best_race[ri->currentCheckPoint - 1];
             }
-        }
 
-        // Checkpoint event - fields must match cgame EV_RACE_CHECKPOINT handler
-        {
-            gentity_t *te = G_TempEntity(other->r.currentOrigin, EV_RACE_CHECKPOINT);
-            te->s.clientNum = other->s.number;
-            te->s.time = level.time - ri->startTime;  // split time
-            te->s.otherEntityNum2 = numRacePoints;  // total checkpoint count
-            te->s.generic1 = ri->nextRacePoint ? ri->nextRacePoint->s.number : 0;
-            te->r.svFlags |= SVF_BROADCAST;
+            // Advance to next checkpoint and highlight it
+            {
+                gentity_t *next = G_PickTarget(self->target);
+                ri->nextRacePoint = next;
+                // Two-level lookahead
+                if (next && next->target) {
+                    ri->nextRacePoint2 = G_PickTarget(next->target);
+                } else {
+                    ri->nextRacePoint2 = NULL;
+                }
+                if (next) {
+                    next->s.generic1 = 1;
+                }
+            }
+
+            // Checkpoint event
+            {
+                gentity_t *te = G_TempEntity(other->r.currentOrigin, EV_RACE_CHECKPOINT);
+                te->s.clientNum = other->s.number;
+                te->s.time = timeDiff;  // delta from personal best (0 if no best)
+                te->s.otherEntityNum = ri->nextRacePoint ? ri->nextRacePoint->s.number : 0;
+                te->s.otherEntityNum2 = ri->nextRacePoint2 ? ri->nextRacePoint2->s.number : 0;
+                te->s.generic1 = ri->currentCheckPoint;
+                te->r.svFlags |= SVF_BROADCAST;
+            }
         }
     }
 }
@@ -312,4 +333,52 @@ void Race_ResetCheckpoints(gentity_t *playerEnt) {
 // ============================================================================
 int Race_GetNumPoints(void) {
     return numRacePoints;
+}
+
+// ============================================================================
+// Cmd_RaceInit_f - reset race state for calling player
+// Binary: 0x10063eb0
+// ============================================================================
+void Cmd_RaceInit_f(gentity_t *ent) {
+    if (g_gametype.integer != GT_RACE)
+        return;
+
+    Race_ResetCheckpoints(ent);
+    trap_SendServerCommand(ent - g_entities, "race_init");
+}
+
+// ============================================================================
+// Cmd_RacePoint_f - admin command to add/list/clear race points at runtime
+// Binary: 0x10063f20. Requires g_allowRaceAdmin cvar.
+// Usage: racepoint [add|list|clear]
+// ============================================================================
+void Cmd_RacePoint_f(gentity_t *ent) {
+    char cmd[64];
+
+    if (g_gametype.integer != GT_RACE)
+        return;
+
+    trap_Argv(1, cmd, sizeof(cmd));
+
+    if (!Q_stricmp(cmd, "list")) {
+        int i, count = 0;
+        for (i = 0; i < level.num_entities; i++) {
+            gentity_t *e = &g_entities[i];
+            if (e->inuse && e->touch == Touch_RaceCheckpoint) {
+                const char *type = "MIDDLE";
+                if (e->target != NULL && e->targetname == NULL) type = "START";
+                else if (e->target == NULL) type = "FINISH";
+                trap_SendServerCommand(ent - g_entities,
+                    va("print \"  %d: %s at (%.0f %.0f %.0f)\n\"",
+                        count, type,
+                        e->s.origin[0], e->s.origin[1], e->s.origin[2]));
+                count++;
+            }
+        }
+        trap_SendServerCommand(ent - g_entities,
+            va("print \"Total: %d race points\n\"", count));
+    } else {
+        trap_SendServerCommand(ent - g_entities,
+            "print \"Usage: racepoint [list]\n\"");
+    }
 }

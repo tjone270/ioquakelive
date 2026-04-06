@@ -516,6 +516,11 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
     self->client->ps.persistant[PERS_KILLED]++;
     self->client->expandedStats.numDeaths++;
 
+    // [QL] GT_RR: death score penalty applied to victim (binary: g_rrDeathScorePenalty)
+    if (g_gametype.integer == GT_RR && g_rrDeathScorePenalty.integer) {
+        AddScore(self, self->r.currentOrigin, g_rrDeathScorePenalty.integer);
+    }
+
     if (attacker && attacker->client) {
         attacker->client->lastkilled_client = self->s.number;
 
@@ -523,7 +528,18 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
             AddScore(attacker, self->r.currentOrigin, -1);
         } else {
             attacker->client->expandedStats.numKills++;
-            AddScore(attacker, self->r.currentOrigin, 1);
+            // [QL] RR Infection: zombie frag bonus — attacker is zombie (binary: player_die)
+            if (g_gametype.integer == GT_RR && g_rrInfected.integer != 0
+                && attacker->client->sess.sessionTeam == TEAM_RED) {
+                AddScore(attacker, self->r.currentOrigin, g_rrInfectedZombieFragBonus.integer);
+            } else {
+                AddScore(attacker, self->r.currentOrigin, 1);
+            }
+
+            // [QL] GT_RR: additional score bonus per kill (binary: DAT_1059da0c)
+            if (g_gametype.integer == GT_RR && g_rrDamageScoreBonus.integer) {
+                AddScore(attacker, self->r.currentOrigin, g_rrDamageScoreBonus.integer);
+            }
 
             if (meansOfDeath == MOD_GAUNTLET) {
                 // play humiliation on player
@@ -557,6 +573,11 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
 
     // Add team bonuses
     Team_FragBonuses(self, inflictor, attacker);
+
+    // [QL] Domination defense bonuses (binary: DOM_FragBonuses 0x1004bb40)
+    if (g_gametype.integer == GT_DOMINATION && attacker && attacker->client) {
+        DOM_FragBonuses(attacker, self);
+    }
 
     // if I committed suicide, the flag does not fall, it returns.
     if (meansOfDeath == MOD_SUICIDE) {

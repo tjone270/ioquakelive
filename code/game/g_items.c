@@ -545,6 +545,100 @@ void G_QG_Think(void) {
 
 /*
 ===============
+Item_NotifySpectator
+
+[QL] Send EV_ITEM_PICKUP_SPEC event for a single item entity to a single spectator client.
+Called from Item_NotifySpectators (per-item broadcast) and Cmd_SpecResp_f (bulk refresh).
+Binary: called from 0x1004ed90 (Item_NotifySpectators) and 0x1004edf0 (Cmd_SpecResp_f)
+===============
+*/
+void Item_NotifySpectator(gentity_t *ent, int clientNum, qboolean isRespawn) {
+    gclient_t *cl;
+    gentity_t *te;
+
+    if (clientNum < 0 || clientNum >= level.maxclients)
+        return;
+
+    cl = &level.clients[clientNum];
+
+    // Must be spectator with EF_VOTED (item timer flag)
+    if (cl->ps.pm_type != PM_SPECTATOR)
+        return;
+    if (!(cl->ps.eFlags & EF_VOTED))
+        return;
+
+    // Skip entities that already have SVF_SINGLECLIENT set
+    if (ent->r.svFlags & SVF_SINGLECLIENT)
+        return;
+
+    // Item must exist and have respawn time data
+    if (!ent->item)
+        return;
+    if (ent->item->giType == IT_ARMOR && ent->item->giTag == 3)
+        return;
+    if (ent->item->giType == IT_HOLDABLE)
+        return;
+
+    te = G_TempEntity(ent->r.currentOrigin, EV_ITEM_PICKUP_SPEC);
+    te->s.eventParm = ent->s.number;
+    te->s.modelindex = ent->s.modelindex;
+    te->s.clientNum = ent->s.modelindex2;
+    te->s.frame = (ent->count != 0) ? 1 : 0;
+    te->r.svFlags |= SVF_BROADCAST | SVF_SINGLECLIENT;
+    te->r.singleClient = g_entities[clientNum].s.number;
+    te->s.generic1 = isRespawn ? 1 : 0;
+
+    // CTF: calculate nearest flag base for spectator UI grouping
+    if (g_gametype.integer == GT_CTF) {
+        gentity_t *redFlag, *blueFlag;
+        vec3_t diff;
+        float distRed, distBlue;
+
+        redFlag = G_Find(NULL, FOFS(classname), "team_CTF_redflag");
+        blueFlag = G_Find(NULL, FOFS(classname), "team_CTF_blueflag");
+
+        if (!redFlag || !blueFlag) {
+            te->s.otherEntityNum = 3;
+        } else {
+            VectorSubtract(redFlag->r.currentOrigin, ent->r.currentOrigin, diff);
+            distRed = DotProduct(diff, diff);
+            VectorSubtract(blueFlag->r.currentOrigin, ent->r.currentOrigin, diff);
+            distBlue = DotProduct(diff, diff);
+
+            te->s.otherEntityNum = (distBlue <= distRed) ? 2 : 1;
+            te->s.time = (int)(te->s.otherEntityNum == 1 ? distRed : distBlue);
+        }
+    }
+}
+
+/*
+===============
+Item_NotifySpectators
+
+[QL] Notify all spectator clients about an item's respawn state.
+Called from RespawnItem when an item respawns.
+Binary: 0x1004ed90
+===============
+*/
+void Item_NotifySpectators(gentity_t *ent, qboolean isRespawn) {
+    int i;
+
+    if (!g_itemTimers.integer)
+        return;
+    if (!ent || !ent->item)
+        return;
+    if (ent->item->giType == IT_ARMOR && ent->item->giTag == 3)
+        return;
+    if (ent->item->giType == IT_HOLDABLE)
+        return;
+
+    for (i = 0; i < level.maxclients; i++) {
+        Item_NotifySpectator(ent, i, isRespawn);
+    }
+}
+
+/*
+===============
 RespawnItem
 ===============
 */
@@ -619,6 +713,9 @@ void RespawnItem(gentity_t* ent) {
     G_AddEvent(ent, EV_ITEM_RESPAWN, 0);
 
     ent->nextthink = 0;
+
+    // [QL] Notify spectators that this item has respawned
+    Item_NotifySpectators(ent, qtrue);
 }
 
 /*

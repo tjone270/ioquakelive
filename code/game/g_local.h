@@ -172,6 +172,8 @@ struct gentity_s {
     gentity_t* teammaster;
     gentity_t* teamchain;
 
+    gentity_t   *domCapturer;    // [QL] domination: player who captured this point
+
     int kamikazeTime;
     int kamikazeShockTime;
 
@@ -626,6 +628,8 @@ void ClearVote(void);
 void G_CheckTeamItems(void);
 void G_RunItem(gentity_t* ent);
 void RespawnItem(gentity_t* ent);
+void Item_NotifySpectator(gentity_t *ent, int clientNum, qboolean isRespawn);
+void Item_NotifySpectators(gentity_t *ent, qboolean isRespawn);
 void G_RespawnKey(int keyTag);
 
 void UseHoldableItem(gentity_t* ent);
@@ -816,6 +820,10 @@ void G_RunFrame(int levelTime);
 
 // g_gametype_common.c - Shared gametype helpers
 int STAT_GetBestWeapon(gclient_t *cl);
+void STAT_PublishMedal(gentity_t *ent, const char *medal);
+void STAT_RoundOver(int round, int winTeam, int isDraw);
+void LastManStanding(int team);
+qboolean G_ObfuscateEnemyInfoInSnapshotCheck(int clientNum1, int clientNum2);
 
 // g_gametype_duel.c - Duel / Tournament
 void CheckTournament(void);
@@ -840,6 +848,11 @@ void SP_race_point(gentity_t *ent);
 void Touch_RaceCheckpoint(gentity_t *self, gentity_t *other, trace_t *trace);
 int Race_GetNumPoints(void);
 void Race_ResetCheckpoints(gentity_t *playerEnt);
+void Cmd_RaceInit_f(gentity_t *ent);
+void Cmd_RacePoint_f(gentity_t *ent);
+
+// g_gametype_dom.c - Domination
+void DOM_FragBonuses(gentity_t *attacker, gentity_t *victim);
 
 // g_gametype_ad.c - Attack & Defend round state machine
 void AD_RoundStateTransition(void);
@@ -849,11 +862,19 @@ int AD_IsInPlayState(void);
 int AD_CanScore(void);
 
 // [QL] RR infection cvars
+extern vmCvar_t g_rrInfected;
 extern vmCvar_t g_rrInfectedSpreadTime;
 extern vmCvar_t g_rrInfectedSpreadWarningTime;
 extern vmCvar_t g_rrInfectedSurvivorScoreMethod;
 extern vmCvar_t g_rrInfectedSurvivorScoreRate;
 extern vmCvar_t g_rrInfectedSurvivorScoreBonus;
+extern vmCvar_t g_rrInfectedSurvivorMinSpeed;
+extern vmCvar_t g_rrInfectedSurvivorPingRate;
+extern vmCvar_t g_rrInfectedZombieSpeed;
+extern vmCvar_t g_rrInfectedZombieHealthBonus;
+extern vmCvar_t g_rrInfectedZombieFragBonus;
+extern vmCvar_t g_rrDamageScoreBonus;
+extern vmCvar_t g_rrDeathScorePenalty;
 
 // g_gametype_rr.c - Red Rover round state machine
 void RR_InitRoundState(void);
@@ -862,6 +883,8 @@ void RR_RoundStateTransition(void);
 void RR_RunFrame(void);
 void RR_OnPlayerDeath(gentity_t *victim);
 void RR_CheckInfection(void);
+void ClientSpawn_RedRover(gentity_t *ent);
+team_t PickTeam_RoundAware(int clientNum);
 void RR_SurvivalBonus(int mode);
 
 // g_gametype_ft.c - Freeze Tag round state machine
