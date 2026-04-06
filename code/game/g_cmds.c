@@ -459,7 +459,12 @@ void SetTeam(gentity_t* ent, const char* s) {
             team = TEAM_BLUE;
         } else {
             // pick the team with the least number of players
-            team = PickTeam(clientNum);
+            // [QL] RR infection: use round-aware team picker (binary: SetTeam 0x10040a9a)
+            if (g_gametype.integer == GT_RR && g_rrInfected.integer != 0) {
+                team = PickTeam_RoundAware(clientNum);
+            } else {
+                team = PickTeam(clientNum);
+            }
         }
 
         if (g_teamForceBalance.integer && !client->pers.localClient && !(ent->r.svFlags & SVF_BOT)) {
@@ -2052,6 +2057,39 @@ static void Cmd_Spec_f(gentity_t* ent) {
 
 /*
 =================
+[QL] Spectator item timer refresh - sends current item respawn state
+to the requesting spectator. Called by cgame on respawn when EF_VOTED is set.
+Binary: qagamex86.dll 0x1004edf0
+=================
+*/
+static void Cmd_SpecResp_f(gentity_t *ent) {
+    int i;
+    gentity_t *other;
+
+    if (!g_itemTimers.integer)
+        return;
+    if (!(ent->client->ps.eFlags & EF_VOTED))
+        return;
+    if (level.maxclients >= MAX_GENTITIES)
+        return;
+
+    for (i = level.maxclients; i < level.num_entities; i++) {
+        other = &g_entities[i];
+        if (!other->inuse)
+            continue;
+        if (!other->item)
+            continue;
+        if (other->item->giType == IT_ARMOR && other->item->giTag == 3)
+            continue;
+        if (other->item->giType == IT_HOLDABLE)
+            continue;
+
+        Item_NotifySpectator(other, ent - g_entities, qfalse);
+    }
+}
+
+/*
+=================
 [QL] Forfeit command - forfeit the current match
 Binary: qagamex86.dll 0x10045890
 =================
@@ -3125,11 +3163,11 @@ void ClientCommand(int clientNum) {
     else if (Q_stricmp(cmd, "spec") == 0)
         Cmd_Spec_f(ent);  // [QL] filtered follow (stats/red/blue/powerup)
     else if (Q_stricmp(cmd, "specresp") == 0)
-        ;  // [QL] spectator respawn - stub (complex bot/spawn interaction)
+        Cmd_SpecResp_f(ent);
     else if (Q_stricmp(cmd, "raceinit") == 0)
-        ;  // [QL] race mode init - stub (race gametype only)
+        Cmd_RaceInit_f(ent);
     else if (Q_stricmp(cmd, "racepoint") == 0)
-        ;  // [QL] race mode checkpoint - stub (race gametype only)
+        Cmd_RacePoint_f(ent);
     else
         trap_SendServerCommand(clientNum, va("print \"unknown cmd %s\n\"", cmd));
 }

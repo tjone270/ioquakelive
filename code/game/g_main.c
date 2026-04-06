@@ -297,11 +297,19 @@ vmCvar_t g_headShotDamage_rg;
 vmCvar_t g_railJump;
 
 // [QL] RR infection mode
+vmCvar_t g_rrInfected;
 vmCvar_t g_rrInfectedSpreadTime;
 vmCvar_t g_rrInfectedSpreadWarningTime;
 vmCvar_t g_rrInfectedSurvivorScoreMethod;
 vmCvar_t g_rrInfectedSurvivorScoreRate;
 vmCvar_t g_rrInfectedSurvivorScoreBonus;
+vmCvar_t g_rrInfectedSurvivorMinSpeed;
+vmCvar_t g_rrInfectedSurvivorPingRate;
+vmCvar_t g_rrInfectedZombieSpeed;
+vmCvar_t g_rrInfectedZombieHealthBonus;
+vmCvar_t g_rrInfectedZombieFragBonus;
+vmCvar_t g_rrDamageScoreBonus;
+vmCvar_t g_rrDeathScorePenalty;
 
 // [QL] tiered armor
 vmCvar_t armor_tiered;
@@ -766,11 +774,19 @@ static cvarTable_t gameCvarTable[] = {
     {&g_railJump, "g_railJump", "0", 0, 0, NULL},
 
     // [QL] RR infection mode
+    {&g_rrInfected, "g_rrInfected", "0", CVAR_LATCH, 0, NULL},
     {&g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", 0, 0, NULL},
     {&g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", 0, 0, NULL},
     {&g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", 0, 0, NULL},
     {&g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", 0, 0, NULL},
     {&g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", 0, 0, NULL},
+    {&g_rrInfectedSurvivorMinSpeed, "g_rrInfectedSurvivorMinSpeed", "500.0", 0, 0, NULL},
+    {&g_rrInfectedSurvivorPingRate, "g_rrInfectedSurvivorPingRate", "2000", 0, 0, NULL},
+    {&g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", 0, 0, NULL},
+    {&g_rrInfectedZombieHealthBonus, "g_rrInfectedZombieHealthBonus", "50", 0, 0, NULL},
+    {&g_rrInfectedZombieFragBonus, "g_rrInfectedZombieFragBonus", "2", 0, 0, NULL},
+    {&g_rrDamageScoreBonus, "g_rrDamageScoreBonus", "0", 0, 0, NULL},
+    {&g_rrDeathScorePenalty, "g_rrDeathScorePenalty", "-1", 0, 0, NULL},
 
     // [QL] tiered armor
     {&armor_tiered, "armor_tiered", "0", 0, 0, NULL},
@@ -803,6 +819,7 @@ Q_EXPORT void dllEntry(void **vmMainOut, gameImport_t *syscallTable, int *apiVer
     vmMainOut[GAME_CLIENT_DISCONNECT]       = (void *)ClientDisconnect;
     vmMainOut[GAME_CLIENT_CONNECT]          = (void *)ClientConnect;
     vmMainOut[GAME_CLIENT_COMMAND]          = (void *)ClientCommand;
+    vmMainOut[GAME_SNAPSHOT_VISIBILITY]     = (void *)G_ObfuscateEnemyInfoInSnapshotCheck;
 
     *apiVersion = GAME_API_VERSION;
 }
@@ -1114,6 +1131,9 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
 
     // [QL] publish starting weapons bitmask
     trap_SetConfigstring(CS_STARTING_WEAPONS, va("%i", g_startingWeapons.integer));
+
+    // [QL] publish survivor min speed for infection mode
+    trap_SetConfigstring(CS_INFECTED_SURVIVOR_MINSPEED, va("%f", g_rrInfectedSurvivorMinSpeed.value));
 
     // [QL] send pmove parameters to clients for prediction
     G_SendPmoveInfo();
@@ -3087,6 +3107,11 @@ void G_RunFrame(int levelTime) {
 
     // [QL] warmup state machine (all gametypes)
     CheckWarmup();
+
+    // [QL] Red Rover per-frame logic (infection, survival bonus, round end)
+    if (g_gametype.integer == GT_RR) {
+        RR_RunFrame();
+    }
 
     // see if it is time to end the level
     CheckExitRules();

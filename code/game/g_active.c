@@ -858,6 +858,12 @@ void ClientThink_real(gentity_t* ent) {
         }
     }
 
+    // [QL] RR Infection: zombie speed multiplier (binary 0x10034f88)
+    if (g_gametype.integer == GT_RR && g_rrInfected.integer != 0
+        && client->sess.sessionTeam == TEAM_RED) {
+        client->ps.speed = (int)((float)client->ps.speed * g_rrInfectedZombieSpeed.value);
+    }
+
     // let go of the hook if we aren't firing
     if (client->ps.weapon == WP_GRAPPLING_HOOK &&
         client->hook && !(ucmd->buttons & BUTTON_ATTACK)) {

@@ -8,9 +8,11 @@
  */
 #include "g_local.h"
 
-// RR infection mode globals
-static int rr_infectionStartTime = -1;
+// RR infection mode globals (binary: DAT_105df5a8-105df5b4)
+static int rr_lastRedClient = -1;
+static int rr_lastBlueClient = -1;
 static int rr_survivalNextTime = 0;
+static int rr_infectionStartTime = -1;
 
 // ============================================================================
 // RR_CheckInfection - periodic forced team switch (weakest blue → red)
@@ -18,6 +20,9 @@ static int rr_survivalNextTime = 0;
 void RR_CheckInfection(void) {
     int i;
     int redAlive, blueAlive;
+
+    if (g_rrInfected.integer == 0)
+        return;
 
     if (g_rrInfectedSpreadTime.integer == 0 || rr_infectionStartTime == -1)
         return;
@@ -61,7 +66,7 @@ void RR_CheckInfection(void) {
 void RR_SurvivalBonus(int mode) {
     int i;
 
-    if (g_rrInfectedSurvivorScoreMethod.integer == 0)
+    if (g_rrInfected.integer == 0 || g_rrInfectedSurvivorScoreMethod.integer == 0)
         return;
 
     if (rr_survivalNextTime == 0) {
@@ -82,6 +87,8 @@ void RR_SurvivalBonus(int mode) {
         gclient_t *cl = &level.clients[i];
         if (cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam == TEAM_BLUE) {
             cl->ps.persistant[PERS_SCORE] += g_rrInfectedSurvivorScoreBonus.integer;
+            trap_SendServerCommand(cl - level.clients,
+                va("print \"Survival Bonus! +%i\n\"", g_rrInfectedSurvivorScoreBonus.integer));
         }
     }
 
@@ -89,6 +96,7 @@ void RR_SurvivalBonus(int mode) {
         gentity_t *te = G_TempEntity(vec3_origin, EV_GLOBAL_TEAM_SOUND);
         te->s.eFlags |= EF_NODRAW;
         te->s.otherEntityNum2 = 24;
+        te->s.otherEntityNum = TEAM_BLUE;
     }
 
     if (g_rrInfectedSurvivorScoreMethod.integer == 1) {
@@ -99,37 +107,115 @@ void RR_SurvivalBonus(int mode) {
 }
 
 // ============================================================================
+// PickTeam_RoundAware
+// Binary: 0x10064820
+//
+// Round-state-aware team picker for RR infection mode.
+// During active play, new joiners go to red (zombie) team.
+// Between rounds, assigns to blue unless the client was the last red/blue.
+// ============================================================================
+team_t PickTeam_RoundAware(int clientNum) {
+    if (level.roundState.tNext != 0) {
+        if (level.time < level.roundState.tNext)
+            goto pickBlue;
+        level.roundState.tNext = 0;
+        level.roundState.eCurrent = level.roundState.eNext;
+        level.roundState.startTime = level.time;
+        RR_RoundStateTransition();
+    }
+
+    if (level.roundState.eCurrent == RS_PLAYING)
+        return TEAM_RED;
+
+pickBlue:
+    if (clientNum != rr_lastRedClient && clientNum != rr_lastBlueClient)
+        return TEAM_BLUE;
+
+    return TEAM_RED;
+}
+
+// ============================================================================
 // RR_InitRoundState
 // Binary: 0x100656e0
 // Initializes the Red Rover round state at game start.
-// When g_forfeit is enabled and warmup is off, enters RS_SHUFFLE state
+// When g_rrInfected is enabled and warmup is off, enters RS_SHUFFLE state
 // to force a team shuffle before the first round.
 // ============================================================================
 void RR_InitRoundState(void) {
-    level.infectedConscript = -1;
-    level.lastZombieSurvivor = -1;
-    level.zombieScoreTime = -1;
-
-    if (g_forfeit.integer != 0) {
+    if (g_rrInfected.integer != 0) {
+        rr_lastRedClient = -1;
+        rr_lastBlueClient = -1;
+        rr_infectionStartTime = -1;
         level.roundState.tNext = level.time + 500;
-        // RS_SHUFFLE(2) if no warmup, RS_WARMUP(0) if warmup active
-        if (level.warmupTime == 0) {
-            level.roundState.eNext = RS_SHUFFLE;
-        } else {
-            level.roundState.eNext = RS_WARMUP;
-        }
+        level.roundState.eNext = (level.warmupTime != 0) ? RS_WARMUP : RS_SHUFFLE;
         level.roundState.round = 0;
         return;
     }
 
     level.roundState.tNext = 0;
-    if (level.warmupTime == 0) {
-        level.roundState.eCurrent = RS_COUNTDOWN;
-    } else {
-        level.roundState.eCurrent = RS_WARMUP;
-    }
+    level.roundState.eCurrent = (level.warmupTime == 0) ? RS_COUNTDOWN : RS_WARMUP;
     RR_RoundStateTransition();
     level.roundState.round = 0;
+}
+
+// ============================================================================
+// StartNewRound
+// Binary: 0x10064880 (exists but has zero callers in binary — dead code)
+//
+// Between-round team reset for infection mode:
+// 1. Move all RED players to BLUE
+// 2. If rr_lastBlueClient is valid, make them the first zombie (RED)
+// 3. If no RED exists, pick a random playing client as zombie
+// 4. Track the new zombie in rr_lastRedClient
+// ============================================================================
+static void StartNewRound(void) {
+    int i;
+    int redCount = 0;
+
+    level.scoringDisabled = qtrue;
+
+    // Move all red players to blue
+    for (i = 0; i < level.maxclients; i++) {
+        gclient_t *cl = &level.clients[i];
+        if (cl->pers.connected == CON_CONNECTED &&
+            cl->ps.pm_type != PM_SPECTATOR &&
+            cl->sess.sessionTeam == TEAM_RED) {
+            SetTeam(&g_entities[i], "blue");
+        }
+    }
+
+    // Last blue survivor becomes first zombie next round
+    if (rr_lastBlueClient != -1) {
+        gclient_t *cl = &level.clients[rr_lastBlueClient];
+        if (cl->pers.connected == CON_CONNECTED &&
+            cl->sess.sessionTeam == TEAM_BLUE) {
+            SetTeam(&g_entities[rr_lastBlueClient], "red");
+        }
+    }
+
+    // Count red players after the swap
+    for (i = 0; i < level.maxclients; i++) {
+        gclient_t *cl = &level.clients[i];
+        if (cl->pers.connected == CON_CONNECTED &&
+            cl->ps.pm_type != PM_SPECTATOR &&
+            cl->sess.sessionTeam == TEAM_RED) {
+            redCount++;
+        }
+    }
+
+    // If no red player, pick a random playing client
+    if (redCount == 0 && level.numPlayingClients > 0) {
+        int pick = rand() % level.numPlayingClients;
+        int idx = level.sortedClients[pick];
+        gclient_t *cl = &level.clients[idx];
+        if (cl->pers.connected == CON_CONNECTED &&
+            cl->ps.pm_type != PM_SPECTATOR) {
+            SetTeam(&g_entities[idx], "red");
+            rr_lastRedClient = cl->ps.clientNum;
+        }
+    }
+
+    level.scoringDisabled = qfalse;
 }
 
 // ============================================================================
@@ -211,13 +297,14 @@ void RR_RoundStateTransition(void) {
         return;
 
     case RS_SHUFFLE:
-        if (g_forfeit.integer == 0) {
+        if (g_rrInfected.integer == 0) {
             Svcmd_ForceShuffle_f();
             level.roundState.tNext = level.time + 1;
             level.roundState.eNext = RS_COUNTDOWN;
             return;
         }
-        // When g_forfeit is enabled, shuffle is a no-op (binary returns here)
+        // Infected mode: no-op here. The infected RS_SHUFFLE team reset
+        // (StartNewRound) is handled in RR_RunFrame after state transition.
         return;
 
     case RS_PLAYING:
@@ -236,8 +323,9 @@ void RR_RoundStateTransition(void) {
             }
         }
         level.roundState.round = level.teamScores[TEAM_BLUE] + level.teamScores[TEAM_RED] + 1;
-        rr_infectionStartTime = level.time;
         rr_survivalNextTime = 0;
+        rr_lastBlueClient = -1;
+        rr_infectionStartTime = level.time;
         trap_SetConfigstring(CS_ROUND_TIME, va("%d", level.time));
         trap_SetConfigstring(CS_ROUND_STATUS,
             va("\\round\\%d", level.roundState.round));
@@ -317,10 +405,78 @@ void RR_RoundStateTransition(void) {
 
 // ============================================================================
 // RR_RunFrame - per-frame logic for Red Rover
+// Binary: RR_CheckRound (called from G_RunFrame case 0xc)
+//
+// Handles round state transitions via G_GetRoundState pattern:
+//  - RS_SHUFFLE (2) + infected: calls StartNewRound, schedules RS_COUNTDOWN
+//  - RS_PLAYING (3): alive count, survival bonus, infection, round timeout
 // ============================================================================
 void RR_RunFrame(void) {
     int redAlive, blueAlive;
+    int state;
 
+    if (level.intermissionQueued || level.intermissionTime || level.warmupTime > 0)
+        return;
+
+    if (level.restarted) {
+        level.roundState.startTime += level.frametime;
+    }
+
+    // G_GetRoundState: process pending transition, return current state
+    if (level.roundState.tNext != 0) {
+        if (level.time < level.roundState.tNext)
+            return;
+        level.roundState.tNext = 0;
+        level.roundState.eCurrent = level.roundState.eNext;
+        level.roundState.startTime = level.time;
+        RR_RoundStateTransition();
+    }
+    state = level.roundState.eCurrent;
+
+    // Infected RS_SHUFFLE: reset teams and schedule countdown
+    // Binary: RR_CheckRound handles this AFTER G_GetRoundState, not in
+    // RR_RoundStateTransition (where infected RS_SHUFFLE is a no-op).
+    if (state == RS_SHUFFLE) {
+        if (g_rrInfected.integer != 0) {
+            StartNewRound();
+            level.roundState.tNext = level.time + 1;
+            level.roundState.eNext = RS_COUNTDOWN;
+        }
+        return;
+    }
+
+    if (state != RS_PLAYING)
+        return;
+
+    UpdateTeamAliveCount(&redAlive, &blueAlive);
+
+    // [QL] Infection mode: survival bonus + periodic team switch (binary order)
+    RR_SurvivalBonus(0);
+    RR_CheckInfection();
+
+    // Check round end: team eliminated or timelimit (binary: CheckRoundTimeout)
+    if (redAlive == 0 || blueAlive == 0 ||
+        (roundtimelimit.integer != 0 &&
+         level.time - level.roundState.startTime >= roundtimelimit.integer * 1000)) {
+        level.roundState.tNext = 0;
+        level.roundState.eCurrent = RS_ROUND_OVER;
+        RR_RoundStateTransition();
+    }
+}
+
+// ============================================================================
+// RR_OnPlayerDeath - team switch on death (core RR mechanic)
+// Binary: 0x10065760
+//
+// Non-infected mode: dead player swaps to opposite team.
+// Infected mode: only blue->red on death, fires EV_INFECTED event,
+//   resets infection timer, awards survival bonus, tracks last survivor.
+// ============================================================================
+void RR_OnPlayerDeath(gentity_t *victim) {
+    int redAlive, blueAlive;
+    int killedTeam;
+
+    // Process pending round state transition
     if (level.roundState.tNext != 0) {
         if (level.time < level.roundState.tNext)
             return;
@@ -335,40 +491,80 @@ void RR_RunFrame(void) {
     if (level.intermissionQueued || level.intermissionTime || level.warmupTime)
         return;
 
-    UpdateTeamAliveCount(&redAlive, &blueAlive);
-
-    // [QL] Infection mode: periodic team switch + survival bonus
-    RR_CheckInfection();
-    RR_SurvivalBonus(0);
-
-    if (redAlive == 0 || blueAlive == 0) {
-        level.roundState.eCurrent = RS_ROUND_OVER;
-        RR_RoundStateTransition();
-        return;
-    }
-
-    // Round timelimit
-    if (roundtimelimit.integer != 0 &&
-        level.time - level.roundState.startTime >= roundtimelimit.integer * 1000) {
-        level.roundState.eCurrent = RS_ROUND_OVER;
-        RR_RoundStateTransition();
-    }
-}
-
-// ============================================================================
-// RR_OnPlayerDeath - team switch on death (core RR mechanic)
-// ============================================================================
-void RR_OnPlayerDeath(gentity_t *victim) {
-    if (level.roundState.eCurrent != RS_PLAYING)
-        return;
     if (!victim->client)
         return;
 
-    // Switch team on death
-    if (victim->client->sess.sessionTeam == TEAM_RED) {
-        SetTeam(victim, "blue");
-    } else if (victim->client->sess.sessionTeam == TEAM_BLUE) {
-        SetTeam(victim, "red");
+    killedTeam = victim->client->sess.sessionTeam;
+
+    // Team switch on death (binary: direct sess.sessionTeam set + ClientUserinfoChanged)
+    if (g_rrInfected.integer == 0 || killedTeam == TEAM_BLUE) {
+        // Non-infected: swap any dead player; infected: only blue->red
+        int newTeam = (killedTeam == TEAM_RED) ? TEAM_BLUE : TEAM_RED;
+        victim->client->sess.sessionTeam = newTeam;
+        ClientUserinfoChanged(victim->client->ps.clientNum);
+
+        // In infected mode, fire EV_INFECTED event (binary: SVF_SINGLECLIENT to victim)
+        if (g_rrInfected.integer != 0) {
+            gentity_t *te = G_TempEntity(victim->r.currentOrigin, EV_INFECTED);
+            te->r.svFlags |= SVF_SINGLECLIENT;
+            te->r.singleClient = victim->client->ps.clientNum;
+            te->s.otherEntityNum2 = victim->client->ps.clientNum;
+        }
+    }
+
+    UpdateTeamAliveCount(&redAlive, &blueAlive);
+
+    // Infected mode: reset infection timer + survival bonus on blue death
+    if (g_rrInfected.integer != 0 && killedTeam == TEAM_BLUE) {
+        rr_infectionStartTime = level.time;
+        RR_SurvivalBonus(1);
+        if (blueAlive == 0) {
+            rr_lastBlueClient = victim->client->ps.clientNum;
+        }
+    }
+
+    // Last man standing announcement
+    if (redAlive != 0 && blueAlive != 0 && g_lastManStandingWarning.integer != 0) {
+        if (redAlive == 1 && killedTeam == TEAM_RED && g_rrInfected.integer == 0) {
+            LastManStanding(TEAM_RED);
+        } else if (blueAlive == 1 && killedTeam == TEAM_BLUE) {
+            LastManStanding(TEAM_BLUE);
+        }
+    }
+}
+
+/*
+============
+ClientSpawn_RedRover
+
+[QL] Post-spawn adjustments for Red Rover. Binary: 0x10064640
+In infected mode, red team gets forced loadout flags (gauntlet only, promode, double jump).
+Blue team respects pmove cvars. Freezes during warmup/countdown.
+============
+*/
+void ClientSpawn_RedRover(gentity_t *ent) {
+    if (g_rrInfected.integer != 0) {
+        gclient_t *cl = ent->client;
+        if (cl->sess.sessionTeam == TEAM_RED) {
+            // Zombies: forced loadout (gauntlet only), promode, double jump
+            cl->ps.pm_flags |= PMF_LOADOUT_FORCED;
+            cl->ps.pm_flags |= PMF_DOUBLE_JUMPED;
+            cl->ps.pm_flags |= PMF_PROMODE;
+        } else {
+            // Survivors: clear forced loadout, respect pmove cvars
+            cl->ps.pm_flags &= ~PMF_LOADOUT_FORCED;
+            if (!pmove_DoubleJump.integer) {
+                cl->ps.pm_flags &= ~PMF_DOUBLE_JUMPED;
+            }
+            if (!pmove_AirControl.integer) {
+                cl->ps.pm_flags &= ~PMF_PROMODE;
+            }
+        }
+    }
+
+    // Freeze during warmup or countdown
+    if (level.warmupTime > 0 || level.roundState.eCurrent == RS_COUNTDOWN) {
+        ent->client->ps.pm_flags |= PMF_FROZEN;
     }
 }
 
@@ -382,7 +578,7 @@ ClientBegin_RedRover
 void ClientBegin_RedRover(gentity_t* ent) {
     gclient_t* client = ent->client;
 
-    if (level.roundState.eCurrent != 1) {
+    if (level.roundState.eCurrent != RS_COUNTDOWN) {
         // not in countdown: normal spawn
         ClientSpawn(ent);
         SelectSpawnWeapon(ent);

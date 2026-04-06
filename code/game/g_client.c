@@ -1210,6 +1210,17 @@ void ClientSpawn(gentity_t* ent) {
         ent->health = client->ps.stats[STAT_HEALTH] = startHealth;
     }
 
+    // [QL] RR Infection: zombie health bonus + gauntlet only (binary: SelectSpawnLoadout)
+    if (g_gametype.integer == GT_RR && g_rrInfected.integer != 0
+        && client->sess.sessionTeam == TEAM_RED) {
+        int zombieHealth = g_startingHealth.integer + g_rrInfectedZombieHealthBonus.integer;
+        if (zombieHealth > 999) zombieHealth = 999;
+        ent->health = client->ps.stats[STAT_HEALTH] = zombieHealth;
+        client->ps.stats[STAT_WEAPONS] = (1 << WP_GAUNTLET);
+        client->ps.ammo[WP_GAUNTLET] = -1;
+        client->ps.weapon = WP_GAUNTLET;
+    }
+
     // [QL] starting armor from cvar
     client->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
 
@@ -1276,6 +1287,9 @@ void ClientSpawn(gentity_t* ent) {
             && level.roundState.eCurrent != 0) {
             client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
         }
+        break;
+    case GT_RR:
+        ClientSpawn_RedRover(ent);
         break;
     default:
         break;

@@ -260,6 +260,7 @@ typedef enum {
 #define PMF_PROMODE         0x10000  // [QL] CPM/PQL air control mode active
 #define PMF_DOUBLE_JUMPED   0x20000  // [QL] double jump tracking
 #define PMF_NO_AUTOHOP      0x40000  // [QL] auto-hop control
+#define PMF_LOADOUT_FORCED  0x80000  // [QL] RR infection: zombie forced loadout (gauntlet only)
 #define PMF_CROUCH_SLIDE    0x100000 // [QL] crouch slide active
 
 #define PMF_ALL_TIMES (PMF_TIME_WATERJUMP | PMF_TIME_LAND | PMF_TIME_KNOCKBACK | PMF_TIME_GRAPPLE)
