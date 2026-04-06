@@ -2650,35 +2650,76 @@ static void UI_RunMenuScript(char** args) {
             // do nothing - the Quake Live menus do this often so don't error out in console.
         } else if (Q_stricmp(name, "clearComError") == 0) {
 			trap_Cvar_Set("com_errorMessage", "");
+        // [QL] Player action scripts — binary-verified from uix86.dll UI_RunScript
         } else if (Q_stricmp(name, "clientViewProfile") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientviewprofile %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "clientFriendInvite") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientfriendinvite %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "clientMutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientmute %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "modPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("addmod %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "adminPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("addadmin %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "deopPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
-        } else if (Q_stricmp(name, "putspec") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("demote %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "putred") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i r\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "putblue") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i b\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
+        } else if (Q_stricmp(name, "putspec") == 0) {
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i s\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "mutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("mute %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "unmutePlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("unmute %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "tempbanPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("tempban %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "banPlayer") == 0) {
-            Com_Printf("%s - Quake Live UI script not yet implemented.\n", name);
+            if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("ban %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
+            }
         } else if (Q_stricmp(name, "kickPlayer") == 0) {
             if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
-                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientkick %i\n", uiInfo.playerIndex));
+                trap_Cmd_ExecuteText(EXEC_APPEND, va("clientkick %i\n",
+                    uiInfo.teamClientNums[uiInfo.playerIndex]));
             }
         } else if (Q_stricmp(name, "teamModelChanged") == 0) {
             // [QL] Force team model preview to refresh
