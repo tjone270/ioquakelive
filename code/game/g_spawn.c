@@ -600,8 +600,9 @@ void SP_worldspawn(void) {
     G_SpawnString("enableDust", "0", &s);
     trap_Cvar_Set("g_enableDust", s);
 
+    // [QL] enableBreath worldspawn key still parsed by binary, but no cvar
+    // exposed; client controls breath via cg_breathPuffs.
     G_SpawnString("enableBreath", "0", &s);
-    trap_Cvar_Set("g_enableBreath", s);
 
     g_entities[ENTITYNUM_WORLD].s.number = ENTITYNUM_WORLD;
     g_entities[ENTITYNUM_WORLD].r.ownerNum = ENTITYNUM_NONE;
@@ -612,18 +613,20 @@ void SP_worldspawn(void) {
     g_entities[ENTITYNUM_NONE].classname = "nothing";
 
     // [QL] Parse loadout weapon disabling from worldspawn entity (binary: SP_worldspawn)
-    // Binary sets both the configstring and the g_disableLoadout cvar.
+    // Binary registers g_disableLoadout as a CVAR_GAMERULE cvar holding the bitmask;
+    // server also publishes the same value via CS_DISABLE_LOADOUT for the client.
     if (g_loadout.integer) {
+        int mask;
         G_SpawnString("disable_loadout", "", &s);
-        g_disableLoadoutMask = BG_ParseGametypeStringtoFlag(s);
-        trap_SetConfigstring(CS_DISABLE_LOADOUT, va("%i", g_disableLoadoutMask));
-        trap_Cvar_Set("g_disableLoadout", va("%i", g_disableLoadoutMask));
+        mask = BG_ParseGametypeStringtoFlag(s);
+        trap_Cvar_Set("g_disableLoadout", va("%i", mask));
+        trap_SetConfigstring(CS_DISABLE_LOADOUT, va("%i", mask));
     } else {
         // [QL] clear any stale mask so loadout toggle off propagates to the client
-        g_disableLoadoutMask = 0;
-        trap_SetConfigstring(CS_DISABLE_LOADOUT, "0");
         trap_Cvar_Set("g_disableLoadout", "0");
+        trap_SetConfigstring(CS_DISABLE_LOADOUT, "0");
     }
+    trap_Cvar_Update(&g_disableLoadout);
 
     // see if we want a warmup time
     if (g_restarted.integer) {

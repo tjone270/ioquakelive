@@ -406,8 +406,6 @@ typedef struct {
     int invulnerabilityStartTime;
     int invulnerabilityStopTime;
 
-    int breathPuffTime;
-
     // when clientinfo is changed, the loading of models/skins/sounds
     // can be deferred until you are dead, to prevent hitches in
     // gameplay
@@ -415,8 +413,6 @@ typedef struct {
     char skinName[MAX_QPATH];
     char headModelName[MAX_QPATH];
     char headSkinName[MAX_QPATH];
-    char redTeam[MAX_TEAMNAME];
-    char blueTeam[MAX_TEAMNAME];
     qboolean deferred;
 
     qboolean newAnims;    // true if using the new mission pack animations
@@ -1371,7 +1367,6 @@ extern vmCvar_t cg_drawStatus;
 extern vmCvar_t cg_draw2D;
 extern vmCvar_t cg_animSpeed;
 extern vmCvar_t cg_debugAnim;
-extern vmCvar_t cg_debugPosition;
 extern vmCvar_t cg_debugEvents;
 extern vmCvar_t cg_railTrailTime;
 extern vmCvar_t cg_errorDecay;
@@ -1400,7 +1395,6 @@ extern vmCvar_t cg_thirdPersonAngle;
 extern vmCvar_t cg_thirdPerson;
 extern vmCvar_t cg_lagometer;
 extern vmCvar_t cg_drawAttacker;
-extern vmCvar_t cg_synchronousClients;
 extern vmCvar_t cg_teamChatTime;
 extern vmCvar_t cg_teamChatHeight;
 extern vmCvar_t cg_stats;
@@ -1435,7 +1429,6 @@ extern vmCvar_t cg_trueLightning;
 extern vmCvar_t cg_currentSelectedPlayer;
 extern vmCvar_t cg_currentSelectedPlayerName;
 extern vmCvar_t cg_enableDust;
-extern vmCvar_t cg_enableBreath;
 extern vmCvar_t cg_recordSPDemo;
 extern vmCvar_t cg_recordSPDemoName;
 extern vmCvar_t cg_obeliskRespawnDelay;
@@ -1959,9 +1952,12 @@ int trap_GetCurrentCmdNumber(void);
 qboolean trap_GetUserCmd(int cmdNumber, usercmd_t* ucmd);
 
 // used for the weapon select and zoom
-// [QL] weaponPrimary added for loadout UI — passes queued primary weapon
-//      through to usercmd_t.weaponPrimary (offset 0x15). See cg_view.c.
-void trap_SetUserCmdValue(int stateValue, int weaponPrimary, float sensitivityScale);
+// [QL] 4-arg variant matches cgamex86.dll CG_DrawActiveFrame syscall:
+//   stateValue       → cmd.weapon         (usercmd_t offset 0x14)
+//   weaponPrimary    → cmd.weaponPrimary  (usercmd_t offset 0x15) - loadout
+//   sensitivityScale → mouse zoom sens (engine cl.cgameSensitivity)
+//   fov              → cmd.fov            (usercmd_t offset 0x16)
+void trap_SetUserCmdValue(int stateValue, int weaponPrimary, float sensitivityScale, int fov);
 
 // aids for VM testing
 void testPrintInt(char* string, int i);

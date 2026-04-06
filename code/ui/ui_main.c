@@ -1052,15 +1052,15 @@ static void UI_DrawGameType(rectDef_t* rect, float scale, vec4_t color, int text
 
 static void UI_DrawNetGameType(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
     if (ui_netGameType.integer < 0 || ui_netGameType.integer > uiInfo.numGameTypes) {
-        trap_Cvar_Set("ui_netGameType", "0");
-        trap_Cvar_Set("ui_actualNetGameType", "0");
+        trap_Cvar_Set("ui_netGametype", "0");
+        trap_Cvar_Set("ui_actualNetGametype", "0");
     }
     Text_Paint(rect->x, rect->y, scale, color, uiInfo.gameTypes[ui_netGameType.integer].gameType, 0, 0, textStyle);
 }
 
 static void UI_DrawJoinGameType(rectDef_t* rect, float scale, vec4_t color, int textStyle) {
     if (ui_joinGameType.integer < 0 || ui_joinGameType.integer > uiInfo.numJoinGameTypes) {
-        trap_Cvar_Set("ui_joinGameType", "0");
+        trap_Cvar_Set("ui_joinGametype", "0");
     }
     Text_Paint(rect->x, rect->y, scale, color, uiInfo.joinGameTypes[ui_joinGameType.integer].gameType, 0, 0, textStyle);
 }
@@ -1118,7 +1118,7 @@ static void UI_DrawPreviewCinematic(rectDef_t* rect, float scale, vec4_t color) 
 
 static void UI_DrawTeamName(rectDef_t* rect, float scale, vec4_t color, qboolean blue, int textStyle) {
     int i;
-    i = UI_TeamIndexFromName(UI_Cvar_VariableString((blue) ? "ui_blueTeam" : "ui_redTeam"));
+    i = UI_TeamIndexFromName(UI_Cvar_VariableString((blue) ? "ui_blueteam" : "ui_redteam"));
     if (i >= 0 && i < uiInfo.teamCount) {
         Text_Paint(rect->x, rect->y, scale, color, va("%s: %s", (blue) ? "Blue" : "Red", uiInfo.teamList[i].teamName), 0, 0, textStyle);
     }
@@ -1969,8 +1969,8 @@ static qboolean UI_NetGameType_HandleKey(int flags, float* special, int key) {
             ui_netGameType.integer = 0;
         }
 
-        trap_Cvar_SetValue("ui_netGameType", ui_netGameType.integer);
-        trap_Cvar_SetValue("ui_actualnetGameType", uiInfo.gameTypes[ui_netGameType.integer].gtEnum);
+        trap_Cvar_SetValue("ui_netGametype", ui_netGameType.integer);
+        trap_Cvar_SetValue("ui_actualNetGametype", uiInfo.gameTypes[ui_netGameType.integer].gtEnum);
         trap_Cvar_SetValue("ui_currentNetMap", 0);
         UI_MapCountByGameType(qfalse);
         Menu_SetFeederSelection(NULL, FEEDER_ALLMAPS, 0, NULL);
@@ -1990,7 +1990,7 @@ static qboolean UI_JoinGameType_HandleKey(int flags, float* special, int key) {
             ui_joinGameType.integer = 0;
         }
 
-        trap_Cvar_SetValue("ui_joinGameType", ui_joinGameType.integer);
+        trap_Cvar_SetValue("ui_joinGametype", ui_joinGameType.integer);
         return qtrue;
     }
     return qfalse;
@@ -2001,7 +2001,7 @@ static qboolean UI_TeamName_HandleKey(int flags, float* special, int key, qboole
     if (select != 0) {
         int i;
 
-        i = UI_TeamIndexFromName(UI_Cvar_VariableString((blue) ? "ui_blueTeam" : "ui_redTeam"));
+        i = UI_TeamIndexFromName(UI_Cvar_VariableString((blue) ? "ui_blueteam" : "ui_redteam"));
         i += select;
 
         if (i >= uiInfo.teamCount) {
@@ -2010,7 +2010,7 @@ static qboolean UI_TeamName_HandleKey(int flags, float* special, int key, qboole
             i = uiInfo.teamCount - 1;
         }
 
-        trap_Cvar_Set((blue) ? "ui_blueTeam" : "ui_redTeam", uiInfo.teamList[i].teamName);
+        trap_Cvar_Set((blue) ? "ui_blueteam" : "ui_redteam", uiInfo.teamList[i].teamName);
         return qtrue;
     }
     return qfalse;
@@ -2327,10 +2327,10 @@ static void UI_StartSkirmish(qboolean next) {
     trap_Cvar_Set("ui_doWarmup", va("%i", temp));
     temp = trap_Cvar_VariableValue("g_friendlyFire");
     trap_Cvar_Set("ui_friendlyFire", va("%i", temp));
-    temp = trap_Cvar_VariableValue("sv_maxClients");
+    temp = trap_Cvar_VariableValue("sv_maxclients");
     trap_Cvar_Set("ui_maxClients", va("%i", temp));
     temp = trap_Cvar_VariableValue("g_warmup");
-    trap_Cvar_Set("ui_Warmup", va("%i", temp));
+    trap_Cvar_Set("ui_warmup", va("%i", temp));
     temp = trap_Cvar_VariableValue("sv_pure");
     trap_Cvar_Set("ui_pure", va("%i", temp));
 
@@ -2352,7 +2352,7 @@ static void UI_StartSkirmish(qboolean next) {
     delay = 500;
 
     if (g == GT_DUEL) {
-        trap_Cvar_Set("sv_maxClients", "2");
+        trap_Cvar_Set("sv_maxclients", "2");
         Com_sprintf(buff, sizeof(buff),
                     "wait ; addbot %s %f "
                     ", %i \n",
@@ -2360,7 +2360,7 @@ static void UI_StartSkirmish(qboolean next) {
         trap_Cmd_ExecuteText(EXEC_APPEND, buff);
     } else {
         temp = uiInfo.mapList[ui_currentMap.integer].teamMembers * 2;
-        trap_Cvar_Set("sv_maxClients", va("%d", temp));
+        trap_Cvar_Set("sv_maxclients", va("%d", temp));
         for (i = 0; i < uiInfo.mapList[ui_currentMap.integer].teamMembers; i++) {
             Com_sprintf(buff, sizeof(buff), "addbot %s %f %s %i %s\n", UI_AIFromName(uiInfo.teamList[k].teamMembers[i]), skill, (g == GT_FFA) ? "" : "Blue", delay, uiInfo.teamList[k].teamMembers[i]);
             trap_Cmd_ExecuteText(EXEC_APPEND, buff);
@@ -2529,7 +2529,7 @@ static void UI_RunMenuScript(char** args) {
             trap_Cmd_ExecuteText(EXEC_APPEND, va("wait ; wait ; map %s\n", uiInfo.mapList[ui_currentNetMap.integer].mapLoadName));
             skill = trap_Cvar_VariableValue("g_spSkill");
             // set max clients based on spots
-            clients = trap_Cvar_VariableValue("sv_maxClients");
+            clients = trap_Cvar_VariableValue("sv_maxclients");
         } else if (Q_stricmp(name, "resetDefaults") == 0) {
             trap_Cmd_ExecuteText(EXEC_APPEND, "exec default.cfg\n");
             trap_Cmd_ExecuteText(EXEC_APPEND, "cvar_restart\n");
@@ -2650,7 +2650,7 @@ static void UI_RunMenuScript(char** args) {
             // do nothing - the Quake Live menus do this often so don't error out in console.
         } else if (Q_stricmp(name, "clearComError") == 0) {
 			trap_Cvar_Set("com_errorMessage", "");
-        // [QL] Player action scripts — binary-verified from uix86.dll UI_RunScript
+        // [QL] Player action scripts - binary-verified from uix86.dll UI_RunScript
         } else if (Q_stricmp(name, "clientViewProfile") == 0) {
             if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
                 trap_Cmd_ExecuteText(EXEC_APPEND, va("clientviewprofile %i\n",
@@ -2772,15 +2772,15 @@ static int UI_MapCountByGameType(qboolean singlePlayer) {
 /*
 ==================
 UI_MapCountByCallvoteGameType
-[QL] Filters maps by the gametype selected in the callvote dropdown (ui_cvgametype).
-Unlike UI_MapCountByGameType, ui_cvgametype holds a direct gametype enum value, not an index.
+[QL] Filters maps by the gametype selected in the callvote dropdown (ui_cvGameType).
+Unlike UI_MapCountByGameType, ui_cvGameType holds a direct gametype enum value, not an index.
 -1 means "Default" (use current gametype from cg_gametype).
 ==================
 */
 static int UI_MapCountByCallvoteGameType(void) {
     int i, c, game;
     c = 0;
-    game = ui_cvgametype.integer;
+    game = ui_cvGameType.integer;
     if (game < 0) {
         // "Default" - use current gametype
         game = (int)trap_Cvar_VariableValue("cg_gametype");
@@ -3740,7 +3740,7 @@ void _UI_Init(qboolean inGameLoad) {
 
     trap_Cvar_Register(NULL, "debug_protocol", "", 0);
 
-    trap_Cvar_Set("ui_actualNetGameType", va("%d", ui_netGameType.integer));
+    trap_Cvar_Set("ui_actualNetGametype", va("%d", ui_netGameType.integer));
 }
 
 /*
@@ -4172,7 +4172,6 @@ vmCvar_t ui_teamName;
 vmCvar_t ui_dedicated;
 vmCvar_t ui_gameType;
 vmCvar_t ui_netGameType;
-vmCvar_t ui_cvgametype;
 vmCvar_t ui_actualNetGameType;
 vmCvar_t ui_joinGameType;
 vmCvar_t ui_netSource;
@@ -4279,6 +4278,11 @@ vmCvar_t ui_mousePitch;
 vmCvar_t ui_favoriteName;
 vmCvar_t ui_favoriteAddress;
 
+
+// [QL] missing UI cvars from binary parity audit (3)
+vmCvar_t ui_cg_announcer;
+vmCvar_t ui_cdkeychecked;
+vmCvar_t ui_singlePlayerActive;
 static cvarTable_t cvarTable[] = {
     {&ui_ffa_fraglimit, "ui_ffa_fraglimit", "20", CVAR_ARCHIVE},
     {&ui_ffa_timelimit, "ui_ffa_timelimit", "0", CVAR_ARCHIVE},
@@ -4294,8 +4298,8 @@ static cvarTable_t cvarTable[] = {
     {&ui_ctf_timelimit, "ui_ctf_timelimit", "30", CVAR_ARCHIVE},
     {&ui_ctf_friendly, "ui_ctf_friendly", "0", CVAR_ARCHIVE},
 
-    {&ui_arenasFile, "g_arenasFile", "", CVAR_INIT | CVAR_ROM},
-    {&ui_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM},
+    {&ui_arenasFile, "g_arenasFile", "", CVAR_ROM | CVAR_INIT},
+    {&ui_botsFile, "g_botsFile", "", CVAR_ROM | CVAR_INIT},
 
     {&ui_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE},
     {&ui_drawCrosshair, "cg_drawCrosshair", "2", CVAR_ARCHIVE},
@@ -4308,10 +4312,9 @@ static cvarTable_t cvarTable[] = {
     {&ui_gameType, "ui_gametype", "3", CVAR_ARCHIVE},
     {&ui_joinGameType, "ui_joinGametype", "0", CVAR_ARCHIVE},
     {&ui_netGameType, "ui_netGametype", "3", CVAR_ARCHIVE},
-    {&ui_cvgametype, "ui_cvgametype", "-1", CVAR_ARCHIVE},
     {&ui_actualNetGameType, "ui_actualNetGametype", "3", CVAR_ARCHIVE},
-    {&ui_blueteam, "ui_blueTeam", "Stroggs", CVAR_ARCHIVE},
-    {&ui_redteam, "ui_redTeam", "Pagans", CVAR_ARCHIVE},
+    {&ui_blueteam, "ui_blueteam", "Stroggs", CVAR_ARCHIVE},
+    {&ui_redteam, "ui_redteam", "Pagans", CVAR_ARCHIVE},
     {&ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE},
     {&ui_menuFiles, "ui_menuFiles", "ui/menus.txt", CVAR_ARCHIVE},
     {&ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE},
@@ -4337,13 +4340,13 @@ static cvarTable_t cvarTable[] = {
     {&ui_scoreShutoutBonus, "ui_scoreShutoutBonus", "0", CVAR_ARCHIVE},
     {&ui_fragLimit, "ui_fragLimit", "10", 0},
     {&ui_captureLimit, "ui_captureLimit", "5", 0},
-    {&ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
-    {&ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
+    {&ui_smallFont, "ui_smallFont", "0.25", CVAR_REPLICATE | CVAR_ARCHIVE},
+    {&ui_bigFont, "ui_bigFont", "0.4", CVAR_REPLICATE | CVAR_ARCHIVE},
     {&ui_findPlayer, "ui_findPlayer", "Sarge", CVAR_ARCHIVE},
     {&ui_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_ARCHIVE},
     {&ui_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
     {&ui_realWarmUp, "g_warmup", "10", CVAR_ARCHIVE},
-    {&ui_realCaptureLimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART},
+    {&ui_realCaptureLimit, "capturelimit", "8", CVAR_NORESTART | CVAR_SERVERINFO | CVAR_ARCHIVE},
     {&ui_serverStatusTimeOut, "ui_serverStatusTimeOut", "7000", CVAR_ARCHIVE},
 
     // [QL additions] - player 2 duel scores
@@ -4366,25 +4369,25 @@ static cvarTable_t cvarTable[] = {
     // [QL additions] - model/skin customization
     {&ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_TEMP},
     {&ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_TEMP},
-    {&ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE},
-    {&ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE},
+    {&ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_TEMP},
+    {&ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_TEMP},
     {&ui_forceTeamModelBright, "ui_forceTeamModelBright", "0", CVAR_ROM},
-    {&ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ARCHIVE},
+    {&ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ROM},
     {&ui_teamColor, "ui_teamColor", "0", CVAR_ARCHIVE},
     {&ui_enemyColor, "ui_enemyColor", "0", CVAR_ARCHIVE},
     {&ui_teamHeadColor, "ui_teamHeadColor", "96", CVAR_ARCHIVE},
-    {&ui_teamUpperColor, "ui_teamUpperColor", "23", CVAR_ARCHIVE},
-    {&ui_teamLowerColor, "ui_teamLowerColor", "23", CVAR_ARCHIVE},
+    {&ui_teamUpperColor, "ui_teamUpperColor", "96", CVAR_ARCHIVE},
+    {&ui_teamLowerColor, "ui_teamLowerColor", "96", CVAR_ARCHIVE},
     {&ui_enemyHeadColor, "ui_enemyHeadColor", "27", CVAR_ARCHIVE},
-    {&ui_enemyUpperColor, "ui_enemyUpperColor", "2", CVAR_ARCHIVE},
-    {&ui_enemyLowerColor, "ui_enemyLowerColor", "2", CVAR_ARCHIVE},
+    {&ui_enemyUpperColor, "ui_enemyUpperColor", "27", CVAR_ARCHIVE},
+    {&ui_enemyLowerColor, "ui_enemyLowerColor", "27", CVAR_ARCHIVE},
 
     // [QL additions] - game settings
     {&ui_doWarmup, "ui_doWarmup", "0", CVAR_ARCHIVE},
     {&ui_warmup, "ui_warmup", "0", CVAR_ARCHIVE},
     {&ui_pure, "ui_pure", "1", CVAR_ARCHIVE},
     {&ui_friendlyFire, "ui_friendlyFire", "1", CVAR_ARCHIVE},
-    {&ui_cvGameType, "ui_cvGameType", "-1", CVAR_ARCHIVE},
+    {&ui_cvGameType, "ui_cvGameType", "-1", 0},
     {&ui_matchStartTime, "ui_matchStartTime", "0", CVAR_ROM},
     {&ui_saveCaptureLimit, "ui_saveCaptureLimit", "5", CVAR_ARCHIVE},
     {&ui_saveFragLimit, "ui_saveFragLimit", "10", CVAR_ARCHIVE},
@@ -4433,16 +4436,16 @@ static cvarTable_t cvarTable[] = {
     {NULL, "server16", "", CVAR_ARCHIVE},
 
     // [QL additions] - team bot names
-    {NULL, "ui_blueTeam1", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam2", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam3", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam4", "", CVAR_ARCHIVE},
-    {NULL, "ui_blueTeam5", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam1", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam2", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam3", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam4", "", CVAR_ARCHIVE},
-    {NULL, "ui_redTeam5", "", CVAR_ARCHIVE},
+    {NULL, "ui_blueteam1", "0", CVAR_ARCHIVE},
+    {NULL, "ui_blueteam2", "0", CVAR_ARCHIVE},
+    {NULL, "ui_blueteam3", "0", CVAR_ARCHIVE},
+    {NULL, "ui_blueteam4", "0", CVAR_ARCHIVE},
+    {NULL, "ui_blueteam5", "0", CVAR_ARCHIVE},
+    {NULL, "ui_redteam1", "0", CVAR_ARCHIVE},
+    {NULL, "ui_redteam2", "0", CVAR_ARCHIVE},
+    {NULL, "ui_redteam3", "0", CVAR_ARCHIVE},
+    {NULL, "ui_redteam4", "0", CVAR_ARCHIVE},
+    {NULL, "ui_redteam5", "0", CVAR_ARCHIVE},
 
     // [QL additions] - server browser refresh timestamps
     {NULL, "ui_lastServerRefresh_0", "", CVAR_ARCHIVE},
@@ -4451,21 +4454,26 @@ static cvarTable_t cvarTable[] = {
     {NULL, "ui_lastServerRefresh_3", "", CVAR_ARCHIVE},
 
     // [QL additions] - misc Q3 cvars in binary table
-    {NULL, "ui_teamName", "", CVAR_ARCHIVE},
+    {NULL, "ui_teamName", "Pagans", CVAR_ARCHIVE},
     {NULL, "ui_new", "0", CVAR_TEMP},
-    {NULL, "ui_priv", "0", CVAR_TEMP},
-    {NULL, "g_spAwards", "", CVAR_ARCHIVE},
+    {NULL, "ui_priv", "0", CVAR_ROM},
+    {NULL, "g_spAwards", "", CVAR_ROM | CVAR_ARCHIVE},
     {NULL, "g_spSkill", "2", CVAR_ARCHIVE},
-    {NULL, "g_spScores1", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores2", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores3", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores4", "", CVAR_ARCHIVE},
-    {NULL, "g_spScores5", "", CVAR_ARCHIVE},
-    {NULL, "g_spVideos", "", CVAR_ARCHIVE},
+    {NULL, "g_spScores1", "", CVAR_ROM | CVAR_ARCHIVE},
+    {NULL, "g_spScores2", "", CVAR_ROM | CVAR_ARCHIVE},
+    {NULL, "g_spScores3", "", CVAR_ROM | CVAR_ARCHIVE},
+    {NULL, "g_spScores4", "", CVAR_ROM | CVAR_ARCHIVE},
+    {NULL, "g_spScores5", "", CVAR_ROM | CVAR_ARCHIVE},
+    {NULL, "g_spVideos", "", CVAR_ROM | CVAR_ARCHIVE},
     {NULL, "ui_spSelection", "", CVAR_ROM},
 
     {NULL, "ui_videomode", "", CVAR_ROM},
     {NULL, "g_localTeamPref", "", 0},
+    // [QL] missing UI cvars from binary parity audit
+    {&ui_cg_announcer, "cg_announcer", "1", CVAR_TEMP},
+    {&ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM},
+    {&ui_opponentName, "ui_opponentName", "Stroggs", CVAR_ARCHIVE},
+    {&ui_singlePlayerActive, "ui_singlePlayerActive", "0", 0},
 };
 
 static int cvarTableSize = ARRAY_LEN(cvarTable);

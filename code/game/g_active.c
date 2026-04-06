@@ -349,31 +349,78 @@ void SpectatorThink(gentity_t* ent, usercmd_t* ucmd) {
 =================
 ClientInactivityTimer
 
-Returns qfalse if the client is dropped
+[QL] Binary-rewritten from qagamex86.dll 0x10034090. Now an accumulator
+(inactivityTime += msec each frame, reset on any input). Honors:
+  g_inactivity         - kick threshold (seconds, 0 = disabled)
+  g_inactivityWarning  - seconds before kick to start warning (default 10)
+  g_dropInactive       - 1 = drop client, 0 = move to spectator + follow
+  g_debugInactivity    - log accumulator each frame
+Round-based gametypes only accumulate when pm_type == PM_NORMAL and the
+match isn't restarting.
+
+Returns qfalse if the client is dropped or moved to spectator.
 =================
 */
-qboolean ClientInactivityTimer(gclient_t* client) {
-    if (!g_inactivity.integer) {
-        // give everyone some time, so if the operator sets g_inactivity during
-        // gameplay, everyone isn't kicked
-        client->pers.inactivityTime = level.time + 60 * 1000;
+qboolean ClientInactivityTimer(gclient_t* client, int msec) {
+    int clientNum = client - level.clients;
+
+    // Reset on: no g_inactivity, any movement/attack input, spectators, or admins
+    if (g_inactivity.integer == 0 ||
+        (client->pers.cmd.buttons & BUTTON_ATTACK) ||
+        client->pers.cmd.forwardmove != 0 ||
+        client->pers.cmd.rightmove != 0 ||
+        client->pers.cmd.upmove != 0 ||
+        client->sess.sessionTeam == TEAM_SPECTATOR ||
+        client->sess.privileges > 1) {
+        client->pers.inactivityTime = 0;
         client->pers.inactivityWarning = qfalse;
-    } else if (client->pers.cmd.forwardmove ||
-               client->pers.cmd.rightmove ||
-               client->pers.cmd.upmove ||
-               (client->pers.cmd.buttons & BUTTON_ATTACK)) {
-        client->pers.inactivityTime = level.time + g_inactivity.integer * 1000;
-        client->pers.inactivityWarning = qfalse;
-    } else if (!client->pers.localClient) {
-        if (level.time > client->pers.inactivityTime) {
-            trap_DropClient(client - level.clients, "Dropped due to inactivity");
-            return qfalse;
-        }
-        if (level.time > client->pers.inactivityTime - 10000 && !client->pers.inactivityWarning) {
-            client->pers.inactivityWarning = qtrue;
-            trap_SendServerCommand(client - level.clients, "cp \"Ten seconds until inactivity drop!\n\"");
+    } else {
+        // Round-based gametypes only accumulate during active play
+        qboolean isRoundBased = (g_gametype.integer == GT_CA ||
+                                 g_gametype.integer == GT_FREEZE ||
+                                 g_gametype.integer == GT_AD ||
+                                 g_gametype.integer == GT_RR);
+        if ((!isRoundBased || client->ps.pm_type == PM_NORMAL) && !level.restarted) {
+            client->pers.inactivityTime += msec;
+
+            if (!client->pers.localClient) {
+                if (client->pers.inactivityTime > g_inactivity.integer * 1000) {
+                    if (g_dropInactive.integer) {
+                        trap_DropClient(clientNum, "Dropped due to inactivity");
+                        return qfalse;
+                    }
+                    SetTeam(&g_entities[clientNum], "spectator");
+                    Cmd_FollowCycle_f(&g_entities[clientNum], 1);
+                    return qfalse;
+                }
+
+                if (client->pers.inactivityTime >
+                        (g_inactivity.integer - g_inactivityWarning.integer) * 1000 &&
+                    !client->pers.inactivityWarning) {
+                    const char* plural = (g_inactivityWarning.integer != 1) ? "s" : "";
+                    client->pers.inactivityWarning = qtrue;
+                    trap_SendServerCommand(clientNum,
+                        va("cp \"%i second%s until dropped for inactivity!\n\"",
+                           g_inactivityWarning.integer, plural));
+                }
+            }
         }
     }
+
+    // Track last user input time for non-spectators (used elsewhere)
+    if (client->ps.pm_type != PM_SPECTATOR) {
+        if (client->pers.cmd.forwardmove != 0 ||
+            client->pers.cmd.rightmove != 0 ||
+            client->pers.cmd.upmove != 0 ||
+            (client->pers.cmd.buttons & BUTTON_ATTACK)) {
+            client->lastUserCmdTime = level.time;
+        }
+    }
+
+    if (g_debugInactivity.integer) {
+        G_Printf("client:%i inactivity:%i\n", clientNum, client->pers.inactivityTime);
+    }
+
     return qtrue;
 }
 
@@ -764,9 +811,6 @@ ClientThink
 
 This will be called once for each client frame, which will
 usually be a couple times for each server frame on fast clients.
-
-If "g_synchronousClients 1" is set, this will be called exactly
-once for each server frame, which makes for smooth demo recording.
 ==============
 */
 
@@ -827,7 +871,7 @@ void ClientThink_real(gentity_t* ent) {
     }
 
     // check for inactivity timer, but never drop the local client of a non-dedicated server
-    if (!ClientInactivityTimer(client)) {
+    if (!ClientInactivityTimer(client, msec)) {
         return;
     }
 
@@ -956,11 +1000,8 @@ void ClientThink_real(gentity_t* ent) {
     if (ent->client->ps.eventSequence != oldEventSequence) {
         ent->eventTime = level.time;
     }
-    if (g_smoothClients.integer) {
-        BG_PlayerStateToEntityStateExtraPolate(&ent->client->ps, &ent->s, ent->client->ps.commandTime, qtrue);
-    } else {
-        BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qtrue);
-    }
+    // [QL] Binary always extrapolates (no g_smoothClients escape hatch).
+    BG_PlayerStateToEntityStateExtraPolate(&ent->client->ps, &ent->s, ent->client->ps.commandTime, qtrue);
     SendPendingPredictableEvents(&ent->client->ps);
 
     if (!(ent->client->ps.eFlags & EF_FIRING)) {
@@ -1043,13 +1084,16 @@ void ClientThink(int clientNum) {
     // phone jack if they don't get any for a while
     ent->client->lastCmdTime = level.time;
 
-    if (!(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer) {
+    // [QL] Binary always runs ClientThink async (no g_synchronousClients).
+    if (!(ent->r.svFlags & SVF_BOT)) {
         ClientThink_real(ent);
     }
 }
 
 void G_RunClient(gentity_t* ent) {
-    if (!(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer) {
+    // [QL] Bots only — humans are run from ClientThink. Binary has no
+    // g_synchronousClients escape hatch.
+    if (!(ent->r.svFlags & SVF_BOT)) {
         return;
     }
     ent->client->pers.cmd.serverTime = level.time;
@@ -1180,11 +1224,8 @@ void ClientEndFrame(gentity_t* ent) {
     G_SetClientSound(ent);
 
     // set the latest infor
-    if (g_smoothClients.integer) {
-        BG_PlayerStateToEntityStateExtraPolate(&ent->client->ps, &ent->s, ent->client->ps.commandTime, qtrue);
-    } else {
-        BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qtrue);
-    }
+    // [QL] Binary always extrapolates (no g_smoothClients escape hatch).
+    BG_PlayerStateToEntityStateExtraPolate(&ent->client->ps, &ent->s, ent->client->ps.commandTime, qtrue);
     SendPendingPredictableEvents(&ent->client->ps);
 
     // [QL] Lag compensation - store position history

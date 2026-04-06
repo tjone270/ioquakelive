@@ -58,7 +58,6 @@ extern vmCvar_t ui_captureLimit;
 extern vmCvar_t ui_fragLimit;
 extern vmCvar_t ui_gameType;
 extern vmCvar_t ui_netGameType;
-extern vmCvar_t ui_cvgametype;
 extern vmCvar_t ui_actualNetGameType;
 extern vmCvar_t ui_joinGameType;
 extern vmCvar_t ui_netSource;
@@ -159,6 +158,11 @@ extern vmCvar_t ui_favoriteName;
 extern vmCvar_t ui_favoriteAddress;
 
 
+
+// [QL] missing UI cvars from binary parity audit
+extern vmCvar_t ui_cg_announcer;
+extern vmCvar_t ui_cdkeychecked;
+extern vmCvar_t ui_singlePlayerActive;
 //
 // ui_qmenu.c
 //

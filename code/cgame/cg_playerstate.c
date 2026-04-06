@@ -208,6 +208,10 @@ void CG_Respawn(void) {
     // select the weapon the server says we are using
     cg.weaponSelect = cg.snap->ps.weapon;
 
+    // [QL] mirror loadout primary into ROM cvar so HUD/UI elements can read
+    // the actual server-side selection. Matches qagame cgamex86.dll CG_Respawn.
+    trap_Cvar_Set("cg_weaponPrimary", va("%i", cg.snap->ps.weaponPrimary));
+
     // [QL] Race: reset checkpoints on respawn
     if (cgs.gametype == GT_RACE) {
         memset(&cg.race, 0, sizeof(cg.race));

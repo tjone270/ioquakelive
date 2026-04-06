@@ -676,8 +676,6 @@ void ClientUserinfoChanged(int clientNum) {
     gclient_t* client;
     char c1[MAX_INFO_STRING];
     char c2[MAX_INFO_STRING];
-    char redTeam[MAX_INFO_STRING];
-    char blueTeam[MAX_INFO_STRING];
     char userinfo[MAX_INFO_STRING];
 
     ent = g_entities + clientNum;
@@ -786,9 +784,6 @@ void ClientUserinfoChanged(int clientNum) {
     Q_strncpyz(c1, Info_ValueForKey(userinfo, "color1"), sizeof(c1));
     Q_strncpyz(c2, Info_ValueForKey(userinfo, "color2"), sizeof(c2));
 
-    Q_strncpyz(redTeam, Info_ValueForKey(userinfo, "g_redteam"), sizeof(redTeam));
-    Q_strncpyz(blueTeam, Info_ValueForKey(userinfo, "g_blueteam"), sizeof(blueTeam));
-
     // send over a subset of the userinfo keys so other clients can
     // print scoreboards, display models, and play custom sounds
     if (ent->r.svFlags & SVF_BOT) {
@@ -797,8 +792,8 @@ void ClientUserinfoChanged(int clientNum) {
                client->pers.maxHealth, client->sess.wins, client->sess.losses,
                Info_ValueForKey(userinfo, "skill"), teamTask, teamLeader);
     } else {
-        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d",
-               client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2,
+        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d",
+               client->pers.netname, client->sess.sessionTeam, model, headModel, c1, c2,
                client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader);
     }
 
@@ -1182,7 +1177,7 @@ void ClientSpawn(gentity_t* ent) {
         if (g_loadout.integer && !(client->ps.pm_flags & PMF_FROZEN)) {
             int wp = client->sess.weaponPrimary;
             qboolean invalid = (wp <= 0 || wp >= WP_NUM_WEAPONS ||
-                                (g_disableLoadoutMask & (1 << wp)) != 0);
+                                (g_disableLoadout.integer & (1 << wp)) != 0);
             if (invalid) {
                 if (!isBot) {
                     client->sess.weaponPrimary = WP_HMG;
@@ -1192,7 +1187,7 @@ void ClientSpawn(gentity_t* ent) {
                     int picked = 0;
                     for (tries = 0; tries < 16 && picked == 0; tries++) {
                         int r = (rand() % (WP_NUM_WEAPONS - 1)) + 1;
-                        if (!(g_disableLoadoutMask & (1 << r))) {
+                        if (!(g_disableLoadout.integer & (1 << r))) {
                             picked = r;
                         }
                     }
@@ -1201,11 +1196,11 @@ void ClientSpawn(gentity_t* ent) {
             }
         }
 
-        // Path 1: Loadout grant — weaponPrimary (if loadout enabled, not frozen, not disabled)
+        // Path 1: Loadout grant - weaponPrimary (if loadout enabled, not frozen, not disabled)
         // Binary: GiveStartingAmmo first loop
         if (g_loadout.integer && !(client->ps.pm_flags & PMF_FROZEN)) {
             int wp = client->sess.weaponPrimary;
-            if (wp > 0 && wp < WP_NUM_WEAPONS && !(g_disableLoadoutMask & (1 << wp))) {
+            if (wp > 0 && wp < WP_NUM_WEAPONS && !(g_disableLoadout.integer & (1 << wp))) {
                 client->ps.stats[STAT_WEAPONS] |= (1 << wp);
                 if (startingAmmoCvars[wp]) {
                     client->ps.ammo[wp] = startingAmmoCvars[wp]->integer;
@@ -1213,7 +1208,7 @@ void ClientSpawn(gentity_t* ent) {
             }
         }
 
-        // Path 2: Normal bitmask grant — runs regardless of loadout mode
+        // Path 2: Normal bitmask grant - runs regardless of loadout mode
         // Binary: GiveStartingAmmo second block (unconditional on loadout)
         for (w = WP_GAUNTLET; w < WP_NUM_WEAPONS; w++) {
             if (g_startingWeapons.integer & (1 << (w - 1))) {
@@ -1328,7 +1323,8 @@ void ClientSpawn(gentity_t* ent) {
     }
 
     client->respawnTime = level.time;
-    client->pers.inactivityTime = level.time + g_inactivity.integer * 1000;
+    client->pers.inactivityTime = 0;  // [QL] accumulator-based; reset to zero on spawn
+    client->pers.inactivityWarning = qfalse;
 
     // set default animations
     client->ps.torsoAnim = TORSO_STAND;

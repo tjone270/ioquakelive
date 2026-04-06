@@ -80,9 +80,9 @@ float pm_wishSpeed = 400.0f;
 int pm_weaponDropTime = 200;
 int pm_weaponRaiseTime = 200;
 int pm_noPlayerClip = 0;
-float pm_hookPullVelocity = 800.0f;
 int pm_doubleJump = 0;
 int pm_crouchSlide = 0;
+// [QL] Grappling hook pull velocity. Binary cvar: pmove_velocity_gh.
 float pm_velocityGH = 800.0f;
 
 // [QL] backup globals - server-configured values that VQ3 mode restores from.
@@ -111,7 +111,6 @@ void PM_SetCircleStrafeFriction(float value)          { pm_circleStrafeFriction 
 void PM_SetCrouchSlideFriction(float value)           { pm_crouchSlideFriction = value; }
 void PM_SetCrouchSlideTime(int value)                 { pm_crouchSlideTime = value; }
 void PM_SetCrouchStepJump(int value)                  { pm_crouchStepJump = value; }
-void PM_SetHookPullVelocity(float value)              { pm_hookPullVelocity = value; }
 void PM_SetJumpTimeDeltaMin(float value)              { pm_jumpTimeDeltaMin = value; }
 void PM_SetJumpVelocity(float value)                  { pm_jumpVelocity = value; }
 void PM_SetJumpVelocityMax(float value)               { pm_jumpVelocityMax = value; }
@@ -1093,7 +1092,7 @@ static void PM_GrappleMove(void) {
     vec3_t vel, v;
     float vlen;
 
-    if (pm_hookPullVelocity == 0.0f) {
+    if (pm_velocityGH == 0.0f) {
         return;
     }
 
@@ -1103,11 +1102,11 @@ static void PM_GrappleMove(void) {
     vlen = VectorLength(vel);
     VectorNormalize(vel);
 
-    VectorScale(vel, pm_hookPullVelocity, vel);
+    VectorScale(vel, pm_velocityGH, vel);
 
     // [QL] close-range slowdown: threshold is 10% of pull velocity
-    if (vlen <= pm_hookPullVelocity * 0.1f) {
-        float scale = (vlen * 10.0f) / pm_hookPullVelocity;
+    if (vlen <= pm_velocityGH * 0.1f) {
+        float scale = (vlen * 10.0f) / pm_velocityGH;
         VectorScale(vel, scale, vel);
     }
 

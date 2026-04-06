@@ -110,7 +110,6 @@ extern float pm_wishSpeed;
 extern int pm_weaponDropTime;
 extern int pm_weaponRaiseTime;
 extern int pm_noPlayerClip;
-extern float pm_hookPullVelocity;
 extern int pm_doubleJump;
 extern int pm_crouchSlide;
 extern float pm_velocityGH;

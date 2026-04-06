@@ -545,7 +545,7 @@ static qboolean CG_ScanForExistingClientInfo(clientInfo_t* ci) {
         if (match->deferred) {
             continue;
         }
-        if (!Q_stricmp(ci->modelName, match->modelName) && !Q_stricmp(ci->skinName, match->skinName) && !Q_stricmp(ci->headModelName, match->headModelName) && !Q_stricmp(ci->headSkinName, match->headSkinName) && !Q_stricmp(ci->blueTeam, match->blueTeam) && !Q_stricmp(ci->redTeam, match->redTeam) && (cgs.gametype < GT_TEAM || ci->team == match->team)) {
+        if (!Q_stricmp(ci->modelName, match->modelName) && !Q_stricmp(ci->skinName, match->skinName) && !Q_stricmp(ci->headModelName, match->headModelName) && !Q_stricmp(ci->headSkinName, match->headSkinName) && (cgs.gametype < GT_TEAM || ci->team == match->team)) {
             // this clientinfo is identical, so use its handles
 
             ci->deferred = qfalse;
@@ -704,12 +704,6 @@ void CG_NewClientInfo(int clientNum) {
     // team leader
     v = Info_ValueForKey(configstring, "tl");
     newInfo.teamLeader = atoi(v);
-
-    v = Info_ValueForKey(configstring, "g_redteam");
-    Q_strncpyz(newInfo.redTeam, v, MAX_TEAMNAME);
-
-    v = Info_ValueForKey(configstring, "g_blueteam");
-    Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
 
     // model
     v = Info_ValueForKey(configstring, "model");
@@ -1248,42 +1242,6 @@ static void CG_HasteTrail(centity_t* cent) {
 
     // use the optimized local entity add
     smoke->leType = LE_SCALE_FADE;
-}
-
-/*
-===============
-CG_BreathPuffs
-===============
-*/
-static void CG_BreathPuffs(centity_t* cent, refEntity_t* head) {
-    clientInfo_t* ci;
-    vec3_t up, origin;
-    int contents;
-
-    ci = &cgs.clientinfo[cent->currentState.number];
-
-    if (!cg_enableBreath.integer) {
-        return;
-    }
-    if (cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson) {
-        return;
-    }
-    if (cent->currentState.eFlags & EF_DEAD) {
-        return;
-    }
-    contents = CG_PointContents(head->origin, 0);
-    if (contents & (CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA)) {
-        return;
-    }
-    if (ci->breathPuffTime > cg.time) {
-        return;
-    }
-
-    VectorSet(up, 0, 0, 8);
-    VectorMA(head->origin, 8, head->axis[0], origin);
-    VectorMA(origin, -4, head->axis[2], origin);
-    CG_SmokePuff(origin, up, 16, 1, 1, 1, 0.66f, 1500, cg.time, cg.time + 400, LEF_PUFF_DONT_SCALE, cgs.media.shotgunSmokePuffShader);
-    ci->breathPuffTime = cg.time + 2000;
 }
 
 /*
@@ -2274,7 +2232,7 @@ void CG_Player(centity_t* cent) {
 
     CG_AddRefEntityWithPowerups(&head, &cent->currentState, ci->team);
 
-    CG_BreathPuffs(cent, &head);
+    // [QL] CG_BreathPuffs removed (Q3 cold-breath effect, gone in QL).
 
     CG_DustTrail(cent);
 
@@ -2320,8 +2278,4 @@ void CG_ResetPlayerEntity(centity_t* cent) {
     cent->pe.torso.yawing = qfalse;
     cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];
     cent->pe.torso.pitching = qfalse;
-
-    if (cg_debugPosition.integer) {
-        CG_Printf("%i ResetPlayerEntity yaw=%f\n", cent->currentState.number, cent->pe.torso.yawAngle);
-    }
 }

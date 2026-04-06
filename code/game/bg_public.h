@@ -822,7 +822,6 @@ void PM_SetCircleStrafeFriction(float value);
 void PM_SetCrouchSlideFriction(float value);
 void PM_SetCrouchSlideTime(int value);
 void PM_SetCrouchStepJump(int value);
-void PM_SetHookPullVelocity(float value);
 void PM_SetJumpTimeDeltaMin(float value);
 void PM_SetJumpVelocity(float value);
 void PM_SetJumpVelocityMax(float value);

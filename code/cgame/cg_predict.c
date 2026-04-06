@@ -424,7 +424,7 @@ void CG_PredictPlayerState(void) {
     }
 
     // non-predicting local movement will grab the latest angles
-    if (cg_nopredict.integer || cg_synchronousClients.integer) {
+    if (cg_nopredict.integer) {
         CG_InterpolatePlayerState(qtrue);
         return;
     }

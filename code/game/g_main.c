@@ -54,22 +54,21 @@ vmCvar_t g_speed;
 vmCvar_t g_gravity;
 vmCvar_t g_cheats;
 vmCvar_t g_knockback;
-vmCvar_t g_quadfactor;
 vmCvar_t g_forcerespawn;
 vmCvar_t g_inactivity;
+vmCvar_t g_inactivityWarning;  // [QL] seconds before kick to start warning
+vmCvar_t g_dropInactive;       // [QL] 1=kick, 0=move-to-spectator
+vmCvar_t g_debugInactivity;    // [QL] log inactivity accumulator each frame
 vmCvar_t g_debugMove;
 vmCvar_t g_debugDamage;
 vmCvar_t g_debugAlloc;
 vmCvar_t g_weaponRespawn;
-vmCvar_t g_weaponTeamRespawn;
 vmCvar_t g_motd;
-vmCvar_t g_synchronousClients;
 vmCvar_t g_warmup;
 vmCvar_t g_doWarmup;
 vmCvar_t g_restarted;
 vmCvar_t g_logfile;
 vmCvar_t g_logfileSync;
-vmCvar_t g_blood;
 vmCvar_t g_podiumDist;
 vmCvar_t g_podiumDrop;
 vmCvar_t g_allowVote;
@@ -82,26 +81,153 @@ vmCvar_t g_teamAutoJoin;
 vmCvar_t g_teamForceBalance;
 vmCvar_t g_banIPs;
 vmCvar_t g_filterBan;
-vmCvar_t g_smoothClients;
 vmCvar_t g_knockback_z;
 vmCvar_t g_knockback_z_self;
 vmCvar_t g_knockback_cripple;
-vmCvar_t g_listEntity;
 vmCvar_t g_localTeamPref;
 vmCvar_t g_obeliskHealth;
 vmCvar_t g_obeliskRegenPeriod;
 vmCvar_t g_obeliskRegenAmount;
 vmCvar_t g_obeliskRespawnDelay;
 vmCvar_t g_cubeTimeout;
-vmCvar_t g_redteam;
-vmCvar_t g_blueteam;
 vmCvar_t g_enableDust;
-vmCvar_t g_enableBreath;
 vmCvar_t g_proxMineTimeout;
 vmCvar_t g_infiniteAmmo;
 vmCvar_t g_dropFlag;
 vmCvar_t g_runes;
 
+
+// [QL] missing cvars added by binary parity audit (130)
+vmCvar_t bot_breakPoint;
+vmCvar_t bot_debugVar;
+vmCvar_t bot_dynamicSkill;
+vmCvar_t bot_followDist;
+vmCvar_t bot_followMe;
+vmCvar_t bot_gauntlet;
+vmCvar_t bot_gauntletOnly;
+vmCvar_t bot_hud;
+vmCvar_t bot_instaGibAimSkill;
+vmCvar_t bot_itemDelayTime;
+vmCvar_t bot_showAreaNumber;
+vmCvar_t bot_showAreas;
+vmCvar_t bot_showAvoidSpots;
+vmCvar_t bot_showPath;
+vmCvar_t bot_showTourPoints;
+vmCvar_t bot_startingSkill;
+vmCvar_t bot_teamkill;
+vmCvar_t bot_training;
+vmCvar_t g_accessFile;
+vmCvar_t g_adTouchScoreBonus;
+vmCvar_t g_allTalk;
+vmCvar_t g_allowCustomHeadmodels;
+vmCvar_t g_allowForfeit;
+vmCvar_t g_allowKill;
+vmCvar_t g_ammoPackHack;
+vmCvar_t g_autoAction;
+vmCvar_t g_battleSuitDampen;
+vmCvar_t g_bestStartingWeapons;
+vmCvar_t g_botSpawnList;
+vmCvar_t g_complaintDamageThreshold;
+vmCvar_t g_complaintLimit;
+vmCvar_t g_customSettings;
+vmCvar_t g_debugFlags;
+vmCvar_t g_debugThawTime;
+vmCvar_t g_debugVampiricDamage;
+vmCvar_t g_domCapTime;
+vmCvar_t g_domDistressThreshold;
+vmCvar_t g_domEnableContention;
+vmCvar_t g_domNeutralFlag;
+vmCvar_t g_domScoreRate;
+vmCvar_t g_domTeammateCapScale;
+vmCvar_t g_dropCmds;
+vmCvar_t g_dropDamagedHealth;
+vmCvar_t g_dropPowerups;
+vmCvar_t g_dropSkulls;
+vmCvar_t g_droppedFlagBonus;
+vmCvar_t g_droppedPowerupsDecay;
+vmCvar_t g_enableDebugTrace;
+vmCvar_t g_enemyTeamRespawnRatio;
+vmCvar_t g_factory;
+vmCvar_t g_factoryTitle;
+vmCvar_t g_flagBounce;
+vmCvar_t g_flagPhysics;
+vmCvar_t g_flightRefuelRate;
+vmCvar_t g_flightThrust;
+vmCvar_t g_floodprot_decay;
+vmCvar_t g_floodprot_maxcount;
+vmCvar_t g_forceAtmosphericEffects;
+vmCvar_t g_forceSendConfigstring;
+vmCvar_t g_forceSmallScoreboardMessage;
+vmCvar_t g_freezeEnvironmentalRespawnDelay;
+vmCvar_t g_friendlyFireDampen;
+vmCvar_t g_gauntletSpeedFactor;
+vmCvar_t g_grantItemOnSpawn;
+vmCvar_t g_instaGib;
+vmCvar_t g_kamiAttenuate;
+vmCvar_t g_kamiMinRatio;
+vmCvar_t g_kickBadUserinfo;
+vmCvar_t g_latchedHookOffset;
+vmCvar_t g_levelStartTime;
+vmCvar_t g_lightningDischarge;
+vmCvar_t g_maxDeferredSpawns;
+vmCvar_t g_maxFlightFuel;
+vmCvar_t g_midAirMinHeight;
+vmCvar_t g_neutralFlagPingRate;
+vmCvar_t g_playerModelScale;
+vmCvar_t g_playerheadScale;
+vmCvar_t g_playerheadScaleOffset;
+vmCvar_t g_playerheadmodelOverride;
+vmCvar_t g_playermodelOverride;
+vmCvar_t g_powerupRespawn;
+vmCvar_t g_quadHogIdle;
+vmCvar_t g_quadHogPingRate;
+vmCvar_t g_regenArmor;
+vmCvar_t g_regenArmorAfterHealth;
+vmCvar_t g_regenArmorRate;
+vmCvar_t g_regenHealth;
+vmCvar_t g_regenHealthRate;
+vmCvar_t g_respawn_delay_max;
+vmCvar_t g_respawn_delay_min;
+vmCvar_t g_returnFlagOnSuicide;
+vmCvar_t g_rrRoundScoreBonus;
+vmCvar_t g_shuffle_automatic;
+vmCvar_t g_shuffle_automatic_minplayers;
+vmCvar_t g_shuffle_minplayers;
+vmCvar_t g_shuffle_timedelay;
+vmCvar_t g_skipTrainingEnable;
+vmCvar_t g_spawnArmorDmgScale;
+vmCvar_t g_spawnDelayRandom_key;
+vmCvar_t g_spawnDelayRandom_powerup;
+vmCvar_t g_spawnDelay_key;
+vmCvar_t g_spawnDelay_powerup;
+vmCvar_t g_spawnItemArmor;
+vmCvar_t g_spawnItemHealth;
+vmCvar_t g_spawnItemHoldable;
+vmCvar_t g_spawnItemPowerup;
+vmCvar_t g_spawnItemWeapons;
+vmCvar_t g_spawnMinDistance;
+vmCvar_t g_spawnRandomRatio;
+vmCvar_t g_suddenDeathRespawn;
+vmCvar_t g_suddenDeathRespawnIncrement;
+vmCvar_t g_suddenDeathRespawnMax;
+vmCvar_t g_suddenDeathRespawnPrint;
+vmCvar_t g_suddenDeathRespawnStart;
+vmCvar_t g_suddenDeathRespawnTick;
+vmCvar_t g_switchTeamDelay;
+vmCvar_t g_tackleFlag;
+vmCvar_t g_teamSpawnAsSpec;
+vmCvar_t g_teamSpecFreeCam;
+vmCvar_t g_teamSpecSayEnable;
+vmCvar_t g_throwFlagForwardMult;
+vmCvar_t g_throwFlagVelocity;
+vmCvar_t g_timeoutLen;
+vmCvar_t g_vampiricDamage;
+vmCvar_t gamedate;
+vmCvar_t practiceflags;
+vmCvar_t sv_mapname;
+vmCvar_t ui_singlePlayerActive;
+vmCvar_t weapon_reload_gauntlet;
+vmCvar_t weapon_reload_hook;
 // [QL] per-weapon damage cvars
 vmCvar_t g_damage_g;
 vmCvar_t g_damage_mg;
@@ -203,7 +329,7 @@ vmCvar_t g_guidedRocket;
 
 // [QL] loadout system
 vmCvar_t g_loadout;
-int g_disableLoadoutMask = 0;  // bitmask of disabled weapons (from worldspawn "disable_loadout")
+vmCvar_t g_disableLoadout;  // [QL] bitmask of disabled weapons (from worldspawn "disable_loadout"); binary: CVAR_GAMERULE
 
 // [QL] ammo system
 vmCvar_t g_ammoPack;
@@ -235,6 +361,7 @@ vmCvar_t g_isBotOnly;
 vmCvar_t g_training;
 vmCvar_t g_itemHeight;
 vmCvar_t g_itemTimers;
+vmCvar_t g_specItemTimers;  // [QL] gates spectator item-respawn notification feed (separate from g_itemTimers)
 vmCvar_t g_quadDamageFactor;
 vmCvar_t g_freezeRoundDelay;
 vmCvar_t g_timeoutCount;
@@ -261,6 +388,7 @@ vmCvar_t g_roundDrawLivingCount;
 vmCvar_t g_roundDrawHealthCount;
 vmCvar_t g_spawnArmor;
 vmCvar_t g_adElimScoreBonus;
+vmCvar_t g_adCaptureScoreBonus;  // [QL] consumed by cgame from serverinfo
 
 // [QL] freeze tag cvars
 vmCvar_t g_freezeThawTick;
@@ -369,7 +497,6 @@ vmCvar_t pmove_WishSpeed;
 vmCvar_t pmove_WeaponDropTime;
 vmCvar_t pmove_WeaponRaiseTime;
 vmCvar_t pmove_NoPlayerClip;
-vmCvar_t pmove_HookPullVelocity;
 vmCvar_t pmove_DoubleJump;
 vmCvar_t pmove_CrouchSlide;
 vmCvar_t pmove_VelocityGH;
@@ -416,7 +543,6 @@ static void OnChangedPmoveWishSpeed(void)              { PM_SetWishSpeed(pmove_W
 static void OnChangedPmoveWeaponDropTime(void)         { PM_SetWeaponDropTime(pmove_WeaponDropTime.integer); pmoveInfoDirty = qtrue; }
 static void OnChangedPmoveWeaponRaiseTime(void)        { PM_SetWeaponRaiseTime(pmove_WeaponRaiseTime.integer); pmoveInfoDirty = qtrue; }
 static void OnChangedPmoveNoPlayerClip(void)           { PM_SetNoPlayerClip(pmove_NoPlayerClip.integer); pmoveInfoDirty = qtrue; }
-static void OnChangedPmoveHookPullVelocity(void)       { PM_SetHookPullVelocity(pmove_HookPullVelocity.value); pmoveInfoDirty = qtrue; }
 static void OnChangedPmoveDoubleJump(void)             { PM_SetDoubleJump(pmove_DoubleJump.integer); pmoveInfoDirty = qtrue; }
 static void OnChangedPmoveCrouchSlide(void)            { PM_SetCrouchSlide(pmove_CrouchSlide.integer); pmoveInfoDirty = qtrue; }
 static void OnChangedPmoveVelocityGH(void)             { PM_SetVelocityGH(pmove_VelocityGH.value); pmoveInfoDirty = qtrue; }
@@ -442,356 +568,488 @@ static cvarTable_t gameCvarTable[] = {
     {&g_cheats, "sv_cheats", "", 0, 0, NULL},
 
     // noset vars
-    {NULL, "gamename", GAMEVERSION, CVAR_SERVERINFO | CVAR_ROM, 0, NULL},
     {NULL, "gamedate", PRODUCT_DATE, CVAR_ROM, 0, NULL},
     {&g_restarted, "g_restarted", "0", CVAR_ROM, 0, NULL},
 
     // latched vars
-    {&g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_USERINFO | CVAR_LATCH, 0, NULL},
+    {&g_gametype, "g_gametype", "0", /* CVAR_ROM | */ CVAR_LATCH | CVAR_SERVERINFO, 0, NULL},
 
-    {&g_maxclients, "sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, NULL},
-    {&g_maxGameClients, "g_maxGameClients", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ARCHIVE, 0, NULL},
+    {&g_maxclients, "sv_maxclients", "8", CVAR_LATCH | CVAR_SERVERINFO | CVAR_ARCHIVE, 0, NULL},
+    {&g_maxGameClients, "g_maxGameClients", "0", CVAR_LATCH | CVAR_SERVERINFO | CVAR_ARCHIVE, 0, NULL},
 
     // change anytime vars
-    {&g_dmflags, "dmflags", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_fraglimit, "fraglimit", "20", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
-    {&g_timelimit, "timelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
-    {&g_capturelimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&g_dmflags, "dmflags", "0", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    // [QL] flags 0x100404 = CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO (verified from binary cvar table)
+    {&g_fraglimit, "fraglimit", "50", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
+    {&g_timelimit, "timelimit", "0", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
+    {&g_capturelimit, "capturelimit", "8", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
 
-    {&g_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO, 0, NULL},
 
-    {&g_friendlyFire, "g_friendlyFire", "0", CVAR_ARCHIVE, 0, NULL},
+    {&g_friendlyFire, "g_friendlyFire", "0", CVAR_GAMERULE, 0, NULL},  // [QL] binary: 0x100000
 
     {&g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE},
-    {&g_teamForceBalance, "g_teamForceBalance", "0", CVAR_SERVERINFO | CVAR_ARCHIVE},
+    {&g_teamForceBalance, "g_teamForceBalance", "1", CVAR_SERVERINFO | CVAR_ARCHIVE},  // [QL] binary default "1"
 
-    {&g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, NULL},
+    {&g_warmup, "g_warmup", "10", CVAR_ARCHIVE, 0, NULL},  // [QL] binary default "10"
     {&g_doWarmup, "g_doWarmup", "1", CVAR_ARCHIVE, 0, NULL},
-    {&g_gameState, "g_gameState", "PRE_GAME", CVAR_ROM, 0, NULL},
-    {&sv_warmupReadyPercentage, "sv_warmupReadyPercentage", "0.51", CVAR_ARCHIVE, 0, NULL},
+    {&g_gameState, "g_gameState", "PRE_GAME", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},  // [QL] binary: 0x44
+    {&sv_warmupReadyPercentage, "sv_warmupReadyPercentage", "0.51", CVAR_LATCH | CVAR_ARCHIVE, 0, NULL},  // [QL] binary: 0x21
     {&g_warmupDelay, "g_warmupDelay", "15", 0, 0, NULL},
     {&g_warmupReadyDelay, "g_warmupReadyDelay", "0", 0, 0, NULL},
     {&g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", 0, 0, NULL},
     {&g_lastManStandingMessage, "g_lastManStandingMessage", "You are the last standing", 0, 0, NULL},
-    {&bot_autoReady, "bot_autoReady", "1", 0, 0, NULL},
+    {&bot_autoReady, "bot_autoReady", "1", CVAR_GAMERULE, 0, NULL},
     {&g_teamForcePresent, "g_teamForcePresent", "1", 0, 0, NULL},
     {&g_forfeit, "g_forfeit", "0", CVAR_ARCHIVE, 0, NULL},
-    {&g_logfile, "g_log", "games.log", CVAR_ARCHIVE, 0, NULL},
-    {&g_logfileSync, "g_logsync", "0", CVAR_ARCHIVE, 0, NULL},
+    {&g_logfile, "g_log", "", CVAR_ARCHIVE, 0, NULL},  // [QL] binary default empty string
+    {&g_logfileSync, "g_logSync", "0", CVAR_ARCHIVE, 0, NULL},  // [QL] binary name uses camelCase
 
     {&g_password, "g_password", "", CVAR_USERINFO, 0, NULL},
 
     {&g_banIPs, "g_banIPs", "", CVAR_ARCHIVE, 0, NULL},
     {&g_filterBan, "g_filterBan", "1", CVAR_ARCHIVE, 0, NULL},
 
-    {&g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, NULL},
+    {&g_needpass, "g_needpass", "0", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},
 
     {&g_dedicated, "dedicated", "0", 0, 0, NULL},
 
-    {&g_speed, "g_speed", "320", 0, 0, NULL},
-    {&g_gravity, "g_gravity", "800", CVAR_SERVERINFO, 0, NULL},
-    {&g_knockback, "g_knockback", "1000", 0, 0, NULL},
-    {&g_quadfactor, "g_quadfactor", "3", 0, 0, NULL},
-    {&g_weaponRespawn, "g_weaponrespawn", "5", CVAR_SERVERINFO, 0, NULL},
-    {&g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, NULL},
+    {&g_speed, "g_speed", "320", CVAR_GAMERULE, 0, NULL},
+    {&g_gravity, "g_gravity", "800", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&g_knockback, "g_knockback", "1000", CVAR_GAMERULE, 0, NULL},
+    {&g_weaponRespawn, "g_weaponRespawn", "5", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] note capital R; binary: 0x100004
     {&g_forcerespawn, "g_forcerespawn", "20", 0, 0, NULL},
     {&g_inactivity, "g_inactivity", "0", 0, 0, NULL},
+    {&g_inactivityWarning, "g_inactivityWarning", "10", 0, 0, NULL},  // [QL]
+    {&g_dropInactive, "g_dropInactive", "1", 0, 0, NULL},              // [QL] binary default "1"
+    {&g_debugInactivity, "g_debugInactivity", "0", 0, 0, NULL},        // [QL]
     {&g_debugMove, "g_debugMove", "0", 0, 0, NULL},
     {&g_debugDamage, "g_debugDamage", "0", 0, 0, NULL},
     {&g_debugAlloc, "g_debugAlloc", "0", 0, 0, NULL},
     {&g_motd, "g_motd", "", 0, 0, NULL},
-    {&g_blood, "com_blood", "1", 0, 0, NULL},
 
-    {&g_podiumDist, "g_podiumDist", "80", 0, 0, NULL},
-    {&g_podiumDrop, "g_podiumDrop", "70", 0, 0, NULL},
+    {&g_podiumDist, "g_podiumDist", "80", CVAR_GAMERULE, 0, NULL},
+    {&g_podiumDrop, "g_podiumDrop", "70", CVAR_GAMERULE, 0, NULL},
 
-    {&g_allowVote, "g_allowVote", "1", 0, 0, NULL},
+    {&g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, NULL},  // [QL] binary: CVAR_ARCHIVE
     {&g_allowVoteMidGame, "g_allowVoteMidGame", "0", 0, 0, NULL},
     {&g_allowSpecVote, "g_allowSpecVote", "0", 0, 0, NULL},
-    {&g_voteFlags, "g_voteFlags", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_voteFlags, "g_voteFlags", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, NULL},  // [QL] binary: 0x5
     {&g_voteDelay, "g_voteDelay", "0", 0, 0, NULL},
     {&g_voteLimit, "g_voteLimit", "0", 0, 0, NULL},
-    {&g_listEntity, "g_listEntity", "0", 0, 0, NULL},
 
-    {&g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, NULL},
-    {&g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, NULL},
-    {&g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", 0, 0, NULL},
-    {&g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO, 0, NULL},
+    {&g_obeliskHealth, "g_obeliskHealth", "2500", CVAR_GAMERULE, 0, NULL},
+    {&g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", CVAR_GAMERULE, 0, NULL},
+    {&g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_GAMERULE, 0, NULL},  // [QL] binary: CVAR_GAMERULE only
 
-    {&g_cubeTimeout, "g_cubeTimeout", "30", 0, 0, NULL},
+    {&g_cubeTimeout, "g_cubeTimeout", "30", CVAR_GAMERULE, 0, NULL},
 
-    {&g_enableDust, "g_enableDust", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, NULL},
+    {&g_enableDust, "g_enableDust", "0", 0, 0, NULL},  // [QL] binary: flags=0 (not SERVERINFO)
+    {&g_proxMineTimeout, "g_proxMineTimeout", "20", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},  // [QL] binary default "20" (seconds, NOT ms)
 
-    {&g_smoothClients, "g_smoothClients", "1", 0, 0, NULL},
 
     {&g_localTeamPref, "g_localTeamPref", "", 0, 0, NULL},
 
-    {&g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_SYSTEMINFO, 0, NULL},
+    {&g_infiniteAmmo, "g_infiniteAmmo", "0", CVAR_GAMERULE, 0, NULL},  // [QL] binary: CVAR_GAMERULE only
     {&g_dropFlag, "g_dropFlag", "7", 0, 0, NULL},  // [QL] bitmask: 1=flag, 2=powerup, 4=weapon
-    {&g_runes, "g_runes", "0", 0, 0, NULL},  // [QL] enable rune dropping
+    {&g_runes, "g_runes", "0", CVAR_GAMERULE | CVAR_LATCH, 0, NULL},  // [QL] binary: 0x100020
 
     // [QL] per-weapon damage cvars
-    {&g_damage_g, "g_damage_g", "50", 0, 0, NULL},
-    {&g_damage_mg, "g_damage_mg", "5", 0, 0, NULL},
-    {&g_damage_sg, "g_damage_sg", "5", 0, 0, NULL},
-    {&g_damage_gl, "g_damage_gl", "100", 0, 0, NULL},
-    {&g_damage_rl, "g_damage_rl", "100", 0, 0, NULL},
-    {&g_damage_lg, "g_damage_lg", "6", 0, 0, NULL},
-    {&g_damage_rg, "g_damage_rg", "80", 0, 0, NULL},
-    {&g_damage_pg, "g_damage_pg", "20", 0, 0, NULL},
-    {&g_damage_bfg, "g_damage_bfg", "100", 0, 0, NULL},
-    {&g_damage_gh, "g_damage_gh", "10", 0, 0, NULL},
-    {&g_damage_ng, "g_damage_ng", "12", 0, 0, NULL},
-    {&g_damage_cg, "g_damage_cg", "8", 0, 0, NULL},
-    {&g_damage_hmg, "g_damage_hmg", "8", 0, 0, NULL},
-    {&g_damage_pl, "g_damage_pl", "0", 0, 0, NULL},
+    {&g_damage_g, "g_damage_g", "50", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_mg, "g_damage_mg", "5", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_sg, "g_damage_sg", "5", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_gl, "g_damage_gl", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_rl, "g_damage_rl", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_lg, "g_damage_lg", "6", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_rg, "g_damage_rg", "80", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_pg, "g_damage_pg", "20", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_bfg, "g_damage_bfg", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_gh, "g_damage_gh", "10", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_ng, "g_damage_ng", "12", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_cg, "g_damage_cg", "8", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_hmg, "g_damage_hmg", "8", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_pl, "g_damage_pl", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] per-weapon knockback multiplier cvars
-    {&g_knockback_g, "g_knockback_g", "1", 0, 0, NULL},
-    {&g_knockback_mg, "g_knockback_mg", "1", 0, 0, NULL},
-    {&g_knockback_sg, "g_knockback_sg", "1", 0, 0, NULL},
-    {&g_knockback_gl, "g_knockback_gl", "1.10", 0, 0, NULL},
-    {&g_knockback_rl, "g_knockback_rl", "0.90", 0, 0, NULL},
-    {&g_knockback_rl_self, "g_knockback_rl_self", "1.10", 0, 0, NULL},
-    {&g_knockback_lg, "g_knockback_lg", "1.75", 0, 0, NULL},
-    {&g_knockback_rg, "g_knockback_rg", "0.85", 0, 0, NULL},
-    {&g_knockback_pg, "g_knockback_pg", "1.10", 0, 0, NULL},
-    {&g_knockback_pg_self, "g_knockback_pg_self", "1.30", 0, 0, NULL},
-    {&g_knockback_bfg, "g_knockback_bfg", "1", 0, 0, NULL},
-    {&g_knockback_gh, "g_knockback_gh", "-5", 0, 0, NULL},
-    {&g_knockback_ng, "g_knockback_ng", "1", 0, 0, NULL},
-    {&g_knockback_pl, "g_knockback_pl", "1", 0, 0, NULL},
-    {&g_knockback_cg, "g_knockback_cg", "1", 0, 0, NULL},
-    {&g_knockback_hmg, "g_knockback_hmg", "1", 0, 0, NULL},
-    {&g_knockback_z, "g_knockback_z", "24", 0, 0, NULL},
-    {&g_knockback_z_self, "g_knockback_z_self", "24", 0, 0, NULL},
-    {&g_knockback_cripple, "g_knockback_cripple", "0", 0, 0, NULL},
+    {&g_knockback_g, "g_knockback_g", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_mg, "g_knockback_mg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_sg, "g_knockback_sg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_gl, "g_knockback_gl", "1.10", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_rl, "g_knockback_rl", "0.90", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_rl_self, "g_knockback_rl_self", "1.10", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_lg, "g_knockback_lg", "1.75", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_rg, "g_knockback_rg", "0.85", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_pg, "g_knockback_pg", "1.10", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_pg_self, "g_knockback_pg_self", "1.30", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_bfg, "g_knockback_bfg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_gh, "g_knockback_gh", "-5", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_ng, "g_knockback_ng", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_pl, "g_knockback_pl", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_cg, "g_knockback_cg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_hmg, "g_knockback_hmg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_knockback_z, "g_knockback_z", "24", CVAR_GAMERULE, 0, NULL},
+    {&g_knockback_z_self, "g_knockback_z_self", "24", CVAR_GAMERULE, 0, NULL},
+    {&g_knockback_cripple, "g_knockback_cripple", "0", CVAR_GAMERULE, 0, NULL},
 
     // [QL] weapon reload (fire interval in ms) cvars - callbacks update bg_weaponReloadTime[]
-    {&weapon_reload_mg, "weapon_reload_mg", "100", 0, 0, OnChangedWeaponReloadMG},
-    {&weapon_reload_sg, "weapon_reload_sg", "1000", 0, 0, OnChangedWeaponReloadSG},
-    {&weapon_reload_gl, "weapon_reload_gl", "800", 0, 0, OnChangedWeaponReloadGL},
-    {&weapon_reload_rl, "weapon_reload_rl", "800", 0, 0, OnChangedWeaponReloadRL},
-    {&weapon_reload_lg, "weapon_reload_lg", "50", 0, 0, OnChangedWeaponReloadLG},
-    {&weapon_reload_rg, "weapon_reload_rg", "1500", 0, 0, OnChangedWeaponReloadRG},
-    {&weapon_reload_pg, "weapon_reload_pg", "100", 0, 0, OnChangedWeaponReloadPG},
-    {&weapon_reload_bfg, "weapon_reload_bfg", "300", 0, 0, OnChangedWeaponReloadBFG},
-    {&weapon_reload_gh, "weapon_reload_gh", "100", 0, 0, OnChangedWeaponReloadGH},
-    {&weapon_reload_ng, "weapon_reload_ng", "1000", 0, 0, OnChangedWeaponReloadNG},
-    {&weapon_reload_prox, "weapon_reload_prox", "800", 0, 0, OnChangedWeaponReloadProx},
-    {&weapon_reload_cg, "weapon_reload_cg", "50", 0, 0, OnChangedWeaponReloadCG},
-    {&weapon_reload_hmg, "weapon_reload_hmg", "75", 0, 0, OnChangedWeaponReloadHMG},
+    {&weapon_reload_mg, "weapon_reload_mg", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadMG},
+    {&weapon_reload_sg, "weapon_reload_sg", "1000", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadSG},
+    {&weapon_reload_gl, "weapon_reload_gl", "800", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadGL},
+    {&weapon_reload_rl, "weapon_reload_rl", "800", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadRL},
+    {&weapon_reload_lg, "weapon_reload_lg", "50", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadLG},
+    {&weapon_reload_rg, "weapon_reload_rg", "1500", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadRG},
+    {&weapon_reload_pg, "weapon_reload_pg", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadPG},
+    {&weapon_reload_bfg, "weapon_reload_bfg", "300", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadBFG},
+    {&weapon_reload_gh, "weapon_reload_gh", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadGH},
+    {&weapon_reload_ng, "weapon_reload_ng", "1000", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadNG},
+    {&weapon_reload_prox, "weapon_reload_prox", "800", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadProx},
+    {&weapon_reload_cg, "weapon_reload_cg", "50", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadCG},
+    {&weapon_reload_hmg, "weapon_reload_hmg", "75", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, OnChangedWeaponReloadHMG},
 
     // [QL] per-weapon splash damage cvars
-    {&g_splashdamage_gl, "g_splashdamage_gl", "100", 0, 0, NULL},
-    {&g_splashdamage_rl, "g_splashdamage_rl", "84", 0, 0, NULL},
-    {&g_splashdamage_pg, "g_splashdamage_pg", "15", 0, 0, NULL},
-    {&g_splashdamage_bfg, "g_splashdamage_bfg", "100", 0, 0, NULL},
-    {&g_splashdamage_pl, "g_splashdamage_pl", "100", 0, 0, NULL},
-    {&g_splashdamageOffset, "g_splashdamageOffset", "0.05", 0, 0, NULL},
-    {&g_rocketsplashOffset, "g_rocketsplashOffset", "-10.0", 0, 0, NULL},
+    {&g_splashdamage_gl, "g_splashdamage_gl", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashdamage_rl, "g_splashdamage_rl", "84", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashdamage_pg, "g_splashdamage_pg", "15", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashdamage_bfg, "g_splashdamage_bfg", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashdamage_pl, "g_splashdamage_pl", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashdamageOffset, "g_splashdamageOffset", "0.05", CVAR_GAMERULE, 0, NULL},
+    {&g_rocketsplashOffset, "g_rocketsplashOffset", "-10.0", CVAR_GAMERULE, 0, NULL},
 
     // [QL] knockback cap
-    {&g_max_knockback, "g_max_knockback", "120", 0, 0, NULL},
+    {&g_max_knockback, "g_max_knockback", "120", CVAR_GAMERULE, 0, NULL},
 
     // [QL] per-weapon splash radius cvars
-    {&g_splashradius_gl, "g_splashradius_gl", "150", 0, 0, NULL},
-    {&g_splashradius_rl, "g_splashradius_rl", "120", 0, 0, NULL},
-    {&g_splashradius_pg, "g_splashradius_pg", "20", 0, 0, NULL},
-    {&g_splashradius_bfg, "g_splashradius_bfg", "80", 0, 0, NULL},
-    {&g_splashradius_pl, "g_splashradius_pl", "150", 0, 0, NULL},
+    {&g_splashradius_gl, "g_splashradius_gl", "150", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashradius_rl, "g_splashradius_rl", "120", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashradius_pg, "g_splashradius_pg", "20", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashradius_bfg, "g_splashradius_bfg", "80", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_splashradius_pl, "g_splashradius_pl", "150", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] projectile velocity cvars
-    {&g_velocity_gl, "g_velocity_gl", "700", 0, 0, NULL},
-    {&g_velocity_rl, "g_velocity_rl", "1000", 0, 0, NULL},
-    {&g_velocity_pg, "g_velocity_pg", "2000", 0, 0, NULL},
-    {&g_velocity_bfg, "g_velocity_bfg", "1800", 0, 0, NULL},
-    {&g_velocity_gh, "g_velocity_gh", "1800", 0, 0, NULL},
+    {&g_velocity_gl, "g_velocity_gl", "700", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_velocity_rl, "g_velocity_rl", "1000", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_velocity_pg, "g_velocity_pg", "2000", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_velocity_bfg, "g_velocity_bfg", "1800", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_velocity_gh, "g_velocity_gh", "1800", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] projectile acceleration cvars
-    {&g_accelFactor_rl, "g_accelFactor_rl", "1", 0, 0, NULL},
-    {&g_accelFactor_pg, "g_accelFactor_pg", "1", 0, 0, NULL},
-    {&g_accelFactor_bfg, "g_accelFactor_bfg", "1", 0, 0, NULL},
-    {&g_accelRate_rl, "g_accelRate_rl", "16", 0, 0, NULL},
-    {&g_accelRate_pg, "g_accelRate_pg", "16", 0, 0, NULL},
-    {&g_accelRate_bfg, "g_accelRate_bfg", "16", 0, 0, NULL},
+    {&g_accelFactor_rl, "g_accelFactor_rl", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_accelFactor_pg, "g_accelFactor_pg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_accelFactor_bfg, "g_accelFactor_bfg", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_accelRate_rl, "g_accelRate_rl", "16", CVAR_GAMERULE, 0, NULL},
+    {&g_accelRate_pg, "g_accelRate_pg", "16", CVAR_GAMERULE, 0, NULL},
+    {&g_accelRate_bfg, "g_accelRate_bfg", "16", CVAR_GAMERULE, 0, NULL},
 
     // [QL] projectile gravity cvars
-    {&weapon_gravity_rl, "weapon_gravity_rl", "0", 0, 0, NULL},
-    {&weapon_gravity_pg, "weapon_gravity_pg", "0", 0, 0, NULL},
-    {&weapon_gravity_bfg, "weapon_gravity_bfg", "0", 0, 0, NULL},
-    {&weapon_gravity_ng, "weapon_gravity_ng", "0", 0, 0, NULL},
+    {&weapon_gravity_rl, "weapon_gravity_rl", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
+    {&weapon_gravity_pg, "weapon_gravity_pg", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
+    {&weapon_gravity_bfg, "weapon_gravity_bfg", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
+    {&weapon_gravity_ng, "weapon_gravity_ng", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
 
     // [QL] nailgun cvars
-    {&g_nailspeed, "g_nailspeed", "1000", 0, 0, NULL},
-    {&g_nailcount, "g_nailcount", "10", 0, 0, NULL},
-    {&g_nailspread, "g_nailspread", "400", 0, 0, NULL},
-    {&g_nailbounce, "g_nailbounce", "1", 0, 0, NULL},
-    {&g_nailbouncepercentage, "g_nailbouncepercentage", "65", 0, 0, NULL},
+    {&g_nailspeed, "g_nailspeed", "1000", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_nailcount, "g_nailcount", "10", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_nailspread, "g_nailspread", "400", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_nailbounce, "g_nailbounce", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_nailbouncepercentage, "g_nailbouncepercentage", "65", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] guided rocket cvar
-    {&g_guidedRocket, "g_guidedRocket", "0", 0, 0, NULL},
+    {&g_guidedRocket, "g_guidedRocket", "0", CVAR_GAMERULE, 0, NULL},
 
     // [QL] loadout system
-    {&g_loadout, "g_loadout", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_loadout, "g_loadout", "0", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] binary: 0x100004
+    {&g_disableLoadout, "g_disableLoadout", "0", CVAR_GAMERULE, 0, NULL},  // [QL] binary: 0x100000
 
     // [QL] ammo system
-    {&g_ammoPack, "g_ammoPack", "0", 0, 0, NULL},
-    {&g_ammoRespawn, "g_ammoRespawn", "40", 0, 0, NULL},
-    {&g_spawnItemAmmo, "g_spawnItemAmmo", "1", 0, 0, NULL},
+    {&g_ammoPack, "g_ammoPack", "0", CVAR_GAMERULE | CVAR_LATCH, 0, NULL},  // [QL] binary: 0x100020
+    {&g_ammoRespawn, "g_ammoRespawn", "40", CVAR_GAMERULE, 0, NULL},
+    {&g_spawnItemAmmo, "g_spawnItemAmmo", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] serverinfo cvars read by cgame (all verified with CVAR_SERVERINFO in binary)
     {&g_teamsize, "teamsize", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_teamSizeMin, "g_teamSizeMin", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_overtime, "g_overtime", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_scorelimit, "scorelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
-    {&g_mercylimit, "mercylimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
-    {&g_mercytime, "g_mercytime", "0", 0, 0, NULL},
-    {&g_rrAllowNegativeScores, "g_rrAllowNegativeScores", "0", 0, 0, NULL},
+    {&g_teamSizeMin, "g_teamSizeMin", "1", CVAR_SERVERINFO, 0, NULL},  // [QL] binary default "1"
+    {&g_overtime, "g_overtime", "120", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] binary default "120"
+    // [QL] flags 0x100404 = CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO
+    {&g_scorelimit, "scorelimit", "150", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
+    {&g_mercylimit, "mercylimit", "0", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
+    {&g_mercytime, "g_mercytime", "0", CVAR_GAMERULE | CVAR_NORESTART, 0, NULL},  // [QL] binary: 0x100400
+    {&g_rrAllowNegativeScores, "g_rrAllowNegativeScores", "0", CVAR_GAMERULE, 0, NULL},
     {&g_spawnItems, "g_spawnItems", "", 0, 0, NULL},
     {&sv_quitOnExitLevel, "sv_quitOnExitLevel", "0", 0, 0, NULL},
     {&g_isBotOnly, "g_isBotOnly", "0", 0, 0, NULL},
-    {&g_training, "g_training", "0", 0, 0, NULL},
-    {&g_itemHeight, "g_itemHeight", "35", CVAR_SERVERINFO, 0, NULL},
-    {&g_itemTimers, "g_itemTimers", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_SERVERINFO, 0, NULL},
-    {&g_freezeRoundDelay, "g_freezeRoundDelay", "0", CVAR_SERVERINFO, 0, NULL},
-    {&g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_training, "g_training", "0", CVAR_GAMERULE | CVAR_SYSTEMINFO, 0, NULL},  // [QL] binary: 0x100008
+    {&g_itemHeight, "g_itemHeight", "35", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&g_itemTimers, "g_itemTimers", "1", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] default "1", flags 0x100004
+    {&g_specItemTimers, "g_specItemTimers", "1", 0, 0, NULL},  // [QL] verified from QLDS qagamex86.dll cvar table at 0x1008f160
+    {&g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] binary default "4000"
+    {&g_timeoutCount, "g_timeoutCount", "0", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
 
     // [QL] starting loadout cvars
-    {&g_startingWeapons, "g_startingWeapons", "3", 0, 0, OnChangedStartingWeapons},
-    {&g_startingHealth, "g_startingHealth", "100", CVAR_SERVERINFO, 0, NULL},
-    {&g_startingHealthBonus, "g_startingHealthBonus", "25", 0, 0, NULL},
-    {&g_startingArmor, "g_startingArmor", "0", 0, 0, NULL},
-    {&g_startingAmmo_g, "g_startingAmmo_g", "-1", 0, 0, NULL},
-    {&g_startingAmmo_mg, "g_startingAmmo_mg", "100", 0, 0, NULL},
-    {&g_startingAmmo_sg, "g_startingAmmo_sg", "10", 0, 0, NULL},
-    {&g_startingAmmo_gl, "g_startingAmmo_gl", "10", 0, 0, NULL},
-    {&g_startingAmmo_rl, "g_startingAmmo_rl", "5", 0, 0, NULL},
-    {&g_startingAmmo_lg, "g_startingAmmo_lg", "100", 0, 0, NULL},
-    {&g_startingAmmo_rg, "g_startingAmmo_rg", "5", 0, 0, NULL},
-    {&g_startingAmmo_pg, "g_startingAmmo_pg", "50", 0, 0, NULL},
-    {&g_startingAmmo_bfg, "g_startingAmmo_bfg", "10", 0, 0, NULL},
-    {&g_startingAmmo_gh, "g_startingAmmo_gh", "-1", 0, 0, NULL},
-    {&g_startingAmmo_ng, "g_startingAmmo_ng", "10", 0, 0, NULL},
-    {&g_startingAmmo_pl, "g_startingAmmo_pl", "5", 0, 0, NULL},
-    {&g_startingAmmo_cg, "g_startingAmmo_cg", "100", 0, 0, NULL},
-    {&g_startingAmmo_hmg, "g_startingAmmo_hmg", "50", 0, 0, NULL},
+    {&g_startingWeapons, "g_startingWeapons", "3", CVAR_GAMERULE, 0, OnChangedStartingWeapons},
+    {&g_startingHealth, "g_startingHealth", "100", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&g_startingHealthBonus, "g_startingHealthBonus", "25", CVAR_GAMERULE, 0, NULL},
+    {&g_startingArmor, "g_startingArmor", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_g, "g_startingAmmo_g", "-1", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_mg, "g_startingAmmo_mg", "100", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_sg, "g_startingAmmo_sg", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_gl, "g_startingAmmo_gl", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_rl, "g_startingAmmo_rl", "5", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_lg, "g_startingAmmo_lg", "100", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_rg, "g_startingAmmo_rg", "5", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_pg, "g_startingAmmo_pg", "50", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_bfg, "g_startingAmmo_bfg", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_gh, "g_startingAmmo_gh", "-1", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_ng, "g_startingAmmo_ng", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_pl, "g_startingAmmo_pl", "5", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_cg, "g_startingAmmo_cg", "100", CVAR_GAMERULE, 0, NULL},
+    {&g_startingAmmo_hmg, "g_startingAmmo_hmg", "50", CVAR_GAMERULE, 0, NULL},
 
     // [QL] movement physics cvars - configurable via factories/rcon
-    {&pmove_JumpVelocity, "pmove_JumpVelocity", "270", 0, 0, OnChangedPmoveJumpVelocity},
-    {&pmove_JumpVelocityMax, "pmove_JumpVelocityMax", "270", 0, 0, OnChangedPmoveJumpVelocityMax},
-    {&pmove_JumpVelocityScaleAdd, "pmove_JumpVelocityScaleAdd", "0", 0, 0, OnChangedPmoveJumpVelocityScaleAdd},
-    {&pmove_JumpVelocityTimeThreshold, "pmove_JumpVelocityTimeThreshold", "0", 0, 0, OnChangedPmoveJumpVelocityTimeThreshold},
-    {&pmove_JumpVelocityTimeThresholdOffset, "pmove_JumpVelocityTimeThresholdOffset", "0", 0, 0, OnChangedPmoveJumpVelocityTimeThresholdOffset},
-    {&pmove_ChainJump, "pmove_ChainJump", "1", 0, 0, OnChangedPmoveChainJump},
-    {&pmove_ChainJumpVelocity, "pmove_ChainJumpVelocity", "0", 0, 0, OnChangedPmoveChainJumpVelocity},
-    {&pmove_StepJumpVelocity, "pmove_StepJumpVelocity", "0", 0, 0, OnChangedPmoveStepJumpVelocity},
-    {&pmove_JumpTimeDeltaMin, "pmove_JumpTimeDeltaMin", "0", 0, 0, OnChangedPmoveJumpTimeDeltaMin},
-    {&pmove_RampJump, "pmove_RampJump", "0", 0, 0, OnChangedPmoveRampJump},
-    {&pmove_RampJumpScale, "pmove_RampJumpScale", "1", 0, 0, OnChangedPmoveRampJumpScale},
-    {&pmove_StepJump, "pmove_StepJump", "0", 0, 0, OnChangedPmoveStepJump},
-    {&pmove_CrouchStepJump, "pmove_CrouchStepJump", "0", 0, 0, OnChangedPmoveCrouchStepJump},
-    {&pmove_AutoHop, "pmove_AutoHop", "0", 0, 0, OnChangedPmoveAutoHop},
-    {&pmove_BunnyHop, "pmove_BunnyHop", "0", 0, 0, OnChangedPmoveBunnyHop},
-    {&pmove_AirAccel, "pmove_AirAccel", "1", 0, 0, OnChangedPmoveAirAccel},
-    {&pmove_AirStopAccel, "pmove_AirStopAccel", "1", 0, 0, OnChangedPmoveAirStopAccel},
-    {&pmove_AirControl, "pmove_AirControl", "0", 0, 0, OnChangedPmoveAirControl},
-    {&pmove_StrafeAccel, "pmove_StrafeAccel", "1", 0, 0, OnChangedPmoveStrafeAccel},
-    {&pmove_WalkAccel, "pmove_WalkAccel", "10", 0, 0, OnChangedPmoveWalkAccel},
-    {&pmove_WalkFriction, "pmove_WalkFriction", "6", 0, 0, OnChangedPmoveWalkFriction},
-    {&pmove_CircleStrafeFriction, "pmove_CircleStrafeFriction", "6", 0, 0, OnChangedPmoveCircleStrafeFriction},
-    {&pmove_CrouchSlideFriction, "pmove_CrouchSlideFriction", "0", 0, 0, OnChangedPmoveCrouchSlideFriction},
-    {&pmove_CrouchSlideTime, "pmove_CrouchSlideTime", "0", 0, 0, OnChangedPmoveCrouchSlideTime},
-    {&pmove_AirSteps, "pmove_AirSteps", "0", 0, 0, OnChangedPmoveAirSteps},
-    {&pmove_AirStepFriction, "pmove_AirStepFriction", "0", 0, 0, OnChangedPmoveAirStepFriction},
-    {&pmove_StepHeight, "pmove_StepHeight", "18", 0, 0, OnChangedPmoveStepHeight},
-    {&pmove_WaterSwimScale, "pmove_WaterSwimScale", "0.5", 0, 0, OnChangedPmoveWaterSwimScale},
-    {&pmove_WaterWadeScale, "pmove_WaterWadeScale", "0.75", 0, 0, OnChangedPmoveWaterWadeScale},
-    {&pmove_WishSpeed, "pmove_WishSpeed", "400", 0, 0, OnChangedPmoveWishSpeed},
-    {&pmove_WeaponDropTime, "pmove_WeaponDropTime", "200", 0, 0, OnChangedPmoveWeaponDropTime},
-    {&pmove_WeaponRaiseTime, "pmove_WeaponRaiseTime", "250", 0, 0, OnChangedPmoveWeaponRaiseTime},
-    {&pmove_NoPlayerClip, "pmove_NoPlayerClip", "0", 0, 0, OnChangedPmoveNoPlayerClip},
-    {&pmove_HookPullVelocity, "pmove_HookPullVelocity", "800", 0, 0, OnChangedPmoveHookPullVelocity},
-    {&pmove_DoubleJump, "pmove_DoubleJump", "0", 0, 0, OnChangedPmoveDoubleJump},
-    {&pmove_CrouchSlide, "pmove_CrouchSlide", "0", 0, 0, OnChangedPmoveCrouchSlide},
-    {&pmove_VelocityGH, "pmove_velocity_gh", "800", 0, 0, OnChangedPmoveVelocityGH},
+    // [QL] pmove_* defaults verified from QLDS qagamex86.dll cvar table
+    {&pmove_JumpVelocity, "pmove_JumpVelocity", "275.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpVelocity},
+    {&pmove_JumpVelocityMax, "pmove_JumpVelocityMax", "700.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpVelocityMax},
+    {&pmove_JumpVelocityScaleAdd, "pmove_JumpVelocityScaleAdd", "0.4f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpVelocityScaleAdd},
+    {&pmove_JumpVelocityTimeThreshold, "pmove_JumpVelocityTimeThreshold", "500.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpVelocityTimeThreshold},
+    {&pmove_JumpVelocityTimeThresholdOffset, "pmove_JumpVelocityTimeThresholdOffset", "0.6f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpVelocityTimeThresholdOffset},
+    {&pmove_ChainJump, "pmove_ChainJump", "1", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveChainJump},
+    {&pmove_ChainJumpVelocity, "pmove_ChainJumpVelocity", "110.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveChainJumpVelocity},
+    {&pmove_StepJumpVelocity, "pmove_StepJumpVelocity", "48.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveStepJumpVelocity},
+    {&pmove_JumpTimeDeltaMin, "pmove_JumpTimeDeltaMin", "100.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveJumpTimeDeltaMin},
+    {&pmove_RampJump, "pmove_RampJump", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveRampJump},
+    {&pmove_RampJumpScale, "pmove_RampJumpScale", "1.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveRampJumpScale},
+    {&pmove_StepJump, "pmove_StepJump", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveStepJump},
+    {&pmove_CrouchStepJump, "pmove_CrouchStepJump", "1", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveCrouchStepJump},
+    {&pmove_AutoHop, "pmove_AutoHop", "1", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveAutoHop},
+    {&pmove_BunnyHop, "pmove_BunnyHop", "1", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveBunnyHop},
+    {&pmove_AirAccel, "pmove_AirAccel", "1.0f", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveAirAccel},
+    {&pmove_AirStopAccel, "pmove_AirStopAccel", "1.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveAirStopAccel},
+    {&pmove_AirControl, "pmove_AirControl", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, OnChangedPmoveAirControl},
+    {&pmove_StrafeAccel, "pmove_StrafeAccel", "1.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveStrafeAccel},
+    {&pmove_WalkAccel, "pmove_WalkAccel", "10.0f", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWalkAccel},
+    {&pmove_WalkFriction, "pmove_WalkFriction", "6.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWalkFriction},
+    {&pmove_CircleStrafeFriction, "pmove_CircleStrafeFriction", "6.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveCircleStrafeFriction},
+    {&pmove_CrouchSlideFriction, "pmove_CrouchSlideFriction", "0.5", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveCrouchSlideFriction},
+    {&pmove_CrouchSlideTime, "pmove_CrouchSlideTime", "2000", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveCrouchSlideTime},
+    {&pmove_AirSteps, "pmove_AirSteps", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveAirSteps},
+    {&pmove_AirStepFriction, "pmove_AirStepFriction", "0.03f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveAirStepFriction},
+    {&pmove_StepHeight, "pmove_StepHeight", "22.0f", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveStepHeight},
+    {&pmove_WaterSwimScale, "pmove_WaterSwimScale", "0.6f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWaterSwimScale},
+    {&pmove_WaterWadeScale, "pmove_WaterWadeScale", "0.8f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWaterWadeScale},
+    {&pmove_WishSpeed, "pmove_WishSpeed", "400.0f", CVAR_GAMERULE | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWishSpeed},
+    {&pmove_WeaponDropTime, "pmove_WeaponDropTime", "200", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWeaponDropTime},
+    {&pmove_WeaponRaiseTime, "pmove_WeaponRaiseTime", "200", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveWeaponRaiseTime},
+    {&pmove_NoPlayerClip, "pmove_noPlayerClip", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveNoPlayerClip},  // [QL] lowercase 'n'; binary: 0x144000
+    {&pmove_DoubleJump, "pmove_DoubleJump", "0", CVAR_GAMERULE, 0, OnChangedPmoveDoubleJump},
+    {&pmove_CrouchSlide, "pmove_CrouchSlide", "0", CVAR_GAMERULE, 0, OnChangedPmoveCrouchSlide},
+    {&pmove_VelocityGH, "pmove_velocity_gh", "800", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_PMOVE, 0, OnChangedPmoveVelocityGH},
 
     // [QL] damage-through-surface
-    {&g_forceDmgThroughSurface, "g_forceDmgThroughSurface", "0", 0, 0, NULL},
-    {&g_dmgThroughSurfaceDistance, "g_dmgThroughSurfaceDistance", "-33.1", 0, 0, NULL},
-    {&g_dmgThroughSurfaceDampening, "g_dmgThroughSurfaceDampening", "0.5", 0, 0, NULL},
-    {&g_dmgThroughSurfaceAngularThreshold, "g_dmgThroughSurfaceAngularThreshold", "0.5", 0, 0, NULL},
+    {&g_forceDmgThroughSurface, "g_forceDmgThroughSurface", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_dmgThroughSurfaceDistance, "g_dmgThroughSurfaceDistance", "-33.1f", CVAR_GAMERULE, 0, NULL},
+    {&g_dmgThroughSurfaceDampening, "g_dmgThroughSurfaceDampening", "0.5f", CVAR_GAMERULE, 0, NULL},
+    {&g_dmgThroughSurfaceAngularThreshold, "g_dmgThroughSurfaceAngularThreshold", "0.5f", CVAR_GAMERULE, 0, NULL},
 
     // [QL] player cylinders
-    {&g_playerCylinders, "g_playerCylinders", "1", CVAR_INIT, 0, NULL},
-    {&sv_fps, "sv_fps", "40", CVAR_ARCHIVE, 0, NULL},
+    {&g_playerCylinders, "g_playerCylinders", "1", CVAR_GAMERULE, 0, NULL},  // [QL] binary: CVAR_GAMERULE only
+    {&sv_fps, "sv_fps", "40", CVAR_ROM, 0, NULL},  // [QL] binary: CVAR_ROM (engine-owned)
 
     // [QL] round-based cvars
-    {&roundtimelimit, "roundtimelimit", "180", CVAR_SERVERINFO | CVAR_NORESTART, 0, NULL},
-    {&g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_SERVERINFO, 0, NULL},
-    {&roundlimit, "roundlimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, NULL},
+    {&roundtimelimit, "roundtimelimit", "180", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},
+    {&g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&roundlimit, "roundlimit", "10", CVAR_GAMERULE | CVAR_NORESTART | CVAR_SERVERINFO, 0, NULL},  // [QL] default "10", flags 0x100404
     {&g_accuracyFlags, "g_accuracyFlags", "0", 0, 0, NULL},
-    {&g_lastManStandingWarning, "g_lastManStandingWarning", "0", 0, 0, NULL},
-    {&g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", 0, 0, NULL},
-    {&g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", 0, 0, NULL},
-    {&g_spawnArmor, "g_spawnArmor", "0", 0, 0, NULL},
-    {&g_adElimScoreBonus, "g_adElimScoreBonus", "1", CVAR_SERVERINFO, 0, NULL},
+    {&g_lastManStandingWarning, "g_lastManStandingWarning", "1", 0, 0, NULL},  // [QL] binary default "1"
+    {&g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_spawnArmor, "g_spawnArmor", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_adElimScoreBonus, "g_adElimScoreBonus", "2", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] default "2", flags 0x100004
+    {&g_adCaptureScoreBonus, "g_adCaptureScoreBonus", "3", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},  // [QL] default "3", flags 0x100004
 
     // [QL] freeze tag cvars
-    {&g_freezeThawTick, "g_freezeThawTick", "1", CVAR_INIT, 0, NULL},
-    {&g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "0", CVAR_INIT, 0, NULL},
-    {&g_freezeThawTime, "g_freezeThawTime", "2000", 0, 0, NULL},
-    {&g_freezeAutoThawTime, "g_freezeAutoThawTime", "120000", 0, 0, NULL},
-    {&g_freezeThawRadius, "g_freezeThawRadius", "96", 0, 0, NULL},
-    {&g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", 0, 0, NULL},
-    {&g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", 0, 0, NULL},
-    {&g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", 0, 0, NULL},
-    {&g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", 0, 0, NULL},
-    {&g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", 0, 0, NULL},
-    {&g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", 0, 0, NULL},
+    {&g_freezeThawTick, "g_freezeThawTick", "1", CVAR_GAMERULE, 0, NULL},  // [QL] binary: CVAR_GAMERULE only
+    {&g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "0", CVAR_GAMERULE, 0, NULL},  // [QL] binary: CVAR_GAMERULE only
+    {&g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeAutoThawTime, "g_freezeAutoThawTime", "120000", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_GAMERULE, 0, NULL},
     {&g_freezeAllowRespawn, "g_freezeAllowRespawn", "0", 0, 0, NULL},
-    {&g_freezeRoundDelay, "g_freezeRoundDelay", "0", CVAR_SERVERINFO, 0, NULL},
 
     // [QL] lag compensation / weapon modifiers
     {&g_lagHaxHistory, "g_lagHaxHistory", "4", CVAR_LATCH, 0, NULL},
-    {&g_lagHaxMs, "g_lagHaxMs", "80", 0, 0, NULL},
-    {&g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_TEMP | CVAR_SERVERINFO, 0, NULL},
+    {&g_lagHaxMs, "g_lagHaxMs", "80", CVAR_LATCH, 0, NULL},  // [QL] CVAR_LATCH per QLDS qagamex86.dll cvar table (0x1008e800)
+    {&g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_TEMP, 0, NULL},  // [QL] binary: 0x140100
 
     // [QL] Quad Hog
-    {&g_quadHog, "g_quadHog", "0", 0, 0, NULL},
-    {&g_quadHogTime, "g_quadHogTime", "30", 0, 0, NULL},
-    {&g_damagePlums, "g_damagePlums", "1", CVAR_SERVERINFO, 0, NULL},
+    {&g_quadHog, "g_quadHog", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_LATCH, 0, NULL},  // [QL] binary: 0x140020
+    {&g_quadHogTime, "g_quadHogTime", "60", CVAR_GAMERULE, 0, NULL},  // [QL] binary default "60"
+    {&g_damagePlums, "g_damagePlums", "2", CVAR_GAMERULE, 0, NULL},  // [QL] default "2", flags 0x100000
 
     // [QL] per-weapon advanced
-    {&g_damage_sg_outer, "g_damage_sg_outer", "5", 0, 0, NULL},
-    {&g_damage_sg_falloff, "g_damage_sg_falloff", "0", 0, 0, NULL},
-    {&g_range_sg_falloff, "g_range_sg_falloff", "768", 0, 0, NULL},
-    {&g_damage_lg_falloff, "g_damage_lg_falloff", "0", 0, 0, NULL},
-    {&g_range_lg_falloff, "g_range_lg_falloff", "768", 0, 0, NULL},
-    {&g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, NULL},
-    {&g_railJump, "g_railJump", "0", 0, 0, NULL},
+    {&g_damage_sg_outer, "g_damage_sg_outer", "5", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_damage_sg_falloff, "g_damage_sg_falloff", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_range_sg_falloff, "g_range_sg_falloff", "768", CVAR_GAMERULE, 0, NULL},
+    {&g_damage_lg_falloff, "g_damage_lg_falloff", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_range_lg_falloff, "g_range_lg_falloff", "768", CVAR_GAMERULE, 0, NULL},
+    {&g_headShotDamage_rg, "g_headShotDamage_rg", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_railJump, "g_railJump", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
 
     // [QL] RR infection mode
-    {&g_rrInfected, "g_rrInfected", "0", CVAR_LATCH, 0, NULL},
-    {&g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", 0, 0, NULL},
-    {&g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", 0, 0, NULL},
-    {&g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", 0, 0, NULL},
-    {&g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", 0, 0, NULL},
-    {&g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", 0, 0, NULL},
-    {&g_rrInfectedSurvivorMinSpeed, "g_rrInfectedSurvivorMinSpeed", "500.0", 0, 0, NULL},
-    {&g_rrInfectedSurvivorPingRate, "g_rrInfectedSurvivorPingRate", "2000", 0, 0, NULL},
-    {&g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", 0, 0, NULL},
-    {&g_rrInfectedZombieHealthBonus, "g_rrInfectedZombieHealthBonus", "50", 0, 0, NULL},
-    {&g_rrInfectedZombieFragBonus, "g_rrInfectedZombieFragBonus", "2", 0, 0, NULL},
-    {&g_rrDamageScoreBonus, "g_rrDamageScoreBonus", "0", 0, 0, NULL},
-    {&g_rrDeathScorePenalty, "g_rrDeathScorePenalty", "-1", 0, 0, NULL},
+    {&g_rrInfected, "g_rrInfected", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_LATCH, 0, NULL},
+    {&g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSurvivorMinSpeed, "g_rrInfectedSurvivorMinSpeed", "500.0f", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedSurvivorPingRate, "g_rrInfectedSurvivorPingRate", "2000", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedZombieHealthBonus, "g_rrInfectedZombieHealthBonus", "50", CVAR_GAMERULE, 0, NULL},
+    {&g_rrInfectedZombieFragBonus, "g_rrInfectedZombieFragBonus", "2", CVAR_GAMERULE, 0, NULL},
+    {&g_rrDamageScoreBonus, "g_rrDamageScoreBonus", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_rrDeathScorePenalty, "g_rrDeathScorePenalty", "-1", CVAR_GAMERULE, 0, NULL},
 
-    // [QL] tiered armor
-    {&armor_tiered, "armor_tiered", "0", 0, 0, NULL},
-    {&g_startingArmor, "g_startingArmor", "0", 0, 0, NULL},
+    // [QL] tiered armor (binary: armor_tiered uses unique 0x20000 flag bit)
+    {&armor_tiered, "armor_tiered", "0", CVAR_GAMERULE | CVAR_GAMERULE_ARMOR, 0, NULL},
+    // [QL] missing cvars added by binary parity audit (132)
+    {&bot_breakPoint, "bot_breakPoint", "0", 0, 0, NULL},
+    {&bot_debugVar, "bot_debugVar", "0", 0, 0, NULL},
+    {&bot_dynamicSkill, "bot_dynamicSkill", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_followDist, "bot_followDist", "250", CVAR_GAMERULE, 0, NULL},
+    {&bot_followMe, "bot_followMe", "", CVAR_GAMERULE, 0, NULL},
+    {&bot_gauntlet, "bot_gauntlet", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_gauntletOnly, "bot_gauntletOnly", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_hud, "bot_hud", "-1", CVAR_CHEAT, 0, NULL},
+    {&bot_instaGibAimSkill, "bot_instaGibAimSkill", "0.4", CVAR_GAMERULE, 0, NULL},
+    {&bot_itemDelayTime, "bot_itemDelayTime", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_showAreaNumber, "bot_showAreaNumber", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_showAreas, "bot_showAreas", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_showAvoidSpots, "bot_showAvoidSpots", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_showPath, "bot_showPath", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_showTourPoints, "bot_showTourPoints", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_startingSkill, "bot_startingSkill", "1", CVAR_GAMERULE, 0, NULL},
+    {&bot_teamkill, "bot_teamkill", "0", CVAR_GAMERULE, 0, NULL},
+    {&bot_training, "bot_training", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_accessFile, "g_accessFile", "access.txt", 0, 0, NULL},
+    {&g_adTouchScoreBonus, "g_adTouchScoreBonus", "1", CVAR_GAMERULE | CVAR_SERVERINFO, 0, NULL},
+    {&g_allTalk, "g_allTalk", "0", 0, 0, NULL},
+    {&g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_allowForfeit, "g_allowForfeit", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_allowKill, "g_allowKill", "1000", CVAR_GAMERULE, 0, NULL},
+    {&g_ammoPackHack, "g_ammoPackHack", "0", CVAR_GAMERULE | CVAR_LATCH, 0, NULL},
+    {&g_autoAction, "g_autoAction", "0", 0, 0, NULL},
+    {&g_battleSuitDampen, "g_battleSuitDampen", "0.25", CVAR_GAMERULE, 0, NULL},
+    {&g_bestStartingWeapons, "g_bestStartingWeapons", "gh bfg rl lg rg hmg cg sg pg mg ng gl g pl", CVAR_GAMERULE, 0, NULL},
+    {&g_botSpawnList, "g_botSpawnList", "", 0, 0, NULL},
+    {&g_complaintDamageThreshold, "g_complaintDamageThreshold", "400", CVAR_ARCHIVE, 0, NULL},
+    {&g_complaintLimit, "g_complaintLimit", "5", CVAR_ARCHIVE, 0, NULL},
+    {&g_customSettings, "g_customSettings", "0", CVAR_SERVERINFO, 0, NULL},
+    {&g_debugFlags, "g_debugFlags", "0", 0, 0, NULL},
+    {&g_debugThawTime, "g_debugThawTime", "0", 0, 0, NULL},
+    {&g_debugVampiricDamage, "g_debugVampiricDamage", "0", 0, 0, NULL},
+    {&g_domCapTime, "g_domCapTime", "5", CVAR_GAMERULE, 0, NULL},
+    {&g_domDistressThreshold, "g_domDistressThreshold", "75", CVAR_GAMERULE, 0, NULL},
+    {&g_domEnableContention, "g_domEnableContention", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_domNeutralFlag, "g_domNeutralFlag", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_domScoreRate, "g_domScoreRate", "5", CVAR_GAMERULE, 0, NULL},
+    {&g_domTeammateCapScale, "g_domTeammateCapScale", "0.5", CVAR_GAMERULE, 0, NULL},
+    {&g_dropCmds, "g_dropCmds", "7", CVAR_GAMERULE, 0, NULL},
+    {&g_dropDamagedHealth, "g_dropDamagedHealth", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_TEMP, 0, NULL},
+    {&g_dropPowerups, "g_dropPowerups", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_dropSkulls, "g_dropSkulls", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_droppedFlagBonus, "g_droppedFlagBonus", "1", CVAR_TEMP, 0, NULL},
+    {&g_droppedPowerupsDecay, "g_droppedPowerupsDecay", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_enableDebugTrace, "g_enableDebugTrace", "0", 0, 0, NULL},
+    {&g_enemyTeamRespawnRatio, "g_enemyTeamRespawnRatio", "1.5", CVAR_GAMERULE, 0, NULL},
+    {&g_factory, "g_factory", "", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},
+    {&g_factoryTitle, "g_factoryTitle", "", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},
+    {&g_flagBounce, "g_flagBounce", "0.25", CVAR_GAMERULE, 0, NULL},
+    {&g_flagPhysics, "g_flagPhysics", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_flightThrust, "g_flightThrust", "1200", CVAR_GAMERULE, 0, NULL},
+    {&g_floodprot_decay, "g_floodprot_decay", "1000", 0, 0, NULL},
+    {&g_floodprot_maxcount, "g_floodprot_maxcount", "10", 0, 0, NULL},
+    {&g_forceAtmosphericEffects, "g_forceAtmosphericEffects", "", CVAR_GAMERULE, 0, NULL},
+    {&g_forceSendConfigstring, "g_forceSendConfigstring", "0", 0, 0, NULL},
+    {&g_forceSmallScoreboardMessage, "g_forceSmallScoreboardMessage", "0", 0, 0, NULL},
+    {&g_freezeEnvironmentalRespawnDelay, "g_freezeEnvironmentalRespawnDelay", "5000", CVAR_GAMERULE, 0, NULL},
+    {&g_friendlyFireDampen, "g_friendlyFireDampen", "1.00", CVAR_GAMERULE, 0, NULL},
+    {&g_gauntletSpeedFactor, "g_gauntletSpeedFactor", "1.0", CVAR_GAMERULE, 0, NULL},
+    {&g_grantItemOnSpawn, "g_grantItemOnSpawn", "", CVAR_GAMERULE, 0, NULL},
+    {&g_instaGib, "g_instaGib", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_SERVERINFO, 0, NULL},
+    {&g_kamiAttenuate, "g_kamiAttenuate", "2048", CVAR_GAMERULE, 0, NULL},
+    {&g_kamiMinRatio, "g_kamiMinRatio", "0.1", CVAR_GAMERULE, 0, NULL},
+    {&g_kickBadUserinfo, "g_kickBadUserinfo", "1", 0, 0, NULL},
+    {&g_latchedHookOffset, "g_latchedHookOffset", "-2.0f", CVAR_GAMERULE, 0, NULL},
+    {&g_levelStartTime, "g_levelStartTime", "0", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},
+    {&g_lightningDischarge, "g_lightningDischarge", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", 0, 0, NULL},
+    {&g_maxFlightFuel, "g_maxFlightFuel", "16000", CVAR_GAMERULE, 0, NULL},
+    {&g_midAirMinHeight, "g_midAirMinHeight", "96", CVAR_GAMERULE, 0, NULL},
+    {&g_neutralFlagPingRate, "g_neutralFlagPingRate", "2400", CVAR_GAMERULE, 0, NULL},
+    {&g_playerModelScale, "g_playerModelScale", "1.1", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_playerheadScale, "g_playerheadScale", "1.0", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_playermodelOverride, "g_playermodelOverride", "", CVAR_GAMERULE | CVAR_GAMERULE_MODEL, 0, NULL},
+    {&g_powerupRespawn, "g_powerupRespawn", "120", CVAR_GAMERULE, 0, NULL},
+    {&g_quadHogIdle, "g_quadHogIdle", "20", CVAR_GAMERULE, 0, NULL},
+    {&g_quadHogPingRate, "g_quadHogPingRate", "1500", CVAR_GAMERULE, 0, NULL},
+    {&g_regenArmor, "g_regenArmor", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_regenArmorAfterHealth, "g_regenArmorAfterHealth", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_regenArmorRate, "g_regenArmorRate", "100", CVAR_GAMERULE, 0, NULL},
+    {&g_regenHealth, "g_regenHealth", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_regenHealthRate, "g_regenHealthRate", "100", CVAR_GAMERULE, 0, NULL},
+    {&g_respawn_delay_max, "g_respawn_delay_max", "2400", CVAR_GAMERULE, 0, NULL},
+    {&g_respawn_delay_min, "g_respawn_delay_min", "2100", CVAR_GAMERULE, 0, NULL},
+    {&g_returnFlagOnSuicide, "g_returnFlagOnSuicide", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_rrRoundScoreBonus, "g_rrRoundScoreBonus", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_shuffle_automatic, "g_shuffle_automatic", "0", 0, 0, NULL},
+    {&g_shuffle_automatic_minplayers, "g_shuffle_automatic_minplayers", "6", 0, 0, NULL},
+    {&g_shuffle_minplayers, "g_shuffle_minplayers", "3", 0, 0, NULL},
+    {&g_shuffle_timedelay, "g_shuffle_timedelay", "5000", 0, 0, NULL},
+    {&g_skipTrainingEnable, "g_skipTrainingEnable", "0", CVAR_ROM | CVAR_SYSTEMINFO, 0, NULL},
+    {&g_spawnArmorDmgScale, "g_spawnArmorDmgScale", "0.5", CVAR_GAMERULE, 0, NULL},
+    {&g_spawnDelayRandom_key, "g_spawnDelayRandom_key", "15", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnDelayRandom_powerup, "g_spawnDelayRandom_powerup", "15", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnDelay_key, "g_spawnDelay_key", "30", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnDelay_powerup, "g_spawnDelay_powerup", "45", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnItemArmor, "g_spawnItemArmor", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnItemHealth, "g_spawnItemHealth", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnItemHoldable, "g_spawnItemHoldable", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnItemPowerup, "g_spawnItemPowerup", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnItemWeapons, "g_spawnItemWeapons", "1", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&g_spawnMinDistance, "g_spawnMinDistance", "64", CVAR_GAMERULE, 0, NULL},
+    {&g_spawnRandomRatio, "g_spawnRandomRatio", "0.5", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawn, "g_suddenDeathRespawn", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawnIncrement, "g_suddenDeathRespawnIncrement", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawnMax, "g_suddenDeathRespawnMax", "10", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawnPrint, "g_suddenDeathRespawnPrint", "1", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawnStart, "g_suddenDeathRespawnStart", "3", CVAR_GAMERULE, 0, NULL},
+    {&g_suddenDeathRespawnTick, "g_suddenDeathRespawnTick", "60", CVAR_GAMERULE, 0, NULL},
+    {&g_switchTeamDelay, "g_switchTeamDelay", "3", CVAR_GAMERULE, 0, NULL},
+    {&g_tackleFlag, "g_tackleFlag", "0", CVAR_GAMERULE, 0, NULL},
+    {&g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE, 0, NULL},
+    {&g_teamForceBalance, "g_teamForceBalance", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, NULL},
+    {&g_teamSpawnAsSpec, "g_teamSpawnAsSpec", "0", 0, 0, NULL},
+    {&g_teamSpecFreeCam, "g_teamSpecFreeCam", "0", 0, 0, NULL},
+    {&g_teamSpecSayEnable, "g_teamSpecSayEnable", "1", 0, 0, NULL},
+    {&g_throwFlagForwardMult, "g_throwFlagForwardMult", "2.5", 0, 0, NULL},
+    {&g_throwFlagVelocity, "g_throwFlagVelocity", "0", 0, 0, NULL},
+    {&g_timeoutLen, "g_timeoutLen", "60", CVAR_GAMERULE, 0, NULL},
+    {&g_vampiricDamage, "g_vampiricDamage", "0", CVAR_GAMERULE | CVAR_GAMERULE_REPL, 0, NULL},
+    {&gamedate, "gamedate", "Jun  3 2016", CVAR_ROM, 0, NULL},
+    {&practiceflags, "practiceflags", "0", CVAR_GAMERULE | CVAR_TEMP, 0, NULL},
+    {&sv_mapname, "sv_mapname", "", CVAR_ROM | CVAR_SERVERINFO, 0, NULL},
+    {&ui_singlePlayerActive, "ui_singlePlayerActive", "", 0, 0, NULL},
+    {&weapon_reload_gauntlet, "weapon_reload_gauntlet", "400", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
+    {&weapon_reload_hook, "weapon_reload_hook", "100", CVAR_GAMERULE | CVAR_GAMERULE_REPL | CVAR_GAMERULE_WEAPON, 0, NULL},
+
 
     // NULL terminator
     {NULL, NULL, NULL, 0, 0, NULL}
@@ -899,19 +1157,6 @@ void G_FindTeams(void) {
     }
 
     G_Printf("%i teams with %i entities\n", c, c2);
-}
-
-void G_RemapTeamShaders(void) {
-    return;  // FIXME errors about Pagans/Stroggs files not present in new PAK00
-    char string[1024];
-    float f = level.time * 0.001;
-    Com_sprintf(string, sizeof(string), "team_icon/%s_red", g_redteam.string);
-    AddRemap("textures/ctf2/redteam01", string, f);
-    AddRemap("textures/ctf2/redteam03", string, f);
-    Com_sprintf(string, sizeof(string), "team_icon/%s_blue", g_blueteam.string);
-    AddRemap("textures/ctf2/blueteam01", string, f);
-    AddRemap("textures/ctf2/blueteam03", string, f);
-    trap_SetConfigstring(CS_SHADERSTATE, BuildShaderStateConfig());
 }
 
 /*
@@ -1116,8 +1361,6 @@ void G_InitGame(int levelTime, int randomSeed, int restart) {
         BotAILoadMap(restart);
         G_InitBots(restart);
     }
-
-    G_RemapTeamShaders();
 
     trap_SetConfigstring(CS_INTERMISSION, "");
 
@@ -3130,12 +3373,5 @@ void G_RunFrame(int levelTime) {
     // so the game module drives bot AI from G_RunFrame instead.
     if (trap_Cvar_VariableIntegerValue("bot_enable")) {
         BotAIStartFrame(level.time);
-    }
-
-    if (g_listEntity.integer) {
-        for (i = 0; i < MAX_GENTITIES; i++) {
-            G_Printf("%4i: %s\n", i, g_entities[i].classname);
-        }
-        trap_Cvar_Set("g_listEntity", "0");
     }
 }

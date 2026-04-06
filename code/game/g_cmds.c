@@ -2066,7 +2066,9 @@ static void Cmd_SpecResp_f(gentity_t *ent) {
     int i;
     gentity_t *other;
 
-    if (!g_itemTimers.integer)
+    // [QL] gate is g_specItemTimers, NOT g_itemTimers - verified from QLDS qagamex86.dll
+    // Cmd_SpecResp_f (0x1004edf0) reads g_specItemTimers.integer (0x10598d8c)
+    if (!g_specItemTimers.integer)
         return;
     if (!(ent->client->ps.eFlags & EF_VOTED))
         return;

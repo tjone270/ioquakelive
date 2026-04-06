@@ -411,11 +411,8 @@ int Pickup_Weapon(gentity_t* ent, gentity_t* other) {
     if (ent->item->giTag == WP_GRAPPLING_HOOK)
         other->client->ps.ammo[ent->item->giTag] = -1;  // unlimited ammo
 
-    // team deathmatch has slow weapon respawns
-    if (g_gametype.integer == GT_TEAM) {
-        return g_weaponTeamRespawn.integer;
-    }
-
+    // [QL] Binary uses g_weaponRespawn for all gametypes; Q3's g_weaponTeamRespawn
+    // override is gone.
     return g_weaponRespawn.integer;
 }
 
@@ -654,7 +651,9 @@ Binary: 0x1004ed90
 void Item_NotifySpectators(gentity_t *ent, qboolean isRespawn) {
     int i;
 
-    if (!g_itemTimers.integer)
+    // [QL] gate is g_specItemTimers, NOT g_itemTimers - verified from QLDS qagamex86.dll
+    // RespawnItem (0x1004f038) and Item_NotifySpectators (0x1004ed90) both read g_specItemTimers.integer (0x10598d8c)
+    if (!g_specItemTimers.integer)
         return;
     if (!ent || !ent->item)
         return;

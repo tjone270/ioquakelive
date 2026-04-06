@@ -287,11 +287,8 @@ void body_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int da
     if (self->health > GIB_HEALTH) {
         return;
     }
-    if (!g_blood.integer) {
-        self->health = GIB_HEALTH + 1;
-        return;
-    }
-
+    // [QL] Binary always gibs when health drops below threshold; client decides
+    // whether to render blood (cg_gibs/cg_blood). Removed Q3 server-side com_blood.
     GibEntity(self, 0);
 }
 
@@ -643,7 +640,7 @@ void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int 
     // never gib in a nodrop
     contents = trap_PointContents(self->r.currentOrigin, -1);
 
-    if ((self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE) {
+    if ((self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP)) || meansOfDeath == MOD_SUICIDE) {
         // gib death
         GibEntity(self, killer);
     } else {
