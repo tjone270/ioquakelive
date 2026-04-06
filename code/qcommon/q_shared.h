@@ -785,6 +785,22 @@ default values.
 #define CVAR_SERVER_CREATED CVAR_REPLICATE   // ioquake3 compat alias (QL repurposed this bit)
 #define CVAR_VM_CREATED 0x1000      // cvar was created exclusively in one of the VMs.
 #define CVAR_PROTECTED 0x2000       // prevent modifying this var from VMs or the server
+
+// [QL] CVAR_GAMERULE family - factory/game-rules system bits, verified from QLDS qagamex86.dll cvar table.
+// CVAR_GAMERULE is the base flag (0x100000); the sub-bits indicate which engine subsystem owns the cvar.
+// In ql-decompiled: include/ql_enums_game.h:215 documents CVAR_GAMERULE = 0x100000.
+#define CVAR_GAMERULE_PMOVE  0x004000  // 33 cvars, all pmove_*
+#define CVAR_GAMERULE_WEAPON 0x008000  // 19 cvars, all weapon_* (always paired with REPL)
+#define CVAR_GAMERULE_MODEL  0x010000  // 6 cvars, player model/head customization
+#define CVAR_GAMERULE_ARMOR  0x020000  // 1 cvar (armor_tiered) - unique flag for tiered armor system
+#define CVAR_GAMERULE_REPL   0x040000  // 108 cvars, must be replicated to client (g_damage_*, weapons, etc)
+#define CVAR_GAMERULE        0x100000  // 312 cvars, factory system marker
+
+// [QL] Client-side user-save flag - verified from cgamex86.dll cvar table.
+// Set on ~200 archive cvars in cgame; always paired with CVAR_REPLICATE (and usually CVAR_VM_CREATED).
+// Exact semantics unverified, but the pattern (only on CVAR_ARCHIVE cvars, in cgame only) suggests
+// it marks cvars that get persisted to a per-user save file (Steam cloud profile, etc).
+#define CVAR_USERSAVE        0x080000
 // These flags are only returned by the Cvar_Flags() function
 #define CVAR_MODIFIED 0x40000000     // Cvar was modified
 #define CVAR_NONEXISTENT 0x80000000  // Cvar doesn't exist.
