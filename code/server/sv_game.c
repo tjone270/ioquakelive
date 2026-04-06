@@ -272,7 +272,7 @@ void SV_GetUsercmd(int clientNum, usercmd_t* cmd) {
 
 // Game module state
 static void *sv_gameLibHandle;
-static void *sv_vmMainTable[10];
+static void *sv_vmMainTable[11];
 static gameImport_t sv_gameImports;
 static int sv_apiVersion;
 
@@ -1165,6 +1165,13 @@ const char *SV_GameClientConnect(int clientNum, qboolean firstTime, qboolean isB
 void SV_GameClientCommand(int clientNum) {
     if (sv_vmMainTable[GAME_CLIENT_COMMAND])
         ((void (*)(int))sv_vmMainTable[GAME_CLIENT_COMMAND])(clientNum);
+}
+
+// [QL] Snapshot visibility check for position data obfuscation (RR infection, 1FCTF)
+qboolean SV_GameSnapshotVisibility(int viewerClientNum, int entityNum) {
+    if (sv_vmMainTable[GAME_SNAPSHOT_VISIBILITY])
+        return ((qboolean (*)(int, int))sv_vmMainTable[GAME_SNAPSHOT_VISIBILITY])(viewerClientNum, entityNum);
+    return qtrue;  // default: allow visibility (do not strip positions)
 }
 
 //==============================================

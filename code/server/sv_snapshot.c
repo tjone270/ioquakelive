@@ -503,6 +503,17 @@ static void SV_BuildClientSnapshot(client_t* client) {
         ent = SV_GentityNum(entityNumbers.snapshotEntities[i]);
         state = &svs.snapshotEntities[svs.nextSnapshotEntities % svs.numSnapshotEntities];
         *state = ent->s;
+
+        // [QL] strip enemy position data in team gametypes when game module
+        // says this pair should NOT have visibility (returns 0 = obfuscate).
+        // The game function returns 1 for "allow" (same team, spectator, flag carrier, etc.)
+        if (state->number < sv_maxclients->integer && state->number != clientNum) {
+            if (!SV_GameSnapshotVisibility(clientNum, state->number)) {
+                VectorClear(state->pos.trBase);
+                VectorClear(state->apos.trBase);
+            }
+        }
+
         svs.nextSnapshotEntities++;
         // this should never hit, map should always be restarted first in SV_Frame
         if (svs.nextSnapshotEntities >= 0x7FFFFFFE) {

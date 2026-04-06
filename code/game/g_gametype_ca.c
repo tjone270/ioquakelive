@@ -43,28 +43,6 @@ static void TeamCount_Health(int *healthTotals) {
     }
 }
 
-// [QL] Last Man Standing announcement (binary: 0x1006b200)
-// Plays GTS_LAST_STANDING sound event and sends the g_lastManStandingWarning
-// cvar string as a centerprint to the sole survivor on the given team.
-static void LastManStanding(int team) {
-    int i;
-    for (i = 0; i < level.maxclients; i++) {
-        gclient_t *cl = &level.clients[i];
-        if (cl->pers.connected != CON_CONNECTED) continue;
-        if (cl->ps.pm_type != PM_NORMAL) continue;
-        if (cl->sess.sessionTeam != team) continue;
-
-        {
-            gentity_t *te = G_TempEntity(vec3_origin, EV_GLOBAL_TEAM_SOUND);
-            te->r.svFlags |= SVF_BROADCAST;
-            te->s.eventParm = GTS_LAST_STANDING;  // 0x13 = 19
-            te->s.otherEntityNum = cl->sess.sessionTeam;
-            trap_SendServerCommand(i,
-                va("cp \"%s\n\"", g_lastManStandingMessage.string));
-        }
-        return;
-    }
-}
 
 // [QL] EV_AWARD-based award: broadcasts medal event to all clients
 // Binary: 0x10046730 - increments the persistant award counter at
@@ -81,13 +59,6 @@ static void PlayerAwardEV(gentity_t *ent, int awardIndex) {
 }
 
 // Stats stubs - ZMQ stats publishing requires Steam backend
-static void STAT_PublishMedal(gentity_t *ent, const char *medal) {
-    (void)ent; (void)medal;
-}
-
-static void STAT_RoundOver(int round, int winTeam, int isDraw) {
-    (void)round; (void)winTeam; (void)isDraw;
-}
 
 // ============================================================================
 // CA_CheckTimer (binary: 0x10038080)
