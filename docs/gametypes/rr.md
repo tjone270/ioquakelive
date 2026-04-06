@@ -10,7 +10,9 @@ Red Rover is a round-based team mode where players switch teams on death. When a
 - **Binary addresses:**
   - `RR_InitRoundState`: `0x100656e0`
   - `RR_CheckExitRules`: `0x10064770`
+  - `RR_CheckRound` (= `RR_RunFrame`): per-frame entry from G_RunFrame
   - `RR_OnPlayerDeath`: `0x10065760`
+  - `StartNewRound`: `0x10064880`
   - `ClientSpawn_RedRover`: `0x10064640`
   - `RRScoreboardMessage`: `0x1003f440`
 
@@ -72,7 +74,7 @@ RS_WARMUP (0) --> RS_COUNTDOWN (1) --> RS_PLAYING (3) --> RS_ROUND_OVER (4)
 
 ### RS_SHUFFLE (2)
 - **Non-infected mode:** Calls `Svcmd_ForceShuffle_f()` to randomize teams, then schedules RS_COUNTDOWN after 1ms.
-- **Infected mode:** No-op (returns immediately). In infected mode, team assignment is handled by the infection mechanic itself.
+- **Infected mode:** `RR_RoundStateTransition` is a no-op (returns immediately). The actual infected team reset is handled in `RR_RunFrame` (binary: `RR_CheckRound`), which detects `eCurrent == RS_SHUFFLE` after the transition and calls `StartNewRound()` to move all RED to BLUE and pick a new zombie, then schedules RS_COUNTDOWN after 1ms.
 
 ### RS_PLAYING (3)
 - Clears `PMF_FROZEN` on all players.
@@ -188,13 +190,18 @@ Post-spawn adjustments called after `ClientSpawn()`:
 - During RS_COUNTDOWN: spawn + freeze + set `PMF_TIME_KNOCKBACK`.
 - Otherwise: normal spawn + weapon select.
 
-## Round End Detection (`RR_RunFrame`)
+## Per-Frame Logic (`RR_RunFrame` / binary: `RR_CheckRound`)
 
-Per-frame during RS_PLAYING:
-1. Calls `RR_CheckInfection()` for forced infection timing.
+Called from `G_RunFrame` for `GT_RR`. Uses `G_GetRoundState` pattern to process pending transitions.
+
+**After state transition:**
+- If `eCurrent == RS_SHUFFLE` and `g_rrInfected != 0`: calls `StartNewRound()`, schedules RS_COUNTDOWN.
+
+**During RS_PLAYING:**
+1. Calls `UpdateTeamAliveCount()`.
 2. Calls `RR_SurvivalBonus(0)` for timer-based survival scoring.
-3. If either team has 0 alive players: transition to RS_ROUND_OVER.
-4. If `roundtimelimit` seconds elapsed: transition to RS_ROUND_OVER.
+3. Calls `RR_CheckInfection()` for forced infection timing.
+4. Calls `CheckRoundTimeout()`: if either team has 0 alive players or `roundtimelimit` elapsed, transitions to RS_ROUND_OVER.
 
 ## Scoreboard
 
@@ -228,7 +235,7 @@ Format: `scores_rr <numPlayers> <redScore> <blueScore> <playerData>`
 |---|---|
 | `RR_InitRoundState()` | Initializes round state; enters RS_SHUFFLE or RS_WARMUP based on infection mode |
 | `RR_RoundStateTransition()` | Main state machine dispatcher for all round states |
-| `RR_RunFrame()` | Per-frame entry point from `G_RunFrame`; infection checks, survival bonus, round end |
+| `RR_RunFrame()` | Per-frame entry point from `G_RunFrame` (binary: `RR_CheckRound`); handles infected RS_SHUFFLE via `StartNewRound`, then RS_PLAYING: alive count, survival bonus, infection, round timeout |
 | `RR_CheckExitRules()` | Evaluates timelimit and roundlimit (no mercy limit) |
 | `RR_OnPlayerDeath()` | Core mechanic: switches victim's team; infection event in infected mode |
 | `RR_CheckInfection()` | Periodic forced team switch of weakest blue player to red |
@@ -237,14 +244,14 @@ Format: `scores_rr <numPlayers> <redScore> <blueScore> <playerData>`
 | `ClientBegin_RedRover()` | Spawn entry point for RR: normal or countdown freeze |
 | `RRScoreboardMessage()` | Sends `scores_rr` with 19 per-player fields |
 | `PickTeam_RoundAware()` | Team picker for infection mode: red during active rounds, blue between |
-| `StartNewRound()` | Between rounds: moves all RED to BLUE, picks new RED player |
+| `StartNewRound()` | Between rounds (binary: `0x10064880`): moves all RED to BLUE, last blue survivor becomes first zombie, random pick if no zombie; sets `rr_lastRedClient`. Called from `RR_RunFrame` when infected RS_SHUFFLE is active. |
 | `G_ObfuscateEnemyInfoInSnapshotCheck()` | Snapshot visibility: strips enemy position data in team gametypes (shared, in g_gametype_common.c) |
 
 ## Internal State
 
 | Variable | Type | Description |
 |---|---|---|
-| `rr_lastRedClient` | int | Last red player eliminated (client number, -1 if none) |
+| `rr_lastRedClient` | int | Client number of the random zombie picked by `StartNewRound` (-1 if none); used by `PickTeam_RoundAware` to prevent re-assignment |
 | `rr_lastBlueClient` | int | Last blue player eliminated (client number, -1 if none) |
 | `rr_survivalNextTime` | int | Next time for timer-based survival bonus |
 | `rr_infectionStartTime` | int | Timestamp of last infection event (forced or death-triggered) |
