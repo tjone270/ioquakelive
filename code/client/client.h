@@ -107,6 +107,7 @@ typedef struct {
     // cgame communicates a few values to the client system
     int cgameUserCmdValue;          // current weapon to add to usercmd_t
     int cgameUserCmdWeaponPrimary;  // [QL] queued primary loadout weapon (WP_*, 1..14)
+    int cgameUserCmdFov;            // [QL] effective fov (1..130) for usercmd_t.fov
     float cgameSensitivity;
 
     // cmds[cmdNumber] is the predicted command, [cmdNumber-1] is the last

@@ -1023,10 +1023,11 @@ void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoP
     }
 
     // let the client system know what our weapon and zoom settings are
-    // [QL] also pass through the queued loadout primary weapon so the engine
-    //      can stamp cmd->weaponPrimary every frame for the server to pick up
+    // [QL] 4-arg call matches cgamex86.dll CG_DrawActiveFrame: also passes
+    //      queued loadout primary weapon (→ cmd.weaponPrimary) and effective
+    //      fov (→ cmd.fov), so the engine can stamp them each frame.
     trap_SetUserCmdValue(cg.weaponSelect, CG_WeaponPrimaryFromCvar(),
-                         cg.zoomSensitivity);
+                         cg.zoomSensitivity, (int)cg.refdef.fov_x);
 
     // this counter will be bumped for every valid scene we generate
     cg.clientFrame++;

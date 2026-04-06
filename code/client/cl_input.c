@@ -633,6 +633,8 @@ void CL_FinishMove(usercmd_t* cmd) {
     cmd->weapon = cl.cgameUserCmdValue;
     // [QL] queued loadout primary weapon (usercmd_t offset 0x15)
     cmd->weaponPrimary = (byte)cl.cgameUserCmdWeaponPrimary;
+    // [QL] effective fov (usercmd_t offset 0x16)
+    cmd->fov = (byte)cl.cgameUserCmdFov;
 
     // send the current server time so the amount of movement
     // can be determined without allowing cheating
