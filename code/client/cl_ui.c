@@ -247,8 +247,8 @@ static void LAN_GetServerInfo(int source, int n, char* buf, int buflen) {
         Info_SetValueForKey(info, "clients", va("%i", server->clients));
         Info_SetValueForKey(info, "sv_maxclients", va("%i", server->maxClients));
         Info_SetValueForKey(info, "ping", va("%i", server->ping));
-        Info_SetValueForKey(info, "minping", va("%i", server->minPing));
-        Info_SetValueForKey(info, "maxping", va("%i", server->maxPing));
+        Info_SetValueForKey(info, "minPing", va("%i", server->minPing));  // [QL] binary uses camelCase
+        Info_SetValueForKey(info, "maxPing", va("%i", server->maxPing));  // [QL] binary uses camelCase
         Info_SetValueForKey(info, "game", server->game);
         Info_SetValueForKey(info, "gametype", va("%i", server->gameType));
         Info_SetValueForKey(info, "nettype", va("%i", server->netType));
