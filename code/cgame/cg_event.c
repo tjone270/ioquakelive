@@ -1447,6 +1447,7 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
                 cg.race.bestSplit = 0;
                 cg.race.checkpointCount = 0;
                 cg.race.nextCheckpointEnt = es->otherEntityNum2;  // entity number of first checkpoint
+                cg.race.nextNextCheckpointEnt = -1;
                 cg.race.currentCheckpointEnt = -1;
                 trap_S_StartLocalSound(cgs.media.countFightSound, CHAN_ANNOUNCER);
             }
@@ -1455,14 +1456,13 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
             DEBUGNAME("EV_RACE_CHECKPOINT");
             // [QL] race checkpoint - show split time center print
             if (cg.snap->ps.clientNum == es->clientNum) {
-                cg.race.totalCheckpoints = es->otherEntityNum2;
-                cg.race.bestSplit = es->eventParm;
-                cg.race.checkpointCount++;
+                cg.race.checkpointCount = es->generic1;  // checkpoint index from server
                 cg.race.currentCheckpointEnt = cent->currentState.number;
-                // es->generic1 contains next checkpoint entity number
-                cg.race.nextCheckpointEnt = es->generic1 ? es->generic1 : -1;
-                // Delta time only makes sense if player has a previous best time
-                if (cg.race.bestTime > 0 && es->time > 0) {
+                // Two-level lookahead from server
+                cg.race.nextCheckpointEnt = es->otherEntityNum ? es->otherEntityNum : -1;
+                cg.race.nextNextCheckpointEnt = es->otherEntityNum2 ? es->otherEntityNum2 : -1;
+                // es->time = delta from personal best (0 if no best)
+                if (es->time != 0) {
                     cg.race.checkpointDiff = es->time;
                     cg.race.hasDiff = qtrue;
                 } else {
@@ -1497,7 +1497,7 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
                                 sec, ms, remainStr), 120, SMALLCHAR_WIDTH);
                         }
                     } else {
-                        CG_CenterPrint(va("Checkpoint\n%s", remainStr), 120, SMALLCHAR_WIDTH);
+                        CG_CenterPrint(va("Checkpoint %d\n%s", cg.race.checkpointCount, remainStr), 120, SMALLCHAR_WIDTH);
                     }
                 }
             }
@@ -1581,7 +1581,9 @@ void CG_EntityEvent(centity_t* cent, vec3_t position) {
             break;
         case EV_INFECTED:
             DEBUGNAME("EV_INFECTED");
-            // [QL] infection mode - play announcement sound
+            // [QL] infection mode - centerprint + announcement sound
+            // Server sends with SVF_SINGLECLIENT so only infected player receives this
+            CG_CenterPrint("You have been infected!", 120, SMALLCHAR_WIDTH);
             trap_S_StartLocalSound(cgs.media.infectedSound, CHAN_ANNOUNCER);
             break;
         case EV_NEW_HIGH_SCORE:

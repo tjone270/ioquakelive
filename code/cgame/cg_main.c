@@ -2571,6 +2571,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 
     cg.clientNum = clientNum;
     cg.race.nextCheckpointEnt = -1;
+    cg.race.nextNextCheckpointEnt = -1;
     cg.race.currentCheckpointEnt = -1;
     CG_ClearChat();
 

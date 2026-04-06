@@ -207,6 +207,19 @@ void CG_Respawn(void) {
 
     // select the weapon the server says we are using
     cg.weaponSelect = cg.snap->ps.weapon;
+
+    // [QL] Race: reset checkpoints on respawn
+    if (cgs.gametype == GT_RACE) {
+        memset(&cg.race, 0, sizeof(cg.race));
+        cg.race.nextCheckpointEnt = -1;
+        cg.race.nextNextCheckpointEnt = -1;
+        trap_SendConsoleCommand("raceinit\n");
+    }
+
+    // [QL] Spectator item timers: request current item respawn state
+    if (cg.snap->ps.eFlags & EF_VOTED) {
+        trap_SendConsoleCommand("specresp\n");
+    }
 }
 
 extern char* eventnames[];

@@ -719,7 +719,8 @@ typedef struct {
         int      checkpointDiff;    // time diff at last checkpoint
         qboolean hasDiff;           // whether diff is valid
         int      checkpointCount;   // current checkpoint number
-        int      nextCheckpointEnt;    // entity number of next checkpoint (-1 = none)
+        int      nextCheckpointEnt;     // entity number of next checkpoint (-1 = none)
+        int      nextNextCheckpointEnt; // two-level lookahead (-1 = none)
         int      currentCheckpointEnt; // entity number of current/last checkpoint (-1 = none)
     } race;
 

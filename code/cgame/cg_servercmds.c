@@ -1358,6 +1358,7 @@ static void CG_ServerCommand(void) {
         // reset race state
         memset(&cg.race, 0, sizeof(cg.race));
         cg.race.nextCheckpointEnt = -1;
+        cg.race.nextNextCheckpointEnt = -1;
         cg.race.currentCheckpointEnt = -1;
         return;
     }
