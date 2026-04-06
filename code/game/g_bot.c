@@ -478,7 +478,6 @@ G_CheckBotSpawn
 */
 void G_CheckBotSpawn(void) {
     int n;
-    char userinfo[MAX_INFO_VALUE];
 
     G_CheckMinimumPlayers();
 
@@ -970,14 +969,6 @@ G_InitBots
 ===============
 */
 void G_InitBots(qboolean restart) {
-    int fragLimit;
-    int timeLimit;
-    const char* arenainfo;
-    char* strValue;
-    int basedelay;
-    char map[MAX_QPATH];
-    char serverinfo[MAX_INFO_STRING];
-
     G_LoadBots();
     G_LoadArenas();
 
