@@ -169,7 +169,9 @@ static void ProximityMine_Activate(gentity_t* ent) {
     float r;
 
     ent->think = ProximityMine_Explode;
-    ent->nextthink = level.time + g_proxMineTimeout.integer;
+    // [QL] g_proxMineTimeout is in SECONDS in QL (default 20s), binary does *1000 here
+    // (verified from QLDS qagamex86.dll: IMUL EAX, EAX, 0x3e8 at 0x1005b8b1)
+    ent->nextthink = level.time + g_proxMineTimeout.integer * 1000;
 
     ent->takedamage = qtrue;
     ent->health = 1;
