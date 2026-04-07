@@ -23,17 +23,17 @@ jobs:
       run: make release -j$(nproc)
     - name: Stage build outputs
       run: |
-        mkdir -p staging/dlls staging/engine
-        cp build/release-linux-x86_64/baseq3/cgamex86_64.so  staging/dlls/
-        cp build/release-linux-x86_64/baseq3/qagamex86_64.so staging/dlls/
-        cp build/release-linux-x86_64/baseq3/uix86_64.so     staging/dlls/
+        mkdir -p staging/libs staging/engine
+        cp build/release-linux-x86_64/baseq3/cgamex86_64.so  staging/libs/
+        cp build/release-linux-x86_64/baseq3/qagamex86_64.so staging/libs/
+        cp build/release-linux-x86_64/baseq3/uix86_64.so     staging/libs/
         # actions/upload-artifact strips +x; tar to preserve mode bits.
         tar -C build/release-linux-x86_64 -cf staging/engine/linux-x86_64.tar \
           quakelive.x86_64 quakelive_dedicated.x86_64 opengl2x86_64.so
     - uses: actions/upload-artifact@v4
       with:
-        name: dlls-linux-x86_64
-        path: staging/dlls/
+        name: libs-linux-x86_64
+        path: staging/libs/
     - uses: actions/upload-artifact@v4
       with:
         name: engine-linux-x86_64
@@ -54,19 +54,165 @@ jobs:
       run: |
         chmod +x make-macosx-app.sh
         ./make-macosx-app.sh release arm64
+
+    - name: Import signing certificate
+      env:
+        CERT_B64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        CERT_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        KC_PWD:   ${{ secrets.MACOS_KEYCHAIN_PWD }}
+      if: env.CERT_B64 != ''
+      run: |
+        set -euo pipefail
+        echo "$CERT_B64" | base64 -d > cert.p12
+        security create-keychain -p "$KC_PWD" build.keychain
+        security default-keychain -s build.keychain
+        # Add build.keychain to the user search list so find-identity in
+        # subsequent steps actually sees its contents. default-keychain on
+        # its own does NOT modify the search list.
+        security list-keychains -d user -s build.keychain login.keychain
+        security unlock-keychain -p "$KC_PWD" build.keychain
+        security set-keychain-settings -lut 21600 build.keychain
+        security import cert.p12 -k build.keychain -P "$CERT_PWD" \
+          -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: \
+          -s -k "$KC_PWD" build.keychain >/dev/null
+        rm cert.p12
+        # Sanity-check the identity is now visible to codesign via the
+        # search list (no explicit keychain arg) — this is what the next
+        # step's find-identity call relies on.
+        security find-identity -v -p codesigning
+
+    - name: Codesign dylibs and app bundle
+      env:
+        CERT_B64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        TEAM_ID:  ${{ secrets.MACOS_TEAM_ID }}
+      if: env.CERT_B64 != ''
+      run: |
+        set -euo pipefail
+        # Look up the Developer ID Application identity explicitly. We do
+        # this WITHOUT a pipefail-killing pipeline so that if the cert
+        # didn't import correctly we get a readable diagnostic instead of
+        # a bare 'exit 1'.
+        IDENTITIES="$(security find-identity -v -p codesigning)"
+        echo "Available codesigning identities:"
+        echo "$IDENTITIES"
+        IDENTITY="$(echo "$IDENTITIES" \
+          | sed -nE 's/.*"(Developer ID Application: [^"]+)".*/\1/p' \
+          | head -1)"
+        if [ -z "$IDENTITY" ]; then
+          echo "ERROR: no Developer ID Application identity found in keychain search list" >&2
+          echo "       check the 'Import signing certificate' step ran and the .p12 imported cleanly" >&2
+          exit 1
+        fi
+        echo "Signing with: $IDENTITY"
+
+        # 1. Sign the standalone game dylibs that go into iobin.pk3.
+        #    These are extracted at runtime to ~/Library/Application Support/quakelive
+        #    and dlopen()'d by the hardened-runtime engine, so they MUST carry a
+        #    Developer ID signature from the same team or library validation
+        #    will reject them. Mach-O signatures are embedded in the file bytes
+        #    and survive the pk3 zip round-trip cleanly.
+        for dylib in build/release-darwin-arm64/baseq3/cgamearm64.dylib \
+                     build/release-darwin-arm64/baseq3/qagamearm64.dylib \
+                     build/release-darwin-arm64/baseq3/uiarm64.dylib; do
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$dylib"
+          codesign --verify --strict --verbose=2 "$dylib"
+        done
+
+        # 2. Sign every nested binary inside the .app bundle bottom-up,
+        #    then the bundle itself. --deep is unreliable for bundles with
+        #    embedded dylibs/frameworks, so we walk explicitly.
+        #
+        #    The bundle contains TWO standalone executables in Contents/MacOS:
+        #    quakelive (the CFBundleExecutable) and quakelive_dedicated.
+        #    A bundle codesign only touches the CFBundleExecutable, so
+        #    quakelive_dedicated has to be signed individually first or
+        #    notarization rejects it as unsigned / no-hardened-runtime.
+        APP=build/release-darwin-arm64/quakelive.app
+
+        # Sign nested dylibs/sos first.
+        find "$APP" -type f \( -name "*.dylib" -o -name "*.so" \) -print0 \
+          | while IFS= read -r -d '' lib; do
+              codesign --force --options runtime --timestamp \
+                --sign "$IDENTITY" "$lib"
+            done
+
+        # Sign every Mach-O executable inside Contents/MacOS/ that ISN'T
+        # the bundle's main binary (the bundle sign below handles that one).
+        # `file` is the most reliable way to detect Mach-O — extensionless
+        # executables on macOS don't have a name pattern we can rely on.
+        find "$APP/Contents/MacOS" -type f -print0 \
+          | while IFS= read -r -d '' bin; do
+              if file "$bin" | grep -q 'Mach-O'; then
+                codesign --force --options runtime --timestamp \
+                  --sign "$IDENTITY" "$bin"
+              fi
+            done
+
+        # Finally, sign the bundle itself.
+        codesign --force --options runtime --timestamp \
+          --sign "$IDENTITY" "$APP"
+        codesign --verify --strict --verbose=2 "$APP"
+
+    - name: Notarise and staple
+      env:
+        CERT_B64:   ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        KEY_ID:     ${{ secrets.MACOS_NOTARY_KEY_ID }}
+        KEY_ISSUER: ${{ secrets.MACOS_NOTARY_KEY_ISSUER }}
+        KEY_P8:     ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+      if: env.CERT_B64 != ''
+      run: |
+        set -euo pipefail
+        echo "$KEY_P8" | base64 -d > AuthKey.p8
+        APP=build/release-darwin-arm64/quakelive.app
+        # ditto preserves the bundle correctly inside the submission zip.
+        ditto -c -k --keepParent "$APP" quakelive-notarise.zip
+
+        # Submit and capture both the submission id and the final status.
+        # notarytool submit --wait returns 0 even when status is Invalid,
+        # so we have to parse the output and react ourselves.
+        SUBMIT_OUT="$(xcrun notarytool submit quakelive-notarise.zip \
+          --key AuthKey.p8 --key-id "$KEY_ID" --issuer "$KEY_ISSUER" \
+          --wait 2>&1 | tee /dev/stderr)"
+        SUBMIT_ID="$(echo "$SUBMIT_OUT" | awk '/^  id:/ {print $2; exit}')"
+        STATUS="$(echo "$SUBMIT_OUT" | awk '/^  status:/ {print $2; exit}')"
+        echo "submission id: $SUBMIT_ID"
+        echo "status:        $STATUS"
+
+        # Always fetch the log — even on success it sometimes contains
+        # warnings worth seeing.
+        if [ -n "$SUBMIT_ID" ]; then
+          echo "----- notarization log -----"
+          xcrun notarytool log "$SUBMIT_ID" \
+            --key AuthKey.p8 --key-id "$KEY_ID" --issuer "$KEY_ISSUER" || true
+          echo "----- end notarization log -----"
+        fi
+
+        rm -f AuthKey.p8 quakelive-notarise.zip
+
+        if [ "$STATUS" != "Accepted" ]; then
+          echo "ERROR: notarization status was '$STATUS', expected 'Accepted'" >&2
+          exit 1
+        fi
+
+        # Staple the ticket to the on-disk .app so Gatekeeper can verify offline.
+        xcrun stapler staple "$APP"
+        xcrun stapler validate "$APP"
+
     - name: Stage build outputs
       run: |
-        mkdir -p staging/dlls staging/engine
-        cp build/release-darwin-arm64/baseq3/cgamearm64.dylib  staging/dlls/
-        cp build/release-darwin-arm64/baseq3/qagamearm64.dylib staging/dlls/
-        cp build/release-darwin-arm64/baseq3/uiarm64.dylib     staging/dlls/
+        mkdir -p staging/libs staging/engine
+        cp build/release-darwin-arm64/baseq3/cgamearm64.dylib  staging/libs/
+        cp build/release-darwin-arm64/baseq3/qagamearm64.dylib staging/libs/
+        cp build/release-darwin-arm64/baseq3/uiarm64.dylib     staging/libs/
         # actions/upload-artifact strips POSIX permissions and breaks
         # bundle symlinks, so tar the .app to preserve everything.
         tar -C build/release-darwin-arm64 -cf staging/engine/quakelive.app.tar quakelive.app
     - uses: actions/upload-artifact@v4
       with:
-        name: dlls-macos-arm64
-        path: staging/dlls/
+        name: libs-macos-arm64
+        path: staging/libs/
     - uses: actions/upload-artifact@v4
       with:
         name: engine-macos-arm64
@@ -98,19 +244,19 @@ jobs:
     - name: Stage build outputs
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path staging/dlls   | Out-Null
+        New-Item -ItemType Directory -Force -Path staging/libs   | Out-Null
         New-Item -ItemType Directory -Force -Path staging/engine | Out-Null
-        Copy-Item build/Release/x64/baseq3/cgamex86_64.dll  staging/dlls/
-        Copy-Item build/Release/x64/baseq3/qagamex86_64.dll staging/dlls/
-        Copy-Item build/Release/x64/baseq3/uix86_64.dll     staging/dlls/
+        Copy-Item build/Release/x64/baseq3/cgamex86_64.dll  staging/libs/
+        Copy-Item build/Release/x64/baseq3/qagamex86_64.dll staging/libs/
+        Copy-Item build/Release/x64/baseq3/uix86_64.dll     staging/libs/
         # Engine binaries plus the runtime DLLs (SDL2, freetype, ...) that
         # ship next to quakelive.exe
         Copy-Item build/Release/x64/*.exe staging/engine/
         Copy-Item build/Release/x64/*.dll staging/engine/
     - uses: actions/upload-artifact@v4
       with:
-        name: dlls-windows-x64
-        path: staging/dlls/
+        name: libs-windows-x64
+        path: staging/libs/
     - uses: actions/upload-artifact@v4
       with:
         name: engine-windows-x64
@@ -125,11 +271,11 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.x'
-    - name: Download DLL artifacts
+    - name: Download game library artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: dlls-*
-        path: dlls
+        pattern: libs-*
+        path: libs
         merge-multiple: true
     - name: Download engine artifacts
       uses: actions/download-artifact@v4
@@ -153,7 +299,7 @@ jobs:
     - name: Build universal iobin.pk3
       run: |
         python code/tools/make_deterministic_pk3.py \
-          --input dlls \
+          --input libs \
           --output shared/baseq3/iobin.pk3
         sha256sum shared/baseq3/iobin.pk3
     - name: Build deterministic pak01.pk3

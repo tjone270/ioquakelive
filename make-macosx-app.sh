@@ -47,13 +47,51 @@ if [ -f "${BUILT_PRODUCTS_DIR}/opengl2${ARCH}.dylib" ]; then
 	cp "${BUILT_PRODUCTS_DIR}/opengl2${ARCH}.dylib" "${MACOS}/opengl2${ARCH}.dylib"
 fi
 
-# Copy SDL2 dylib if present
-for dylib in "${BUILT_PRODUCTS_DIR}"/*.dylib; do
-	name=$(basename "$dylib")
-	case "$name" in
-		libSDL2*|SDL2*) cp "$dylib" "${MACOS}/" ;;
-	esac
+# Bundle SDL2 into Contents/Frameworks/ and rewrite the load path.
+# The binary links against SDL2 via its Homebrew/system install name (an
+# absolute path); macOS hardened-runtime rejects loading a non-platform dylib
+# whose Team ID doesn't match the app's.  Bundling SDL2 and signing it with
+# the same Developer ID certificate is the correct fix.
+FRAMEWORKS="${CONTENTS}/Frameworks"
+mkdir -p "${FRAMEWORKS}"
+
+# Locate the SDL2 dylib that the linker used (try build dir, then common locations).
+SDL2_SRC=""
+for candidate in \
+    "${BUILT_PRODUCTS_DIR}/libSDL2-2.0.0.dylib" \
+    "$(brew --prefix sdl2 2>/dev/null)/lib/libSDL2-2.0.0.dylib" \
+    /opt/homebrew/lib/libSDL2-2.0.0.dylib \
+    /usr/local/lib/libSDL2-2.0.0.dylib; do
+    if [ -f "$candidate" ]; then
+        SDL2_SRC="$candidate"
+        break
+    fi
 done
+
+if [ -n "$SDL2_SRC" ]; then
+    SDL2_DST="${FRAMEWORKS}/libSDL2-2.0.0.dylib"
+    cp "$SDL2_SRC" "$SDL2_DST"
+    # Set the install name inside the bundled copy so dyld resolves it correctly
+    # when any binary in the bundle loads it.
+    install_name_tool -id "@rpath/libSDL2-2.0.0.dylib" "$SDL2_DST"
+
+    # Rewrite the SDL2 load path in every Mach-O binary we placed in the bundle.
+    NEW_SDL2="@executable_path/../Frameworks/libSDL2-2.0.0.dylib"
+    for bin in \
+        "${MACOS}/${PRODUCT_NAME}" \
+        "${MACOS}/quakelive_dedicated" \
+        "${MACOS}/opengl2${ARCH}.dylib"; do
+        [ -f "$bin" ] || continue
+        OLD_SDL2=$(otool -L "$bin" 2>/dev/null | awk '/libSDL2/{print $1; exit}')
+        if [ -n "$OLD_SDL2" ] && [ "$OLD_SDL2" != "$NEW_SDL2" ]; then
+            install_name_tool -change "$OLD_SDL2" "$NEW_SDL2" "$bin"
+            echo "  Rewrote SDL2 path in $(basename "$bin")"
+        fi
+    done
+    echo "Bundled SDL2 from $SDL2_SRC"
+else
+    echo "Warning: SDL2 dylib not found; app may fail to launch on machines without Homebrew"
+fi
 
 # Generate .icns from quakelive.ico
 ICNS_NAME="quakelive.icns"
