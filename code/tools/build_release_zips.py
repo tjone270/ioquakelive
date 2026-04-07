@@ -35,14 +35,29 @@ PLATFORM_OUT = {
 
 
 def add_tree(zf, root, dest_prefix):
-    """Add every file under root into zf, with paths prefixed by dest_prefix."""
+    """Add every file under root into zf, with paths prefixed by dest_prefix.
+
+    File mode bits are copied from the source file into the zip entry's
+    external_attr so that +x survives extraction on Linux/macOS. This matters
+    for engine binaries (quakelive.x86_64, quakelive_dedicated.x86_64) and
+    for every Mach-O inside quakelive.app/Contents/MacOS/.
+    """
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
         for name in sorted(filenames):
             abs_path = os.path.join(dirpath, name)
             rel = os.path.relpath(abs_path, root).replace(os.sep, '/')
             arc = f'{dest_prefix}/{rel}' if dest_prefix else rel
-            zf.write(abs_path, arc, zipfile.ZIP_DEFLATED)
+            st = os.stat(abs_path)
+            with open(abs_path, 'rb') as f:
+                data = f.read()
+            zi = zipfile.ZipInfo(arc)
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            # Preserve unix mode bits (low 16 of external_attr is MS-DOS,
+            # high 16 is unix mode). Advertise as Unix so extractors honour it.
+            zi.external_attr = (st.st_mode & 0xFFFF) << 16
+            zi.create_system = 3  # Unix
+            zf.writestr(zi, data)
 
 
 def build_one(engine_dir, shared_dir, out_path):

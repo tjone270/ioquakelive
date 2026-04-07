@@ -24,12 +24,12 @@ jobs:
     - name: Stage build outputs
       run: |
         mkdir -p staging/dlls staging/engine
-        cp build/release-linux-x86_64/baseq3/cgamex86_64.so      staging/dlls/
-        cp build/release-linux-x86_64/baseq3/qagamex86_64.so     staging/dlls/
-        cp build/release-linux-x86_64/baseq3/uix86_64.so         staging/dlls/
-        cp build/release-linux-x86_64/quakelive.x86_64           staging/engine/
-        cp build/release-linux-x86_64/quakelive_dedicated.x86_64 staging/engine/
-        cp build/release-linux-x86_64/opengl2x86_64.so           staging/engine/
+        cp build/release-linux-x86_64/baseq3/cgamex86_64.so  staging/dlls/
+        cp build/release-linux-x86_64/baseq3/qagamex86_64.so staging/dlls/
+        cp build/release-linux-x86_64/baseq3/uix86_64.so     staging/dlls/
+        # actions/upload-artifact strips +x; tar to preserve mode bits.
+        tar -C build/release-linux-x86_64 -cf staging/engine/linux-x86_64.tar \
+          quakelive.x86_64 quakelive_dedicated.x86_64 opengl2x86_64.so
     - uses: actions/upload-artifact@v4
       with:
         name: dlls-linux-x86_64
@@ -60,8 +60,9 @@ jobs:
         cp build/release-darwin-arm64/baseq3/cgamearm64.dylib  staging/dlls/
         cp build/release-darwin-arm64/baseq3/qagamearm64.dylib staging/dlls/
         cp build/release-darwin-arm64/baseq3/uiarm64.dylib     staging/dlls/
-        # The engine artifact is the entire .app bundle
-        cp -R build/release-darwin-arm64/quakelive.app staging/engine/quakelive.app
+        # actions/upload-artifact strips POSIX permissions and breaks
+        # bundle symlinks, so tar the .app to preserve everything.
+        tar -C build/release-darwin-arm64 -cf staging/engine/quakelive.app.tar quakelive.app
     - uses: actions/upload-artifact@v4
       with:
         name: dlls-macos-arm64
@@ -135,6 +136,20 @@ jobs:
       with:
         pattern: engine-*
         path: engines
+    - name: Unpack tarred engine artifacts
+      run: |
+        # Linux and macOS engine binaries are tarred to preserve +x and
+        # bundle structure (upload-artifact strips POSIX mode bits).
+        for tar in engines/engine-linux-x86_64/linux-x86_64.tar \
+                   engines/engine-macos-arm64/quakelive.app.tar; do
+          if [ -f "$tar" ]; then
+            tar -xf "$tar" -C "$(dirname "$tar")"
+            rm "$tar"
+          fi
+        done
+        # Sanity-check the executable bit survived.
+        ls -l engines/engine-linux-x86_64/quakelive.x86_64
+        ls -l engines/engine-macos-arm64/quakelive.app/Contents/MacOS/
     - name: Build universal iobin.pk3
       run: |
         python code/tools/make_deterministic_pk3.py \
