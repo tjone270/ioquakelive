@@ -21,12 +21,23 @@ jobs:
           libfreetype-dev libogg-dev libvorbis-dev
     - name: Compile
       run: make release -j$(nproc)
-    - name: Package
-      run: cd build/release-linux-x86_64 && zip -r9 ../../build/quakelive-linux-x86_64.zip quakelive.x86_64 quakelive_dedicated.x86_64 opengl2x86_64.so baseq3/*.pk3
+    - name: Stage build outputs
+      run: |
+        mkdir -p staging/dlls staging/engine
+        cp build/release-linux-x86_64/baseq3/cgamex86_64.so      staging/dlls/
+        cp build/release-linux-x86_64/baseq3/qagamex86_64.so     staging/dlls/
+        cp build/release-linux-x86_64/baseq3/uix86_64.so         staging/dlls/
+        cp build/release-linux-x86_64/quakelive.x86_64           staging/engine/
+        cp build/release-linux-x86_64/quakelive_dedicated.x86_64 staging/engine/
+        cp build/release-linux-x86_64/opengl2x86_64.so           staging/engine/
     - uses: actions/upload-artifact@v4
       with:
-        name: linux-x86_64
-        path: build/quakelive-linux-x86_64.zip
+        name: dlls-linux-x86_64
+        path: staging/dlls/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: engine-linux-x86_64
+        path: staging/engine/
 
   macos:
     name: macOS
@@ -43,11 +54,22 @@ jobs:
       run: |
         chmod +x make-macosx-app.sh
         ./make-macosx-app.sh release arm64
-        cd build/release-darwin-arm64 && zip -r9 ../../build/quakelive-macos-arm64.zip quakelive.app baseq3/*.pk3
+    - name: Stage build outputs
+      run: |
+        mkdir -p staging/dlls staging/engine
+        cp build/release-darwin-arm64/baseq3/cgamearm64.dylib  staging/dlls/
+        cp build/release-darwin-arm64/baseq3/qagamearm64.dylib staging/dlls/
+        cp build/release-darwin-arm64/baseq3/uiarm64.dylib     staging/dlls/
+        # The engine artifact is the entire .app bundle
+        cp -R build/release-darwin-arm64/quakelive.app staging/engine/quakelive.app
     - uses: actions/upload-artifact@v4
       with:
-        name: macos-arm64
-        path: build/quakelive-macos-arm64.zip
+        name: dlls-macos-arm64
+        path: staging/dlls/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: engine-macos-arm64
+        path: staging/engine/
 
   windows:
     name: Windows
@@ -72,24 +94,74 @@ jobs:
     - name: Build Solution
       run: msbuild misc/msvc/ioquakelive.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 /m
 
-    - name: Package
+    - name: Stage build outputs
       shell: pwsh
       run: |
-        $staging = "build/staging"
-        New-Item -ItemType Directory -Force -Path "$staging/baseq3" | Out-Null
-        Copy-Item build/Release/x64/*.exe $staging/
-        Copy-Item build/Release/x64/*.dll $staging/
-        Copy-Item build/Release/x64/baseq3/*.pk3 $staging/baseq3/
-        Compress-Archive -Path "$staging/*" -DestinationPath build/quakelive-windows-x64.zip
-
+        New-Item -ItemType Directory -Force -Path staging/dlls   | Out-Null
+        New-Item -ItemType Directory -Force -Path staging/engine | Out-Null
+        Copy-Item build/Release/x64/baseq3/cgamex86_64.dll  staging/dlls/
+        Copy-Item build/Release/x64/baseq3/qagamex86_64.dll staging/dlls/
+        Copy-Item build/Release/x64/baseq3/uix86_64.dll     staging/dlls/
+        # Engine binaries plus the runtime DLLs (SDL2, freetype, ...) that
+        # ship next to quakelive.exe
+        Copy-Item build/Release/x64/*.exe staging/engine/
+        Copy-Item build/Release/x64/*.dll staging/engine/
     - uses: actions/upload-artifact@v4
       with:
-        name: windows-x64
-        path: build/quakelive-windows-x64.zip
+        name: dlls-windows-x64
+        path: staging/dlls/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: engine-windows-x64
+        path: staging/engine/
+
+  package:
+    name: Package release artifacts
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    - name: Download DLL artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: dlls-*
+        path: dlls
+        merge-multiple: true
+    - name: Download engine artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: engine-*
+        path: engines
+    - name: Build universal iobin.pk3
+      run: |
+        python code/tools/make_deterministic_pk3.py \
+          --input dlls \
+          --output shared/baseq3/iobin.pk3
+        sha256sum shared/baseq3/iobin.pk3
+    - name: Build deterministic pak01.pk3
+      run: |
+        python code/tools/make_deterministic_pk3.py \
+          --input content/pak01 \
+          --output shared/baseq3/pak01.pk3
+        sha256sum shared/baseq3/pak01.pk3
+    - name: Build per-platform release zips
+      run: |
+        python code/tools/build_release_zips.py \
+          --shared shared \
+          --engines engines \
+          --output build
+        ls -la build/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: release-zips
+        path: build/quakelive-*.zip
 
   release:
     name: Create Release
-    needs: [linux, macos, windows]
+    needs: [package]
     if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release:')
     runs-on: ubuntu-latest
     permissions:
@@ -109,11 +181,12 @@ jobs:
         git push origin "${{ steps.version.outputs.tag }}"
     - uses: actions/download-artifact@v4
       with:
+        name: release-zips
         path: artifacts
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.tag }}
         name: ${{ steps.version.outputs.version }}
-        files: artifacts/**/*
+        files: artifacts/*.zip
         generate_release_notes: true
