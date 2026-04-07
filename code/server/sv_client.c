@@ -986,7 +986,7 @@ This routine would be a bit simpler with a goto but i abstained
 =================
 */
 static void SV_VerifyPaks_f(client_t* cl) {
-    int nChkSum1, nChkSum2, nClientPaks, nServerPaks, i, j, nCurArg;
+    int nChkSum0, nChkSum1, nChkSum2, nClientPaks, nServerPaks, i, j, nCurArg;
     int nClientChkSum[1024];
     int nServerChkSum[1024];
     const char *pPaks, *pArg;
@@ -994,12 +994,17 @@ static void SV_VerifyPaks_f(client_t* cl) {
 
     // if we are pure, we "expect" the client to load certain things from
     // certain pk3 files, namely we want the client to have loaded the
-    // ui and cgame that we think should be loaded based on the pure setting
+    // qagame, cgame and ui that we think should be loaded based on the pure setting
     //
     if (sv_pure->integer != 0) {
-        nChkSum1 = nChkSum2 = 0;
-        // we run the game, so determine which cgame and ui the client "should" be running
-        bGood = (FS_FileIsInPAK("cgame" ARCH_STRING DLL_EXT, &nChkSum1) == 1);
+        nChkSum0 = nChkSum1 = nChkSum2 = 0;
+        // [QL] we run the game, so determine which qagame, cgame and ui the
+        // client "should" be running. With universal iobin all three return
+        // the same pak pure_checksum (the iobin pak), but we keep three
+        // independent slots for defense-in-depth and clearer error reporting.
+        bGood = (FS_FileIsInPAK("qagame" ARCH_STRING DLL_EXT, &nChkSum0) == 1);
+        if (bGood)
+            bGood = (FS_FileIsInPAK("cgame" ARCH_STRING DLL_EXT, &nChkSum1) == 1);
         if (bGood)
             bGood = (FS_FileIsInPAK("ui" ARCH_STRING DLL_EXT, &nChkSum2) == 1);
         nClientPaks = Cmd_Argc();
@@ -1022,21 +1027,30 @@ static void SV_VerifyPaks_f(client_t* cl) {
 
         // we basically use this while loop to avoid using 'goto' :)
         while (bGood) {
-            // must be at least 6: "cl_paks cgame ui @ firstref ... numChecksums"
+            // [QL] must be at least 6: "cl_paks qagame cgame ui @ firstref ... numChecksums"
             // numChecksums is encoded
-            if (nClientPaks < 5) {
+            if (nClientPaks < 6) {
                 bGood = qfalse;
                 break;
             }
-            // verify first to be the cgame checksum
+            // [QL] verify first to be the qagame checksum
+            pArg = Cmd_Argv(nCurArg++);
+            if (!pArg || *pArg == '@' || atoi(pArg) != nChkSum0) {
+                Com_DPrintf("SV_VerifyPaks_f: client %s qagame mismatch\n", cl->name);
+                bGood = qfalse;
+                break;
+            }
+            // verify second to be the cgame checksum
             pArg = Cmd_Argv(nCurArg++);
             if (!pArg || *pArg == '@' || atoi(pArg) != nChkSum1) {
+                Com_DPrintf("SV_VerifyPaks_f: client %s cgame mismatch\n", cl->name);
                 bGood = qfalse;
                 break;
             }
-            // verify the second to be the ui checksum
+            // verify third to be the ui checksum
             pArg = Cmd_Argv(nCurArg++);
             if (!pArg || *pArg == '@' || atoi(pArg) != nChkSum2) {
+                Com_DPrintf("SV_VerifyPaks_f: client %s ui mismatch\n", cl->name);
                 bGood = qfalse;
                 break;
             }

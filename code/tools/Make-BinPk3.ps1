@@ -27,17 +27,11 @@ if ($dlls.Count -eq 0) {
     exit 0
 }
 
-# Detect arch from DLL names (e.g., cgamex86.dll -> x86, cgamex86_64.dll -> x86_64)
-$arch = "x86"
-foreach ($dll in $dlls) {
-    if ($dll.Name -match 'x86_64\.dll$') {
-        $arch = "x86_64"
-        break
-    }
-}
-
-$pk3Name = "iobin_${arch}.pk3"
-$zipName = "iobin_${arch}.zip"
+# [QL] Local dev iobin.pk3 contains only the local platform's DLLs.
+# CI release builds produce a universal iobin.pk3 with all platforms — see
+# code/tools/make_deterministic_pk3.py and the package job in build.yml.
+$pk3Name = "iobin.pk3"
+$zipName = "iobin.zip"
 
 if (Test-Path $pk3Name) { Remove-Item $pk3Name -Force }
 if (Test-Path $zipName) { Remove-Item $zipName -Force }

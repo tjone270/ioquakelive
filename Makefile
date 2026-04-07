@@ -1100,7 +1100,7 @@ ifneq ($(BUILD_GAME_SO),0)
       $(B)/$(BASEGAME)/cgame$(SHLIBNAME) \
       $(B)/$(BASEGAME)/qagame$(SHLIBNAME) \
       $(B)/$(BASEGAME)/ui$(SHLIBNAME) \
-      $(B)/$(BASEGAME)/iobin_$(ARCH).pk3 \
+      $(B)/$(BASEGAME)/iobin.pk3 \
       $(B)/$(BASEGAME)/pak01.pk3
   endif
 endif
@@ -2224,7 +2224,10 @@ $(B)/$(BASEGAME)/ui$(SHLIBNAME): $(Q3UIOBJ)
 ## IOBIN PK3
 #############################################################################
 
-IOBIN_PK3 = $(B)/$(BASEGAME)/iobin_$(ARCH).pk3
+# [QL] Local dev iobin.pk3 contains only the local platform's three DLLs.
+# CI release builds produce a universal iobin.pk3 with all platforms — see
+# code/tools/make_deterministic_pk3.py and the package job in build.yml.
+IOBIN_PK3 = $(B)/$(BASEGAME)/iobin.pk3
 GAME_SO_TARGETS = \
   $(B)/$(BASEGAME)/cgame$(SHLIBNAME) \
   $(B)/$(BASEGAME)/qagame$(SHLIBNAME) \
@@ -2233,7 +2236,7 @@ GAME_SO_TARGETS = \
 $(IOBIN_PK3): $(GAME_SO_TARGETS)
 	$(echo_cmd) "PK3 $@"
 	@rm -f $@
-	$(Q)cd $(B)/$(BASEGAME) && zip -j9 iobin_$(ARCH).pk3 cgame$(SHLIBNAME) qagame$(SHLIBNAME) ui$(SHLIBNAME)
+	$(Q)cd $(B)/$(BASEGAME) && zip -j9 iobin.pk3 cgame$(SHLIBNAME) qagame$(SHLIBNAME) ui$(SHLIBNAME)
 
 #############################################################################
 ## PAK01 PK3 (content overrides)

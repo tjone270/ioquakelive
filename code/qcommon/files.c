@@ -229,6 +229,17 @@ static int fs_packFiles = 0;  // total number of files in packs
 
 static int fs_checksumFeed;
 
+// [QL] Universal iobin pk3 - contains binaries for every supported architecture.
+// Built once per release in CI; every platform ships the same byte-identical file.
+// Each engine extracts only its own arch via FS_ExtractGamecode's filename
+// construction (cgame{ARCH_STRING}{DLL_EXT}).
+#define IOBIN_PAKNAME  "iobin"
+#define IOBIN_FILENAME "iobin.pk3"
+
+static qboolean FS_IsGamecodePak(const char* pakBasename) {
+	return Q_stricmp(pakBasename, IOBIN_PAKNAME) == 0;
+}
+
 typedef union qfile_gus {
 	FILE* o;
 	unzFile z;
@@ -2786,6 +2797,21 @@ void FS_AddGameDirectory(const char* path, const char* dir) {
 		}
 
 		if (pakwhich) {
+			// [QL] iobin.pk3 may ONLY be loaded from fs_basepath. Reject any
+			// copy found under fs_homepath / fs_steampath / fs_apppath so a
+			// user can't drop a modified cgame/ui/qagame DLL into their
+			// writable home dir and bypass sv_pure (which only verifies
+			// checksums, never re-extracts what the engine already loaded).
+			// Defence in depth on top of the pure-checksum match in
+			// SV_VerifyPaks_f.
+			if (!Q_stricmp(pakfiles[pakfilesi], IOBIN_FILENAME) &&
+			    Q_stricmp(path, fs_basepath->string) != 0) {
+				Com_DPrintf("FS_AddGameDirectory: rejecting %s from non-basepath '%s'\n",
+				            pakfiles[pakfilesi], path);
+				pakfilesi++;
+				continue;
+			}
+
 			// The next .pk3 file is before the next .pk3dir
 			pakfile = FS_BuildOSPath(path, dir, pakfiles[pakfilesi]);
 			if ((pak = FS_LoadZipFile(pakfile, pakfiles[pakfilesi])) == 0) {
@@ -3824,7 +3850,8 @@ FS_ReferencedPakPureChecksums
 Returns a space separated string containing the pure checksums of all referenced pk3 files.
 Servers with sv_pure set will get this string back from clients for pure validation
 
-The string has a specific order, "cgame ui @ ref1 ref2 ref3 ..."
+The string has a specific order, "qagame cgame ui @ ref1 ref2 ref3 ..."
+[QL] qagame slot added - server validates all three game modules instead of two.
 =====================
 */
 const char* FS_ReferencedPakPureChecksums(void) {
@@ -3836,7 +3863,8 @@ const char* FS_ReferencedPakPureChecksums(void) {
 
 	checksum = fs_checksumFeed;
 	numPaks = 0;
-	for (nFlags = FS_CGAME_REF; nFlags; nFlags = nFlags >> 1) {
+	// [QL] iterate qagame -> cgame -> ui -> general (was cgame -> ui -> general)
+	for (nFlags = FS_QAGAME_REF; nFlags; nFlags = nFlags >> 1) {
 		if (nFlags & FS_GENERAL_REF) {
 			// add a delimter between must haves and general refs
 			// Q_strcat(info, sizeof(info), "@ ");
@@ -3849,7 +3877,8 @@ const char* FS_ReferencedPakPureChecksums(void) {
 			// is the element a pak file and has it been referenced based on flag?
 			if (search->pack && (search->pack->referenced & nFlags)) {
 				Q_strcat(info, sizeof(info), va("%i ", search->pack->pure_checksum));
-				if (nFlags & (FS_CGAME_REF | FS_UI_REF)) {
+				// [QL] qagame slot has same "first match wins" semantics as cgame/ui
+				if (nFlags & (FS_QAGAME_REF | FS_CGAME_REF | FS_UI_REF)) {
 					break;
 				}
 				checksum ^= search->pack->pure_checksum;
@@ -4087,13 +4116,6 @@ qboolean FS_VerifyPureGamecode(void) {
 	return qfalse;
 }
 
-// The ioquakelive DLL pak is arch-specific: "iobin_x86" or "iobin_x86_64".
-#define IOBIN_PAKNAME "iobin_" ARCH_STRING
-
-static qboolean FS_IsGamecodePak(const char* pakBasename) {
-	return Q_stricmp(pakBasename, IOBIN_PAKNAME) == 0;
-}
-
 /*
 =====================
 FS_ExtractGamecode
@@ -4125,26 +4147,26 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 	for (search = fs_searchpaths; search != NULL; search = search->next) {
 		pak = search->pack;
 
-		// Only search paks referenced by cgame or ui
 		if (!pak)
 			continue;
 
+		// [QL] Universal iobin pk3 is part of the normal pure-checked pak set.
+		// Enforce that any pak we'd extract from must be in the server's
+		// whitelist when sv_pure is active - same as every other asset pak.
+		// Anti-cheat: a tampered iobin (different checksum) gets rejected here
+		// instead of slipping through a special-case bypass.
 		if (fs_numServerPaks > 0) {
-			// Always allow the local DLL pak for extraction - the client
-			// must load its own game modules, not the server's.
-			if (!FS_IsGamecodePak(pak->pakBasename)) {
-				qboolean matched = qfalse;
-				checksum = pak->checksum;
+			qboolean matched = qfalse;
+			checksum = pak->checksum;
 
-				for (int i = 0; i < fs_numServerPaks; i++) {
-					if (fs_serverPaks[i] == checksum) {
-						matched = qtrue;
-						break;
-					}
+			for (int i = 0; i < fs_numServerPaks; i++) {
+				if (fs_serverPaks[i] == checksum) {
+					matched = qtrue;
+					break;
 				}
-				if (!matched)
-					continue;
 			}
+			if (!matched)
+				continue;
 		}
 
 		// Check if this pak is referenced by this module
@@ -4159,7 +4181,9 @@ qboolean FS_ExtractGamecode(const char* module, char* outOSPath) {
 			Com_Error(ERR_FATAL, "FS_ExtractGamecode: invalid module name '%s'.", module);
 		}
 
-		if (FS_IsGamecodePak(pak->pakBasename) && pak->numfiles == 3) {
+		// [QL] Universal iobin holds binaries for every supported architecture
+		// (3 modules x N platforms), so the old "exactly 3 files" guard is gone.
+		if (FS_IsGamecodePak(pak->pakBasename)) {
 			pak->referenced |= FS_UI_REF | FS_CGAME_REF | FS_QAGAME_REF;
 		}
 
