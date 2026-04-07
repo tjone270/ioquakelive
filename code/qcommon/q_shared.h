@@ -52,7 +52,21 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PRODUCT_TIME __TIME__
 #endif
 
-#define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " - " PRODUCT_DATE " @ " PRODUCT_TIME
+// [QL] PRODUCT_GIT_HASH is supplied by code/qcommon/git_version.h, which is
+// regenerated before every build by code/tools/make_git_version_header.py
+// (run from Makefile and from each MSBuild project's PreBuildEvent). Falls
+// back to "unknown" when git is unavailable or the header hasn't been
+// generated yet (e.g. fresh source tarball + direct gcc -fsyntax-only).
+#if defined(__has_include)
+#  if __has_include("git_version.h")
+#    include "git_version.h"
+#  endif
+#endif
+#ifndef PRODUCT_GIT_HASH
+#define PRODUCT_GIT_HASH "unknown"
+#endif
+
+#define FULL_PRODUCT_VERSION PRODUCT_NAME " v" PRODUCT_VERSION " (" PRODUCT_GIT_HASH ") - " PRODUCT_DATE " @ " PRODUCT_TIME
 
 #define MAX_TEAMNAME 32
 

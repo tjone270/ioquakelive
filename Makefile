@@ -1398,9 +1398,19 @@ else
   print_wrapped=$(print_list)
 endif
 
+# [QL] Regenerate code/qcommon/git_version.h with the current short hash
+# before every build, so PRODUCT_GIT_HASH (used by FULL_PRODUCT_VERSION) is
+# always in sync with the source revision. The script is idempotent — it
+# only rewrites the header when the hash changes, so this doesn't trigger
+# spurious recompiles.
+.PHONY: git_version_header
+git_version_header:
+	@python code/tools/make_git_version_header.py code/qcommon/git_version.h \
+	  || python3 code/tools/make_git_version_header.py code/qcommon/git_version.h
+
 # Create the build directories, check libraries and print out
 # an informational message, then start building
-targets: makedirs
+targets: git_version_header makedirs
 	@echo ""
 	@echo "Building in $(B):"
 	@echo "  PLATFORM: $(PLATFORM)"

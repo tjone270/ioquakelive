@@ -459,4 +459,12 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!-- [QL] Regenerate code/qcommon/git_version.h with the current short hash
+       before each build so PRODUCT_GIT_HASH (used by FULL_PRODUCT_VERSION)
+       is in sync with the source revision. The script is idempotent: it
+       only rewrites the header when the hash changes, so this doesn't
+       trigger spurious recompiles of every TU that includes q_shared.h. -->
+  <Target Name="GenerateGitVersionHeader" BeforeTargets="ClCompile">
+    <Exec Command="py &quot;$(ProjectDir)..\..\code\tools\make_git_version_header.py&quot; &quot;$(ProjectDir)..\..\code\qcommon\git_version.h&quot;" />
+  </Target>
 </Project>

@@ -49,6 +49,10 @@ profile
 /code/tools/*
 !/code/tools/Make-BinPk3.ps1
 !/code/tools/Make-Pak01Pk3.ps1
+!/code/tools/make_deterministic_pk3.py
+!/code/tools/build_release_zips.py
+!/code/tools/make_git_version_header.py
+/code/qcommon/git_version.h
 *.lib
 *.pdb
 *.dll
