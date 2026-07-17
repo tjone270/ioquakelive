@@ -432,6 +432,11 @@ void trap_Key_KeynumToStringBuf(int keynum, char* buf, int buflen) {
     syscall(CG_KEY_KEYNUMTOSTRINGBUF, keynum, buf, buflen);
 }
 
+// [QL] bind lookup for the CG_KeyEvent command passthrough
+void trap_Key_GetBindingBuf(int keynum, char* buf, int buflen) {
+    syscall(CG_KEY_GETBINDINGBUF, keynum, buf, buflen);
+}
+
 // [QL] Mute/unmute a client's voice audio
 void trap_S_MuteClient(int clientNum, qboolean mute) {
     syscall(CG_S_MUTECLIENT, clientNum, mute);

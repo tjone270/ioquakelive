@@ -1081,6 +1081,14 @@ void CG_NewClientInfo(int clientNum) {
     v = Info_ValueForKey(configstring, "tl");
     newInfo.teamLeader = atoi(v);
 
+    // [QL] duel queue state (binary clientInfo +0x714/+0x718): spectate-only flag
+    // and 1-based play queue position, consumed by the spectator list
+    v = Info_ValueForKey(configstring, "so");
+    newInfo.specOnly = atoi(v);
+
+    v = Info_ValueForKey(configstring, "pq");
+    newInfo.queuePosition = atoi(v);
+
     // model
     v = Info_ValueForKey(configstring, "model");
     Q_strncpyz(newInfo.modelName, v, sizeof(newInfo.modelName));

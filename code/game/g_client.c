@@ -814,16 +814,26 @@ void ClientUserinfoChanged(int clientNum) {
     Q_strncpyz(c2, Info_ValueForKey(userinfo, "color2"), sizeof(c2));
 
     // send over a subset of the userinfo keys so other clients can
-    // print scoreboards, display models, and play custom sounds
+    // print scoreboards, display models, and play custom sounds.
+    // [QL] adds rp (ready), p (privileges), so (spec only), pq (play queue position),
+    // and for humans st (steam id) + c (country code) - binary qagame 0x1003b8e0 wire
+    // format, keys read back by cgame CG_NewClientInfo.
     if (ent->r.svFlags & SVF_BOT) {
-        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d",
+        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s"
+               "\\tt\\%d\\tl\\%d\\rp\\%d\\p\\%d\\so\\%i\\pq\\%i",
                client->pers.netname, client->sess.sessionTeam, model, headModel, c1, c2,
                client->pers.maxHealth, client->sess.wins, client->sess.losses,
-               Info_ValueForKey(userinfo, "skill"), teamTask, teamLeader);
+               Info_ValueForKey(userinfo, "skill"), teamTask, teamLeader,
+               client->pers.ready, client->sess.privileges,
+               client->sess.specOnly, client->sess.playQueue);
     } else {
-        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d",
+        s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i"
+               "\\tt\\%d\\tl\\%d\\rp\\%d\\p\\%d\\so\\%i\\pq\\%i\\st\\%llu\\c\\%s",
                client->pers.netname, client->sess.sessionTeam, model, headModel, c1, c2,
-               client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader);
+               client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
+               client->pers.ready, client->sess.privileges,
+               client->sess.specOnly, client->sess.playQueue,
+               (unsigned long long)client->pers.steamId, client->pers.country);
     }
 
     trap_SetConfigstring(CS_PLAYERS + clientNum, s);
@@ -1098,12 +1108,23 @@ void ClientSpawn(gentity_t* ent) {
     }
     client->pers.teamState.state = TEAM_ACTIVE;
 
-    // always clear the kamikaze flag
+    // [QL] binary ClientSpawn (qagamex86.dll 0x1003be20): clear kamikaze and ticking on
+    // both entity and player state, then stamp the spectator marker from the session
+    // team. EF_VOTED doubles as the spectator flag in QL; the cgame keys its whole
+    // spectator HUD path off it, and vote state lives in pers.voteState instead.
     ent->s.eFlags &= ~EF_KAMIKAZE;
+    client->ps.eFlags &= ~EF_KAMIKAZE;
+    ent->s.eFlags &= ~EF_TICKING;
+    client->ps.eFlags &= ~EF_TICKING;
+    if (client->sess.sessionTeam == TEAM_SPECTATOR) {
+        client->ps.eFlags |= EF_VOTED;
+    } else {
+        client->ps.eFlags &= ~EF_VOTED;
+    }
 
-    // toggle the teleport bit so the client knows to not lerp
-    // and never clear the voted flag
-    flags = ent->client->ps.eFlags & (EF_TELEPORT_BIT | EF_VOTED);
+    // toggle the teleport bit so the client knows to not lerp; QL carries every other
+    // eFlag through the respawn wipe
+    flags = client->ps.eFlags;
     flags ^= EF_TELEPORT_BIT;
 
     // clear everything but the persistant data

@@ -1343,11 +1343,10 @@ static void StartVote(void) {
         } else {
             level.clients[i].pers.voteState = VOTE_PENDING;
         }
-        level.clients[i].ps.eFlags &= ~EF_VOTED;
     }
-    // caller has voted yes
+    // caller has voted yes. EF_VOTED is NOT touched: in QL that bit is the spectator
+    // marker (set by ClientSpawn from the session team), not a vote flag.
     level.clients[level.pendingVoteCaller].pers.voteState = VOTE_YES;
-    g_entities[level.pendingVoteCaller].client->ps.eFlags |= EF_VOTED;
 
     trap_SetConfigstring(CS_VOTE_TIME, va("%i", level.voteTime));
     trap_SetConfigstring(CS_VOTE_STRING, level.voteDisplayString);
@@ -1878,8 +1877,6 @@ void Cmd_Vote_f(gentity_t *ent) {
     }
 
     trap_SendServerCommand(ent - g_entities, "print \"Vote cast.\n\"");
-
-    ent->client->ps.eFlags |= EF_VOTED;
 
     trap_Argv(1, msg, sizeof(msg));
 

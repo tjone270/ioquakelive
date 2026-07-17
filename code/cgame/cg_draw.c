@@ -32,6 +32,16 @@ extern displayContextDef_t cgDC;
 menuDef_t* menuScoreboard = NULL;
 menuDef_t* menuEndScoreboard = NULL;
 
+// [QL] handles cached after each menu load (binary 0x10ab967c-0x10ab9698)
+menuDef_t* menuStats = NULL;
+menuDef_t* menuJoinGame = NULL;
+menuDef_t* menuCompSpecHud = NULL;
+menuDef_t* menuCompSpecFollowHud = NULL;
+menuDef_t* menuCompSpecRedTop = NULL;
+menuDef_t* menuCompSpecRedBottom = NULL;
+menuDef_t* menuCompSpecBlueTop = NULL;
+menuDef_t* menuCompSpecBlueBottom = NULL;
+
 int sortedTeamPlayers[TEAM_MAXOVERLAY];
 int numSortedTeamPlayers;
 
@@ -1515,17 +1525,24 @@ static void CG_DrawCrosshairNames(void) {
 =================
 CG_DrawSpectator
 
-[QL] Rewritten to match binary (cgamex86.dll 0x10034d70).
+[QL] Ownerdraw CG_SPEC_MESSAGES handler (cgamex86.dll 0x10034d70, only reachable
+through CG_OwnerDraw). Header text anchors at the itemDef rect; the bottom hints keep
+their fixed positions. Gated on cg_drawSpecMessages, and the header is suppressed
+while a scoreboard menu is up or when the client is not flagged as a spectator.
 - CA/AD eliminated players: "Round In Progress" centered at y=60
 - Pure spectators: "SPECTATOR MODE" + "Press mouse button 1..." header,
   then left-aligned "waiting to play" (duel) or "press ESC..." (team)
 =================
 */
-static void CG_DrawSpectator(void) {
-	float scale, w, y;
+void CG_DrawSpectator(const rectDef_t* rect) {
+	float scale, w, x, y;
 	const char* s;
 	vec4_t grayColor = {0.73f, 0.73f, 0.73f, 0.7f};
 	char attackKey[32], menuKey[32];
+
+	if (!cg_drawSpecMessages.integer) {
+		return;
+	}
 
 	// [QL] CA/AD: show "Round In Progress" for eliminated players (on a team but spectating)
 	if ((cgs.gametype == GT_CA || cgs.gametype == GT_AD) &&
@@ -1542,23 +1559,28 @@ static void CG_DrawSpectator(void) {
 	CG_KeyNameForCommand("+attack", attackKey, sizeof(attackKey));
 	CG_KeyNameForCommand("togglemenu", menuKey, sizeof(menuKey));
 
-	// "SPECTATOR MODE" header
-	scale = 0.22f;
-	s = "SPECTATOR MODE";
-	w = CG_Text_Width(s, scale, 0);
-	CG_Text_Paint(320 - w / 2, 440, scale, colorWhite, s, 0, 0, 0);
+	if (cg.snap->ps.eFlags & EF_VOTED && !cg.scoreBoardShowing) {
+		x = rect->x;
+		y = rect->y;
 
-	// "Press <key> to cycle through players"
-	y = 452;
-	s = va("Press %s to cycle through players", attackKey);
-	w = CG_Text_Width(s, 0.18f, 0);
-	CG_Text_Paint(320 - w / 2, y, 0.18f, grayColor, s, 0, 0, 0);
+		// "SPECTATOR MODE" header at the itemDef rect
+		scale = 0.22f;
+		s = "SPECTATOR MODE";
+		CG_Text_Paint(x, y, scale, colorWhite, s, 0, 0, 0);
+
+		// "Press <key> to cycle through players"
+		y += 12;
+		s = va("Press %s to cycle through players", attackKey);
+		CG_Text_Paint(x, y, 0.18f, grayColor, s, 0, 0, 0);
+	}
 
 	// Bottom hints - left-aligned, skip when following a player
 	if (!(cg.snap->ps.pm_flags & PMF_FOLLOW)) {
 		CG_SetWidescreen(WIDESCREEN_LEFT);
 		if (cgs.gametype == GT_DUEL) {
-			CG_Text_Paint(20, 461, 0.28f, colorWhite, "waiting to play", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
+			if (!cgs.clientinfo[cg.clientNum].specOnly) {
+				CG_Text_Paint(20, 461, 0.28f, colorWhite, "waiting to play", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
+			}
 		} else if (cgs.gametype >= GT_TEAM) {
 			s = va("press %s and use the JOIN buttons", menuKey);
 			CG_Text_Paint(20, 453, 0.28f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
@@ -1637,39 +1659,9 @@ static void CG_DrawVote(void) {
 
 /*
 =================
-CG_DrawTeamVote
+CG_SetEndScoreboardMenu
 =================
 */
-static void CG_DrawTeamVote(void) {
-	char* s;
-	int sec, cs_offset;
-
-	if (cgs.clientinfo[cg.clientNum].team == TEAM_RED)
-		cs_offset = 0;
-	else if (cgs.clientinfo[cg.clientNum].team == TEAM_BLUE)
-		cs_offset = 1;
-	else
-		return;
-
-	if (!cgs.teamVoteTime[cs_offset]) {
-		return;
-	}
-
-	// play a talk beep whenever it is modified
-	if (cgs.teamVoteModified[cs_offset]) {
-		cgs.teamVoteModified[cs_offset] = qfalse;
-		trap_S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
-	}
-
-	sec = (VOTE_TIME - (cg.time - cgs.teamVoteTime[cs_offset])) / 1000;
-	if (sec < 0) {
-		sec = 0;
-	}
-	s = va("TEAMVOTE(%is):%s yes:%i no:%i", sec, cgs.teamVoteString[cs_offset],
-		   cgs.teamVoteYes[cs_offset], cgs.teamVoteNo[cs_offset]);
-	CG_Text_Paint(4, 324, 0.22f, colorYellow, s, 0, 0, ITEM_TEXTSTYLE_SHADOWED);
-}
-
 // [QL] Set both in-game and end-of-game scoreboard menus by gametype
 void CG_SetEndScoreboardMenu(void) {
 	switch (cgs.gametype) {
@@ -1689,112 +1681,252 @@ void CG_SetEndScoreboardMenu(void) {
 	}
 }
 
-static qboolean CG_DrawScoreboard(void) {
-	static qboolean firstTime = qtrue;
+/*
+=================
+CG_CacheHudMenuHandles
 
-	if (menuScoreboard) {
-		menuScoreboard->window.flags &= ~WINDOW_FORCED;
-	}
-	if (cg_paused.integer) {
-		cg.deferredPlayerLoading = 0;
-		firstTime = qtrue;
-		return qfalse;
-	}
+[QL] Resolve the menu handles the cgame drives directly. The binary does this at the
+tail of both CG_LoadHudMenu (0x10029120) and the loadhud command (0x10006e40), right
+after CG_SetEndScoreboardMenu.
+=================
+*/
+void CG_CacheHudMenuHandles(void) {
+	CG_SetEndScoreboardMenu();
+	menuStats = Menus_FindByName("stats_menu");
+	menuJoinGame = Menus_FindByName("joingame_menu");
+	menuCompSpecHud = Menus_FindByName("comp_spechud_menu");
+	menuCompSpecFollowHud = Menus_FindByName("comp_specfollowhud_menu");
+	menuCompSpecRedTop = Menus_FindByName("comp_specred_top");
+	menuCompSpecRedBottom = Menus_FindByName("comp_specred_bottom");
+	menuCompSpecBlueTop = Menus_FindByName("comp_specblue_top");
+	menuCompSpecBlueBottom = Menus_FindByName("comp_specblue_bottom");
+}
 
-	// don't draw scoreboard during death while warmup up
-	if (cg.warmup && !cg.showScores) {
-		return qfalse;
-	}
+// [QL] the 14 in-game scoreboard menu names closed on the intermission transition
+// (binary 0x1000e02e) and, together with the end variants, on scoreboard hide.
+static const char *ingameScoreMenuNames[] = {
+	"score_menu", "teamscore_menu",
+	"score_menu_ffa", "score_menu_duel", "score_menu_race", "score_menu_rr",
+	"teamscore_menu_tdm", "teamscore_menu_ca", "teamscore_menu_ctf",
+	"teamscore_menu_1fctf", "teamscore_menu_har", "teamscore_menu_ft",
+	"teamscore_menu_dom", "teamscore_menu_ad"
+};
 
-	if (cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD || cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
+static const char *endScoreMenuNames[] = {
+	"endscore_menu", "endteamscore_menu",
+	"endscore_menu_ffa", "endscore_menu_duel", "endscore_menu_race", "endscore_menu_rr",
+	"endteamscore_menu_tdm", "endteamscore_menu_ca", "endteamscore_menu_ctf",
+	"endteamscore_menu_1fctf", "endteamscore_menu_har", "endteamscore_menu_ft",
+	"endteamscore_menu_dom", "endteamscore_menu_ad"
+};
+
+static void CG_CloseIngameScoreMenus(void) {
+	int i;
+	for (i = 0; i < ARRAY_LEN(ingameScoreMenuNames); i++) {
+		Menus_CloseByName(ingameScoreMenuNames[i]);
+	}
+}
+
+/*
+=================
+CG_SetScoreboardMenu
+
+[QL] Per-frame scoreboard controller (binary 0x1000dfd0). Decides whether a scoreboard
+menu is up, paints it, and manages the key catchers and the deferred player loader.
+The in-game menu shows on +scores or death; the end menu takes over at intermission
+(where it also grabs the mouse via KEYCATCH_CGAME). During warmup the intermission
+auto-show is suppressed. On the hide transition every score menu is closed by name.
+Interleaved close order on hide matches the binary (ingame/end name pairs).
+=================
+*/
+static qboolean CG_SetScoreboardMenu(void) {
+	static qboolean selectionDirty = qtrue;
+	menuDef_t *menu;
+	qboolean show = qtrue;
+	int i;
+
+	if (cg.warmup) {
+		if (!cg.showScores && cg.predictedPlayerState.pm_type != PM_DEAD) {
+			show = qfalse;
+			goto tail;
+		}
+		menu = menuScoreboard;
+		if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
+			CG_CloseIngameScoreMenus();
+			menu = menuEndScoreboard;
+		}
+	} else if (cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD) {
+		menu = menuScoreboard;
+		if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
+			CG_CloseIngameScoreMenus();
+			menu = menuEndScoreboard;
+		}
+	} else if (cg.predictedPlayerState.pm_type == PM_INTERMISSION) {
+		CG_CloseIngameScoreMenus();
+		menu = menuEndScoreboard;
 	} else {
-		if (!CG_FadeColor(cg.scoreFadeTime, FADE_TIME)) {
-			// next time scoreboard comes up, don't print killer
-			cg.deferredPlayerLoading = 0;
-			cg.killerName[0] = 0;
-			firstTime = qtrue;
-			return qfalse;
+		show = qfalse;
+		goto tail;
+	}
+
+	// no scoreboard menus loaded at all: bail without touching the catchers
+	if (!menu) {
+		return qfalse;
+	}
+
+	if (menu == menuEndScoreboard) {
+		if (!(menu->window.flags & WINDOW_VISIBLE)) {
+			Menus_CloseByName("joingame_menu");
+			cg.joinMenuPending = qfalse;
+			Menus_Activate(menu);
+		}
+		if (!(trap_Key_GetCatcher() & KEYCATCH_UI)) {
+			trap_Key_SetCatcher(trap_Key_GetCatcher() | KEYCATCH_CGAME);
 		}
 	}
 
-	if (menuScoreboard == NULL) {
-		CG_SetEndScoreboardMenu();
+	if (selectionDirty) {
+		CG_SetScoreSelection(menu);
+		selectionDirty = qfalse;
 	}
 
-	// [QL] Use end scoreboard during intermission, in-game scoreboard otherwise
-	{
-		menuDef_t *activeMenu;
-		if (cg.predictedPlayerState.pm_type == PM_INTERMISSION && menuEndScoreboard) {
-			activeMenu = menuEndScoreboard;
-		} else {
-			activeMenu = menuScoreboard;
-		}
+	Menu_Paint(menu, qtrue);
 
-		if (activeMenu) {
-			if (firstTime) {
-				CG_SetScoreSelection(activeMenu);
-				firstTime = qfalse;
-			}
-			Menu_Paint(activeMenu, qtrue);
-		}
-	}
-
-	// load any models that have been deferred
+tail:
+	// deferred models load on a fixed cadence whether or not the board is up
 	if (++cg.deferredPlayerLoading > 10) {
 		CG_LoadDeferredPlayers();
 	}
 
-	return qtrue;
+	if (show) {
+		trap_Key_SetCatcher(trap_Key_GetCatcher() | KEYCATCH_SCORES);
+		return qtrue;
+	}
+
+	selectionDirty = qtrue;
+	cg.deferredPlayerLoading = 0;
+
+	if (cg.scoreBoardShowing) {
+		for (i = 0; i < ARRAY_LEN(ingameScoreMenuNames); i++) {
+			Menus_CloseByName(ingameScoreMenuNames[i]);
+			Menus_CloseByName(endScoreMenuNames[i]);
+		}
+		if (!cg.joinMenuPending) {
+			trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_CGAME);
+		}
+	}
+	trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_SCORES);
+	return qfalse;
 }
 
 /*
 =================
-CG_DrawIntermission
+CG_CloseMenus
+
+[QL] Close the join-game overlay (binary 0x1000e880): run its close script if it is
+up, drop its window flags, release the cgame key catcher and stamp the close time.
 =================
 */
-static void CG_DrawIntermission(void) {
-	cg.scoreFadeTime = cg.time;
-	cg.scoreBoardShowing = CG_DrawScoreboard();
+void CG_CloseMenus(void) {
+	menuDef_t *menu = Menus_FindByName("joingame_menu");
+
+	if (menu) {
+		Menus_CloseByName("joingame_menu");
+		menu->window.flags &= ~WINDOW_FORCED;
+	}
+	trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_CGAME);
+	cg.joinMenuPending = qfalse;
+	cg.joinMenuCloseTime = cg.time;
 }
 
 /*
 =================
-CG_DrawFollow
+CG_DrawJoinGameMenu
+
+[QL] Paint the join-game overlay while the local client sits on the spectator team
+(binary 0x1000e9c0, Ghidra had it mislabelled CG_DrawScoreboard). Activates the menu
+with the cgame key catcher so the JOIN buttons take the mouse, and tears everything
+down through CG_CloseMenus the moment the client is no longer a team spectator.
 =================
 */
-static qboolean CG_DrawFollow(void) {
-	// [QL] Team-specific colors for followed player name (binary-verified)
-	static vec4_t teamColorFree = { 1.0f, 1.0f, 1.0f, 1.0f };
-	static vec4_t teamColorRed  = { 1.0f, 0.5f, 0.5f, 1.0f };
-	static vec4_t teamColorBlue = { 0.5f, 0.75f, 1.0f, 1.0f };
-	static vec4_t teamColorSpec = { 0.85f, 0.85f, 0.85f, 1.0f };
-	const char* name;
-	float *nameColor;
-
-	if (!(cg.snap->ps.pm_flags & PMF_FOLLOW)) {
-		return qfalse;
+static void CG_DrawJoinGameMenu(void) {
+	if (!menuJoinGame) {
+		return;
 	}
-
-	{
-		float w = CG_Text_Width("following", 0.4f, 0);
-		CG_Text_Paint(320 - w / 2, 38, 0.4f, colorWhite, "following", 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
+	if (cgs.eventHandling == 5) {
+		cgs.eventHandling = 0;
 	}
-
-	name = cgs.clientinfo[cg.snap->ps.clientNum].name;
-
-	switch (cgs.clientinfo[cg.snap->ps.clientNum].team) {
-	case TEAM_RED:       nameColor = teamColorRed; break;
-	case TEAM_BLUE:      nameColor = teamColorBlue; break;
-	case TEAM_SPECTATOR: nameColor = teamColorSpec; break;
-	default:             nameColor = teamColorFree; break;
+	if (!(menuJoinGame->window.flags & WINDOW_VISIBLE)) {
+		trap_Key_SetCatcher(KEYCATCH_CGAME);
+		Menus_Activate(menuJoinGame);
 	}
-
-	{
-		float w = CG_Text_Width(name, 0.6f, 0);
-		CG_Text_Paint(320 - w / 2, 70, 0.6f, nameColor, name, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE);
+	if (cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) {
+		CG_CloseMenus();
+		return;
 	}
+	Menu_Paint(menuJoinGame, qtrue);
+}
 
-	return qtrue;
+/*
+=================
+CG_DrawSpectatorHud
+
+[QL] Spectator HUD painter (binary 0x1000dad0, Ghidra had it mislabelled
+CG_DrawIntermission). Only the comp_* menus are ever painted; the plain
+spectator.menu set is loaded but never referenced by name in the binary. The four
+team bars are commented out in the shipping comp_spectator.menu, so their handles
+are normally NULL. Chat draws in a fixed rect while no scoreboard is up.
+=================
+*/
+static void CG_DrawSpectatorHud(void) {
+	static const rectDef_t chatRect = { 5, 287, 634, 120 };
+
+	if (cg.scoreBoardShowing) {
+		return;
+	}
+	if (menuCompSpecFollowHud && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
+		Menu_Paint(menuCompSpecFollowHud, qtrue);
+	} else if (menuCompSpecHud) {
+		Menu_Paint(menuCompSpecHud, qtrue);
+	}
+	if (menuCompSpecRedTop) {
+		Menu_Paint(menuCompSpecRedTop, qtrue);
+	}
+	if (menuCompSpecRedBottom) {
+		Menu_Paint(menuCompSpecRedBottom, qtrue);
+	}
+	if (menuCompSpecBlueTop) {
+		Menu_Paint(menuCompSpecBlueTop, qtrue);
+	}
+	if (menuCompSpecBlueBottom) {
+		Menu_Paint(menuCompSpecBlueBottom, qtrue);
+	}
+	CG_DrawChat(&chatRect, 1.0f);
+}
+
+/*
+=================
+CG_DrawAccStats
+
+[QL] +acc accuracy overlay: paints the stats_menu from ui/ingamestats.menu while the
+overlay is held, re-requesting "acc" from the server once a second (binary painter at
+0x1000e320; the throttle mirrors CG_AccDown_f). Spectators only get it while
+following.
+=================
+*/
+static void CG_DrawAccStats(void) {
+	if (cg.predictedPlayerState.pm_type == PM_SPECTATOR &&
+		!(cg.predictedPlayerState.pm_flags & PMF_FOLLOW)) {
+		return;
+	}
+	if (!cg.accShowing || !menuStats) {
+		return;
+	}
+	if (cg.accRequestTime + 1000 < cg.time) {
+		cg.accRequestTime = cg.time;
+		trap_SendClientCommand("acc");
+	}
+	Menu_Paint(menuStats, qtrue);
 }
 
 /*
@@ -2163,92 +2295,95 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 		return;
 	}
 
-	if (cg.snap->ps.pm_type == PM_INTERMISSION) {
-		CG_DrawIntermission();
-		return;
-	}
-
 	// [QL] shared floating-effect pool: damage numbers, player outlines, freeze/flag
 	// glows and head float-sprites, all projected to screen (binary CG_DrawDamagePlums
 	// called from CG_Draw2D @ 0x10010e9e).
 	CG_SetWidescreen(WIDESCREEN_STRETCH);
 	CG_DrawFloatingEffects();
 
-	/*
-		if (cg.cameraMode) {
-			return;
-		}
-	*/
-	if (cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
-		((cgs.gametype == GT_CA || cgs.gametype == GT_AD) &&
-		 cg.snap->ps.pm_type == PM_SPECTATOR)) {
-		CG_SetWidescreen(WIDESCREEN_CENTER);
-		CG_DrawSpectator();
-		CG_SetWidescreen(WIDESCREEN_STRETCH);
+	// [QL] binary CG_Draw2D: while the join-game overlay is pending and no scoreboard
+	// is up, it replaces the HUD entirely. The spectator path covers team spectators
+	// (spawned with the EF_VOTED marker) and eliminated round players (PM_SPECTATOR).
+	if (!cg.joinMenuPending || cg.scoreBoardShowing) {
+		if (!(cg.predictedPlayerState.eFlags & EF_VOTED) &&
+			cg.predictedPlayerState.pm_type != PM_SPECTATOR) {
+			// player: statusbar only while alive or frozen, and no scoreboard up
+			if (cg.snap->ps.stats[STAT_HEALTH] > 0 || cg.snap->ps.powerups[PW_FREEZE]) {
+				CG_SetWidescreen(WIDESCREEN_CENTER);
+				CG_DrawReward();
+				CG_SetWidescreen(WIDESCREEN_STRETCH);
 
-		if (stereoFrame == STEREO_CENTER)
-			CG_DrawCrosshair();
+				if (!cg.scoreBoardShowing) {
+					if (cg_drawStatus.integer) {
+						Menu_PaintAll();
+						CG_DrawTimedMenus();
+					}
 
-		CG_SetWidescreen(WIDESCREEN_CENTER);
-		CG_DrawCrosshairNames();
-		CG_SetWidescreen(WIDESCREEN_STRETCH);
-	} else {
-		// don't draw any status if dead or the scoreboard is being explicitly shown
-		if (!cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0) {
-			if (cg_drawStatus.integer) {
-				Menu_PaintAll();
-				CG_DrawTimedMenus();
+					CG_SetWidescreen(WIDESCREEN_CENTER);
+					CG_DrawAmmoWarning();
+					CG_DrawProxWarning();
+					CG_SetWidescreen(WIDESCREEN_STRETCH);
+
+					if (stereoFrame == STEREO_CENTER)
+						CG_DrawCrosshair();
+
+					CG_SetWidescreen(WIDESCREEN_CENTER);
+					CG_DrawCrosshairNames();
+					CG_DrawWeaponBar();  // [QL] handles all modes (Left/Right/Centered/Classic/No)
+					CG_SetWidescreen(WIDESCREEN_STRETCH);
+				}
 			}
+		} else {
+			CG_DrawSpectatorHud();
 
-			CG_SetWidescreen(WIDESCREEN_CENTER);
-			CG_DrawAmmoWarning();
-			CG_DrawProxWarning();
-			CG_SetWidescreen(WIDESCREEN_STRETCH);
+			if (cg.snap->ps.pm_flags & PMF_FOLLOW) {
+				if (stereoFrame == STEREO_CENTER)
+					CG_DrawCrosshair();
 
-			if (stereoFrame == STEREO_CENTER)
-				CG_DrawCrosshair();
-
-			CG_SetWidescreen(WIDESCREEN_CENTER);
-			CG_DrawCrosshairNames();
-			CG_DrawWeaponBar();  // [QL] handles all modes (Left/Right/Centered/Classic/No)
-			CG_DrawReward();
-			CG_SetWidescreen(WIDESCREEN_STRETCH);
+				CG_SetWidescreen(WIDESCREEN_CENTER);
+				CG_DrawCrosshairNames();
+				CG_DrawWeaponBar();
+				CG_DrawReward();
+				CG_SetWidescreen(WIDESCREEN_STRETCH);
+			}
 		}
+	} else {
+		CG_DrawJoinGameMenu();
 	}
 
-	CG_SetWidescreen(WIDESCREEN_LEFT);
-	CG_DrawVote();
-	CG_SetWidescreen(WIDESCREEN_RIGHT);
-	CG_DrawTeamVote();
-	CG_SetWidescreen(WIDESCREEN_RIGHT);
-	CG_DrawLagometer();
-	CG_SetWidescreen(WIDESCREEN_STRETCH);
-
-	if (!cg_paused.integer) {
+	if (cg.snap->ps.pm_type != PM_INTERMISSION) {
 		CG_SetWidescreen(WIDESCREEN_RIGHT);
-		CG_DrawUpperRight(stereoFrame);
+		CG_DrawLagometer();
+		CG_SetWidescreen(WIDESCREEN_LEFT);
+		CG_DrawVote();
+		CG_SetWidescreen(WIDESCREEN_STRETCH);
+
+		if (!cg_paused.integer) {
+			CG_SetWidescreen(WIDESCREEN_RIGHT);
+			CG_DrawUpperRight(stereoFrame);
+			CG_SetWidescreen(WIDESCREEN_STRETCH);
+		}
+
+		CG_SetWidescreen(WIDESCREEN_CENTER);
+		CG_DrawWarmup();
 		CG_SetWidescreen(WIDESCREEN_STRETCH);
 	}
 
 	CG_SetWidescreen(WIDESCREEN_CENTER);
-	if (!CG_DrawFollow()) {
-		CG_DrawWarmup();
-	}
 	CG_DrawTimeout();  // [QL] pause/timeout overlay
 	CG_SetWidescreen(WIDESCREEN_STRETCH);
 
-	// [QL] race timer is drawn by menu system via CG_DrawRaceTimes ownerdraw
-	// (removed hardcoded duplicate here)
+	// [QL] race timer is drawn by menu system via CG_DrawRaceTimes ownerdraw;
+	// chat draws through the CG_AREA_NEW_CHAT ownerdraw and the spectator hud painter.
 
-	// [QL] draw chat overlay
-	CG_DrawChat();
-
-	// don't draw center string if scoreboard is up
-	cg.scoreBoardShowing = CG_DrawScoreboard();
+	cg.scoreBoardShowing = CG_SetScoreboardMenu();
 	if (!cg.scoreBoardShowing) {
-		CG_SetWidescreen(WIDESCREEN_CENTER);
-		CG_DrawCenterString();
-		CG_SetWidescreen(WIDESCREEN_STRETCH);
+		if (!cg.joinMenuPending) {
+			CG_SetWidescreen(WIDESCREEN_CENTER);
+			CG_DrawCenterString();
+			CG_SetWidescreen(WIDESCREEN_STRETCH);
+		}
+		CG_DrawAccStats();
 	}
 }
 
@@ -2276,13 +2411,6 @@ void CG_DrawActive(stereoFrame_t stereoView) {
 	// optionally draw the info screen instead
 	if (!cg.snap) {
 		CG_DrawInformation();
-		return;
-	}
-
-	// optionally draw the tournement scoreboard instead
-	if (cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
-		(cg.snap->ps.pm_flags & PMF_SCOREBOARD)) {
-		CG_DrawTourneyScoreboard();
 		return;
 	}
 

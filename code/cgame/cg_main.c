@@ -1996,24 +1996,105 @@ static void CG_RegisterGraphics(void) {
     */
 }
 
+// [QL] sort collected spectators: queue members ahead of spec-only clients, then by
+// queue position (binary comparator 0x10024f90)
+static int QDECL CG_CompareSpectatorClients(const void* a, const void* b) {
+    int ca = *(const int*)a;
+    int cb = *(const int*)b;
+
+    if (cgs.clientinfo[ca].specOnly != cgs.clientinfo[cb].specOnly) {
+        return cgs.clientinfo[ca].specOnly - cgs.clientinfo[cb].specOnly;
+    }
+    return cgs.clientinfo[ca].queuePosition - cgs.clientinfo[cb].queuePosition;
+}
+
 /*
 =======================
 CG_BuildSpectatorString
 
+[QL] Rebuilds cg.spectatorNames for the scoreboard pager (binary 0x10024ff0): one
+cleaned name per entry, sorted, with the duel queue position "(n)" or the spec-only
+"(s)" marker prefixed. Colour codes and control characters are stripped from the
+displayed name. Rebuilt on +scores, client registration and player configstring
+changes.
 =======================
 */
 void CG_BuildSpectatorString(void) {
+    int list[MAX_CLIENTS];
+    char cleanName[MAX_QPATH];
+    const char* prefix;
+    const char* in;
+    char* out;
+    int count, queued, clientNum;
     int i;
-    cg.spectatorList[0] = 0;
+
+    count = 0;
     for (i = 0; i < MAX_CLIENTS; i++) {
         if (cgs.clientinfo[i].infoValid && cgs.clientinfo[i].team == TEAM_SPECTATOR) {
-            Q_strcat(cg.spectatorList, sizeof(cg.spectatorList), va("%s     ", cgs.clientinfo[i].name));
+            list[count++] = i;
         }
     }
-    i = strlen(cg.spectatorList);
-    if (i != cg.spectatorLen) {
-        cg.spectatorLen = i;
-        cg.spectatorWidth = -1;
+    qsort(list, count, sizeof(list[0]), CG_CompareSpectatorClients);
+
+    memset(cg.spectatorNames, 0, sizeof(cg.spectatorNames));
+
+    queued = 0;
+    for (i = 0; i < count; i++) {
+        clientNum = list[i];
+        if (!cgs.clientinfo[clientNum].infoValid) {
+            continue;
+        }
+
+        if (cgs.clientinfo[clientNum].team == TEAM_SPECTATOR) {
+            if (cgs.gametype != GT_DUEL) {
+                prefix = "";
+                goto append;
+            }
+        } else if (cgs.gametype != GT_DUEL || !cgs.clientinfo[clientNum].queuePosition ||
+                   cgs.clientinfo[clientNum].team != TEAM_FREE) {
+            continue;
+        }
+
+        if (cgs.clientinfo[clientNum].specOnly) {
+            prefix = "^7(^5s^7)";
+        } else if (!cgs.clientinfo[clientNum].queuePosition) {
+            prefix = "";
+        } else {
+            int pos = cgs.clientinfo[clientNum].queuePosition;
+            // renumber gaps in the server-side queue so the display stays sequential
+            if (queued != pos - 1) {
+                pos = queued + 1;
+            }
+            prefix = va("(%d)", pos);
+            queued++;
+        }
+
+append:
+        // strip colour codes and control characters from the display name
+        // (into a copy; the binary cleans clientinfo in place)
+        in = cgs.clientinfo[clientNum].name;
+        out = cleanName;
+        while (*in && out < cleanName + sizeof(cleanName) - 1) {
+            if (in[0] == Q_COLOR_ESCAPE && in[1] >= '0' && in[1] <= '7') {
+                in += 2;
+                continue;
+            }
+            if (*in >= 0x20) {
+                *out++ = *in;
+            }
+            in++;
+        }
+        *out = '\0';
+
+        Q_strncpyz(cg.spectatorNames[i], va("%s%s", prefix, cleanName),
+                   sizeof(cg.spectatorNames[i]));
+    }
+
+    if (count != cg.spectatorCount) {
+        cg.spectatorCount = count;
+        if (count < cg.spectatorPageOffset) {
+            cg.spectatorPageOffset = 0;
+        }
     }
 }
 
@@ -2941,6 +3022,8 @@ void CG_LoadHudMenu(void) {
     CG_ParseMenu("ui/end_scoreboard_dom.menu");
     CG_ParseMenu("ui/end_scoreboard_ad.menu");
     CG_ParseMenu("ui/end_scoreboard_rr.menu");
+
+    CG_CacheHudMenuHandles();
 }
 
 void CG_AssetCache(void) {
@@ -3117,6 +3200,10 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
 
     // Make sure we have update values (scores)
     CG_SetConfigValues();
+
+    // [QL] the join-game overlay owns the screen until the client joins a team
+    // or the end scoreboard comes up (binary CG_Init 0x10029fb2)
+    cg.joinMenuPending = qtrue;
 
     // [QL] pre-cache country flag shaders for the scoreboard/profile UI.
     CG_CacheCountryFlags();

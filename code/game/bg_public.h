@@ -374,7 +374,10 @@ typedef enum {
 #define EF_AWARD_CAP 0x00000800         // draw the capture sprite
 #define EF_TALK 0x00001000              // draw a talk balloon
 #define EF_CONNECTION 0x00002000        // draw a connection trouble sprite
-#define EF_VOTED 0x00004000             // already cast a vote
+#define EF_VOTED 0x00004000             // [QL] repurposed as the spectator marker: ClientSpawn
+                                        // sets it for TEAM_SPECTATOR clients and clears it
+                                        // otherwise (binary 0x1003be20). Vote state is tracked
+                                        // in pers.voteState, never in eFlags.
 #define EF_AWARD_IMPRESSIVE 0x00008000  // draw an impressive sprite
 #define EF_AWARD_DEFEND 0x00010000      // draw a defend sprite
 #define EF_AWARD_ASSIST 0x00020000      // draw a assist sprite

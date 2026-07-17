@@ -1022,32 +1022,6 @@ void CG_AddPOIMarkers(void) {
     }
 }
 
-/*
-==============
-CG_CloseMenus
-
-[QL] Binary: cgamex86.dll 0x1000e880
-Closes the "ingame" menu and clears the CGAME keycatch flag.
-==============
-*/
-void CG_CloseMenus(void) {
-    extern void Item_RunScript(itemDef_t *item, const char *s);
-    menuDef_t *menu;
-
-    menu = Menus_FindByName("ingame");
-    if (menu) {
-        if ((menu->window.flags & WINDOW_VISIBLE) && menu->onClose) {
-            itemDef_t item;
-            memset(&item, 0, sizeof(item));
-            Item_RunScript(&item, menu->onClose);
-        }
-        menu->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS | WINDOW_MOUSEOVER);
-    }
-
-    trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_CGAME);
-    cg.showScores = qfalse;
-}
-
 //=========================================================================
 
 void CG_DrawAdvertisements(void) {

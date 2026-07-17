@@ -931,6 +931,7 @@ typedef struct {
 #define KEYCATCH_UI 0x0002
 #define KEYCATCH_MESSAGE 0x0004
 #define KEYCATCH_CGAME 0x0008
+#define KEYCATCH_SCORES 0x0010  // [QL] set by cgame while a scoreboard menu is up
 
 // sound channels
 // channel 0 never willingly overrides

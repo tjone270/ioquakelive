@@ -1148,10 +1148,6 @@ static void CG_DrawAreaTeamChat(rectDef_t* rect, float scale, vec4_t color, qhan
     CG_OwnerDrawText(rect->x, rect->y, scale, color, teamChat1, 0, 0, 0);
 }
 
-static void CG_DrawAreaChat(rectDef_t* rect, float scale, vec4_t color, qhandle_t shader) {
-    CG_OwnerDrawText(rect->x, rect->y, scale, color, teamChat2, 0, 0, 0);
-}
-
 const char* CG_GetKillerText(void) {
     const char* s = "";
     if (cg.killerName[0]) {
@@ -1394,62 +1390,6 @@ void CG_DrawNewTeamInfo(rectDef_t* rect, float text_x, float text_y, float scale
             if (y + text_y + 2 > rect->y + rect->h) {
                 break;
             }
-        }
-    }
-}
-
-void CG_DrawTeamSpectators(rectDef_t* rect, float scale, vec4_t color, qhandle_t shader) {
-    if (cg.spectatorLen) {
-        float maxX;
-
-        if (cg.spectatorWidth == -1) {
-            cg.spectatorWidth = 0;
-            cg.spectatorPaintX = rect->x + 1;
-            cg.spectatorPaintX2 = -1;
-        }
-
-        if (cg.spectatorOffset > cg.spectatorLen) {
-            cg.spectatorOffset = 0;
-            cg.spectatorPaintX = rect->x + 1;
-            cg.spectatorPaintX2 = -1;
-        }
-
-        if (cg.time > cg.spectatorTime) {
-            cg.spectatorTime = cg.time + 10;
-            if (cg.spectatorPaintX <= rect->x + 2) {
-                if (cg.spectatorOffset < cg.spectatorLen) {
-                    cg.spectatorPaintX += CG_OwnerDrawTextWidth(&cg.spectatorList[cg.spectatorOffset], scale, 1) - 1;
-                    cg.spectatorOffset++;
-                } else {
-                    cg.spectatorOffset = 0;
-                    if (cg.spectatorPaintX2 >= 0) {
-                        cg.spectatorPaintX = cg.spectatorPaintX2;
-                    } else {
-                        cg.spectatorPaintX = rect->x + rect->w - 2;
-                    }
-                    cg.spectatorPaintX2 = -1;
-                }
-            } else {
-                cg.spectatorPaintX--;
-                if (cg.spectatorPaintX2 >= 0) {
-                    cg.spectatorPaintX2--;
-                }
-            }
-        }
-
-        maxX = rect->x + rect->w - 2;
-        CG_Text_Paint_Limit(&maxX, cg.spectatorPaintX, rect->y + rect->h - 3, scale, color, &cg.spectatorList[cg.spectatorOffset], 0, 0);
-        if (cg.spectatorPaintX2 >= 0) {
-            float maxX2 = rect->x + rect->w - 2;
-            CG_Text_Paint_Limit(&maxX2, cg.spectatorPaintX2, rect->y + rect->h - 3, scale, color, cg.spectatorList, 0, cg.spectatorOffset);
-        }
-        if (cg.spectatorOffset && maxX > 0) {
-            // if we have an offset ( we are skipping the first part of the string ) and we fit the string
-            if (cg.spectatorPaintX2 == -1) {
-                cg.spectatorPaintX2 = rect->x + rect->w - 2;
-            }
-        } else {
-            cg.spectatorPaintX2 = -1;
         }
     }
 }
@@ -2827,21 +2767,17 @@ static void CG_DrawPlayerCount2(rectDef_t *rect, int team, float scale, vec4_t c
     CG_DrawText(x, rect->y, 0, scale, color, s, 0, 0, textStyle);
 }
 
-// [QL] CG_DrawScrollingNotify - horizontally scrolling notify (spectator) list
-// Address: 0x100351a0.  Reads the cg.notifyMessages ring; advances every 4000ms.
-static void CG_DrawScrollingNotify(rectDef_t *rect, int fontIndex, float scale, vec4_t color) {
+// [QL] CG_DrawSpectators - paginated spectator name list on the scoreboards
+// Address: 0x100351a0.  Draws as many entries as fit the rect (10px gaps) along the
+// rect's bottom edge, then advances to the next page every 4000ms and wraps.
+static void CG_DrawSpectators(rectDef_t *rect, int fontIndex, float scale, vec4_t color) {
     int i, shown = 0;
     float x, used = 0.0f;
-    const int cap = (int)ARRAY_LEN(cg.notifyMessages);
-    int count = cg.notifyCount;
+    int count = cg.spectatorCount;
 
-    if (count > cap) {
-        count = cap;
-    }
-
-    // count how many messages (from notifyScrollStart) fit within rect->w
-    for (i = cg.notifyScrollStart; i < count; i++) {
-        float w = (float)CG_DrawTextWidth(cg.notifyMessages[i], scale, 0, fontIndex);
+    // count how many names (from the page offset) fit within rect->w
+    for (i = cg.spectatorPageOffset; i < count; i++) {
+        float w = (float)CG_DrawTextWidth(cg.spectatorNames[i], scale, 0, fontIndex);
         if (rect->w < used + w) {
             break;
         }
@@ -2849,21 +2785,21 @@ static void CG_DrawScrollingNotify(rectDef_t *rect, int fontIndex, float scale, 
         shown++;
     }
 
-    // draw the visible window
+    // draw the visible page
     x = rect->x;
-    for (i = cg.notifyScrollStart; i < cg.notifyScrollStart + shown && i < count; i++) {
-        float w = (float)CG_DrawTextWidth(cg.notifyMessages[i], scale, 0, fontIndex);
+    for (i = cg.spectatorPageOffset; i < cg.spectatorPageOffset + shown && i < count; i++) {
+        float w = (float)CG_DrawTextWidth(cg.spectatorNames[i], scale, 0, fontIndex);
         CG_DrawText(x, (rect->y + rect->h) - 3.0f, fontIndex, scale, color,
-                    cg.notifyMessages[i], 0, 0, 0);
+                    cg.spectatorNames[i], 0, 0, 0);
         x += w + 10.0f;
     }
 
-    // advance the scroll window on the 4000ms timer
-    if (cg.notifyScrollTime < cg.time) {
-        cg.notifyScrollStart += shown;
-        cg.notifyScrollTime = cg.time + 4000;
-        if (cg.notifyScrollStart >= count) {
-            cg.notifyScrollStart = 0;
+    // advance to the next page on the 4000ms timer
+    if (cg.spectatorPageTime < cg.time) {
+        cg.spectatorPageOffset += shown;
+        cg.spectatorPageTime = cg.time + 4000;
+        if (cg.spectatorPageOffset >= count) {
+            cg.spectatorPageOffset = 0;
         }
     }
 }
@@ -3397,7 +3333,8 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
             // binary falls through to the respawn message here; kept separate.
             CG_DrawVoteTimer(&rect, scale, color, textStyle);
             break;
-        case CG_SPEC_MESSAGES:              // 0x23  CG_DrawSpectator (no data source)
+        case CG_SPEC_MESSAGES:              // 0x23  CG_DrawSpectator (binary 0x10034d70)
+            CG_DrawSpectator(&rect);
             break;
         case CG_PLAYER_HEAD:                // 0x24
             CG_DrawPlayerHead(&rect, ownerDrawFlags & CG_SHOW_2DONLY);
@@ -3495,12 +3432,8 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
         case CG_MOST_DAMAGEDEALT_PLYR:
             CG_DrawScoreboardPlayerHead(&rect, ownerDraw);
             break;
-        case CG_SPECTATORS:                 // 0x51  CG_DrawScrollingNotify
-            if (cg.notifyCount > 0) {
-                CG_DrawScrollingNotify(&rect, fontIndex, scale, color);
-            } else {
-                CG_DrawTeamSpectators(&rect, scale, color, shader);
-            }
+        case CG_SPECTATORS:                 // 0x51  CG_DrawSpectators (binary 0x100351a0)
+            CG_DrawSpectators(&rect, fontIndex, scale, color);
             break;
         case CG_MATCH_WINNER:               // 0x52
             CG_DrawMatchWinner(&rect, scale, color, textStyle);
@@ -3517,8 +3450,8 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
         case CG_PLAYER_OBIT:                // 0x58
             CG_DrawPlayerObit(&rect, scale, color, textStyle);
             break;
-        case CG_AREA_NEW_CHAT:              // 0x59  CG_DrawChat
-            CG_DrawAreaChat(&rect, scale, color, shader);
+        case CG_AREA_NEW_CHAT:              // 0x59  CG_DrawChat (binary 0x10006a10)
+            CG_DrawChat(&rect, scale);
             break;
         case CG_PLYR_END_GAME_SCORE:        // 0x5a  CG_DrawEndGameResult
             CG_DrawEndGameResult(&rect, scale, color, textStyle);
@@ -3791,13 +3724,10 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
     }
 }
 
+// [QL] the binary (0x1003c4f0) only tracks the cursor and feeds the menu system;
+// it never drops the key catcher here (that would kill the join-game menu mouse).
 void CG_MouseEvent(int x, int y) {
     int n;
-
-    if ((cg.predictedPlayerState.pm_type == PM_NORMAL || cg.predictedPlayerState.pm_type == PM_SPECTATOR) && cg.showScores == qfalse) {
-        trap_Key_SetCatcher(0);
-        return;
-    }
 
     cgs.cursorX += x;
     if (cgs.cursorX < 0)
@@ -3866,31 +3796,41 @@ void CG_EventHandling(int type) {
     }
 }
 
+// [QL] key handler while the cgame catcher is up (binary 0x1003c6f0). Certain binds
+// pass straight through so the scoreboard and join menu never eat them; anything
+// else goes to the focused menu.
 void CG_KeyEvent(int key, qboolean down) {
+    char bind[32];
+    menuDef_t* menu;
+
     if (!down) {
         return;
     }
 
-    if (cg.predictedPlayerState.pm_type == PM_NORMAL || (cg.predictedPlayerState.pm_type == PM_SPECTATOR && cg.showScores == qfalse)) {
-        CG_EventHandling(CGAME_EVENT_NONE);
-        trap_Key_SetCatcher(0);
+    bind[0] = '\0';
+    trap_Key_GetBindingBuf(key, bind, sizeof(bind));
+
+    if (!Q_stricmpn(bind, "messagemode", 11)) {
+        trap_SendConsoleCommand(bind);
+        return;
+    }
+    if (!Q_stricmpn(bind, "screenshot", 10) || !Q_stricmpn(bind, "screenshotJPEG", 14)) {
+        trap_SendConsoleCommand(bind);
+        return;
+    }
+    if (!Q_stricmpn(bind, "+voice", 6)) {
+        trap_SendConsoleCommand("+voice\n");
+        return;
+    }
+    if (!Q_stricmpn(bind, "+scores", 7)) {
+        cg.showScores = qtrue;
+        CG_ScoresDown_f();
         return;
     }
 
-    // if (key == trap_Key_GetKey("teamMenu") || !Display_CaptureItem(cgs.cursorX, cgs.cursorY)) {
-    //  if we see this then we should always be visible
-    //  CG_EventHandling(CGAME_EVENT_NONE);
-    //  trap_Key_SetCatcher(0);
-    //}
-
-    Display_HandleKey(key, down, cgs.cursorX, cgs.cursorY);
-
-    if (cgs.capturedItem) {
-        cgs.capturedItem = NULL;
-    } else {
-        if (key == K_MOUSE2 && down) {
-            cgs.capturedItem = Display_CaptureItem(cgs.cursorX, cgs.cursorY);
-        }
+    menu = Menu_GetFocused();
+    if (menu) {
+        Menu_HandleKey(menu, key, down);
     }
 }
 

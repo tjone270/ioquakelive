@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../renderercommon/tr_types.h"
 #include "../game/bg_public.h"
 #include "cg_public.h"
+#include "../ui/ui_shared.h"
 
 // The entire cgame module is unloaded and reloaded on each level change,
 // so there is NO persistant data between levels on the client side.
@@ -510,6 +511,11 @@ typedef struct {
     animation_t animations[MAX_TOTALANIMATIONS];
 
     sfxHandle_t sounds[MAX_CUSTOM_SOUNDS];
+
+    // [QL] duel queue state from the player configstring (binary clientInfo +0x714/+0x718).
+    // specOnly marks spectators who opted out of the queue; queuePosition is 1-based, 0 = none.
+    int specOnly;
+    int queuePosition;
 } clientInfo_t;
 
 // each WP_* weapon enum has an associated weaponInfo_t
@@ -705,6 +711,11 @@ typedef struct {
     qboolean showScores;
     qboolean scoreBoardShowing;
 
+    // [QL] join-game overlay (ingame_join.menu). Set at CG_Init; the joingame_menu paints
+    // instead of the HUD until CG_CloseMenus clears it (player joined or end scoreboard up).
+    qboolean joinMenuPending;
+    int joinMenuCloseTime;
+
     // [QL] team-kill complaint prompt (server "complaint" verb). complaintClient is the
     // offender clientNum (or a negative status code); complaintEndTime is when the prompt
     // expires. Consumed by CG_DrawVote (binary DAT_10a5fdc8 / DAT_10a5fdcc).
@@ -718,14 +729,6 @@ typedef struct {
     int      pstatsRequestTime;// [QL] throttle for pstats server requests
     int scoreFadeTime;
     char killerName[MAX_NAME_LENGTH];
-    char spectatorList[MAX_STRING_CHARS];  // list of names
-    int spectatorLen;                      // length of list
-    float spectatorWidth;                  // width in device units
-    int spectatorTime;                     // next time to offset
-    int spectatorPaintX;                   // current paint x
-    int spectatorPaintX2;                  // current paint x
-    int spectatorOffset;                   // current offset from start
-    int spectatorPaintLen;                 // current offset from start
 
     // skull trails
     skulltrail_t skulltrails[MAX_CLIENTS];
@@ -940,14 +943,14 @@ typedef struct {
     int         announcerQueueOut;
     int         announcerSuppress;
 
-    // [QL] scrolling-notify (spectator list) queue for CG_DrawScrollingNotify.
-    // Binary: 0x40-byte string stride (DAT_10aa69b4), count (DAT_10ab69b4),
-    // rolling start index (DAT_10ab69bc), 4000ms advance timer (DAT_10ab69b8).
-    // Array length 8 is a placeholder; confirm capacity when the producer is ported.
-    char notifyMessages[8][64];
-    int  notifyCount;
-    int  notifyScrollStart;
-    int  notifyScrollTime;
+    // [QL] spectator list for the scoreboard CG_SPECTATORS pager. One cleaned display
+    // name per entry (duel queue "(n)"/"(s)" prefix included), rebuilt by
+    // CG_BuildSpectatorString. Binary: 0x40-byte string stride (0x10aa69b4),
+    // count (0x10ab69b4), page offset (0x10ab69bc), 4000ms page timer (0x10ab69b8).
+    char spectatorNames[MAX_CLIENTS][64];
+    int  spectatorCount;
+    int  spectatorPageOffset;
+    int  spectatorPageTime;
 
     // [QL] race-mode flags read by CG_DrawRespawnMessage.
     // raceStarted (DAT_10abaad8) gates the 'Press <key> to respawn' hint;
@@ -1627,6 +1630,7 @@ extern vmCvar_t cg_crosshairY;
 extern vmCvar_t cg_crosshairSize;
 extern vmCvar_t cg_crosshairHealth;
 extern vmCvar_t cg_drawStatus;
+extern vmCvar_t cg_drawSpecMessages;
 extern vmCvar_t cg_draw2D;
 extern vmCvar_t cg_animSpeed;
 extern vmCvar_t cg_debugAnim;
@@ -1844,7 +1848,6 @@ void CG_AddBufferedSound(sfxHandle_t sfx);
 void CG_DrawAdvertisements(void);
 void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoPlayback);
 void CG_AddPOIMarkers(void);
-void CG_CloseMenus(void);
 // [QL] CG_CheckAutoFollow, CG_FilterAngles, CG_DrawDuelWeaponStats are file-static in cg_view.c.
 qboolean CG_GetLevelTimerMsec(int* msec);
 
@@ -2114,16 +2117,34 @@ void CG_DrawInformation(void);
 // cg_scoreboard.c
 //
 qboolean CG_DrawOldScoreboard(void);
-void CG_DrawTourneyScoreboard(void);
+
+// [QL] scoreboard / spectator hud menu handles, resolved by CG_CacheHudMenuHandles after
+// every menu load (CG_LoadHudMenu and the loadhud command). Binary globals 0x10ab9674-98.
+extern menuDef_t* menuScoreboard;
+extern menuDef_t* menuEndScoreboard;
+extern menuDef_t* menuStats;
+extern menuDef_t* menuJoinGame;
+extern menuDef_t* menuCompSpecHud;
+extern menuDef_t* menuCompSpecFollowHud;
+extern menuDef_t* menuCompSpecRedTop;
+extern menuDef_t* menuCompSpecRedBottom;
+extern menuDef_t* menuCompSpecBlueTop;
+extern menuDef_t* menuCompSpecBlueBottom;
+
+void CG_SetEndScoreboardMenu(void);
+void CG_CacheHudMenuHandles(void);
+void CG_CloseMenus(void);
+void CG_DrawSpectator(const rectDef_t* rect);
 
 //
 // cg_consolecmds.c
 //
 qboolean CG_ConsoleCommand(void);
 void CG_InitConsoleCommands(void);
+void CG_ScoresDown_f(void);
 void CG_ClearChat(void);
 void CG_AddChat(const char *text, int teamOnly, int extraTime);
-void CG_DrawChat(void);
+void CG_DrawChat(const rectDef_t* rect, float scale);
 void CG_InitColorWheel(void);
 
 //
@@ -2333,6 +2354,7 @@ int trap_Key_GetCatcher(void);
 void trap_Key_SetCatcher(int catcher);
 int trap_Key_GetKey(const char* binding);
 void trap_Key_KeynumToStringBuf(int keynum, char* buf, int buflen);
+void trap_Key_GetBindingBuf(int keynum, char* buf, int buflen);
 void trap_S_MuteClient(int clientNum, qboolean mute);
 
 void CG_KeyNameForCommand(const char* command, char* buf, int buflen);

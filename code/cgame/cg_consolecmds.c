@@ -25,8 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 #include "../ui/ui_shared.h"
-extern menuDef_t* menuScoreboard;
-extern menuDef_t* menuEndScoreboard;
 
 void CG_TargetCommand_f(void) {
     int targetNum;
@@ -76,8 +74,9 @@ static void CG_Viewpos_f(void) {
               (int)cg.refdefViewAngles[YAW]);
 }
 
-// [QL] Binary-matched: simplified from Q3 version
-static void CG_ScoresDown_f(void) {
+// [QL] Binary-matched: simplified from Q3 version. Also invoked from CG_KeyEvent
+// when a +scores bind is pressed while the cgame catcher is up.
+void CG_ScoresDown_f(void) {
     CG_BuildSpectatorString();
     if (cg.scoresRequestTime + 2000 < cg.time) {
         cg.scoresRequestTime = cg.time;
@@ -150,8 +149,7 @@ static void CG_LoadHud_f(void) {
     CG_ParseMenu("ui/end_scoreboard_1fctf.menu");
     CG_ParseMenu("ui/end_scoreboard_race.menu");
 
-    menuScoreboard = NULL;
-    menuEndScoreboard = NULL;
+    CG_CacheHudMenuHandles();
 }
 
 static void CG_scrollScoresDown_f(void) {
@@ -628,19 +626,24 @@ void CG_AddChat(const char *text, int teamOnly, int extraTime) {
     CG_Printf("%s", text);
 }
 
-// [QL] Draw chat overlay - binary at 0x10006A10
-// chatRect defaults to bottom-left area (x=1, y=350, h=120 from bottom)
-void CG_DrawChat(void) {
+// [QL] Draw chat overlay - binary at 0x10006A10. The rect comes from the caller
+// (the CG_AREA_NEW_CHAT ownerdraw item or the spectator hud painter); the newest
+// line sits on the rect's bottom edge and history stacks upward from it.
+void CG_DrawChat(const rectDef_t* rect, float scale) {
     int maxLines;
     float y;
     float x;
-    float scale;
     int i;
 
-    // Default chat area: bottom-left
-    x = 1.0f;
-    y = 478.0f;     // near bottom of 480-high screen
-    scale = 0.18f;   // default chat text scale
+    x = rect->x;
+    y = rect->y + rect->h;
+
+    // binary clamps the item textscale into the readable range
+    if (scale < 0.1f) {
+        scale = 0.1f;
+    } else if (scale > 0.22f) {
+        scale = 0.22f;
+    }
 
     maxLines = 8;    // default visible history lines
 

@@ -615,6 +615,17 @@ intptr_t CL_CgameSystemCalls(intptr_t* args) {
             Q_strncpyz(VMA(2), Key_KeynumToString(args[1]), args[3]);
             return 0;
 
+        // [QL] bind lookup for the cgame key passthrough
+        case CG_KEY_GETBINDINGBUF: {
+            const char* value = Key_GetBinding(args[1]);
+            if (value) {
+                Q_strncpyz(VMA(2), value, args[3]);
+            } else {
+                *(char*)VMA(2) = 0;
+            }
+            return 0;
+        }
+
         // [QL] Mute/unmute a client's voice audio
         case CG_S_MUTECLIENT:
             // args[1] = clientNum, args[2] = mute (qboolean)
