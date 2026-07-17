@@ -1367,6 +1367,7 @@ void ClearVote(void) {
     int i;
 
     level.voteTime = 0;
+    level.voteExecuteTime = 0;
     level.voteYes = 0;
     level.voteNo = 0;
 
@@ -1375,6 +1376,8 @@ void ClearVote(void) {
     }
 
     trap_SetConfigstring(CS_VOTE_TIME, "");
+    trap_SetConfigstring(CS_VOTE_STRING, "");
+    trap_SetConfigstring(CS_DISABLE_VOTE_UI, "");
 }
 
 /*
@@ -1809,21 +1812,17 @@ static void Cmd_IntermissionVote_f(gentity_t *ent) {
         return;
     }
 
-    // Validate choice
-    if (choice < 1 || choice > 3 || !level.intermissionMapNames[choice - 1][0]) {
+    // Validate choice; a slot holding the placeholder name is not votable
+    if (choice < 1 || choice > 3 || !level.intermissionMapNames[choice - 1][0] ||
+        !Q_stricmp(level.intermissionMapNames[choice - 1], "default")) {
         return;
     }
 
-    // Remove previous vote if any
-    if (ent->client->pers.lastMapVoteIndex > 0 &&
-        ent->client->pers.lastMapVoteIndex <= 3) {
-        level.intermissionMapVotes[ent->client->pers.lastMapVoteIndex - 1]--;
-    }
-
-    // Record new vote
+    // Record new vote; counts are recomputed from every connected client so
+    // disconnected voters drop out (binary re-tally at 0x10043f60)
     ent->client->pers.lastMapVoteTime = level.time;
     ent->client->pers.lastMapVoteIndex = choice;
-    level.intermissionMapVotes[choice - 1]++;
+    G_PublishRotationVotes();
 
     // [QL] Hide this client's map-vote UI now that they have voted.
     // Binary: Cmd_IntermissionVote_f 0x100441d0 -> trap_SendServerCommand(client, "disable_vote_ui").
@@ -1838,12 +1837,11 @@ static void Cmd_IntermissionVote_f(gentity_t *ent) {
                ? level.intermissionMapTitles[choice - 1]
                : level.intermissionMapNames[choice - 1]));
 
-    // Update map vote counts configstring
-    trap_SetConfigstring(CS_ROTATIONVOTES,
-        va("%d %d %d",
-           level.intermissionMapVotes[0],
-           level.intermissionMapVotes[1],
-           level.intermissionMapVotes[2]));
+    // casting a vote counts as readying up; republish so the scoreboard tick shows
+    if (!ent->client->pers.ready) {
+        ent->client->pers.ready = qtrue;
+        ClientUserinfoChanged(clientNum);
+    }
 }
 
 /*
@@ -1951,29 +1949,29 @@ Binary: qagamex86.dll 0x1003f6b0
 static void Cmd_Acc_f(gentity_t* ent) {
     gclient_t* cl;
     char result[1024];
-    char buf[MAX_TOKEN_CHARS];
     int i;
 
+    // followed spectators get the followed player's numbers
     cl = ent->client;
-    if (cl->sess.sessionTeam == TEAM_SPECTATOR &&
+    if (cl->ps.pm_type == PM_SPECTATOR &&
         cl->sess.spectatorState == SPECTATOR_FOLLOW) {
         cl = &g_clients[cl->sess.spectatorClient];
     }
     if (!cl) return;
 
+    // 15 space-separated truncated percents, indexed by weapon number
+    // (slot 0 is the WP_NONE dummy)
     result[0] = '\0';
-    for (i = 0; i < WP_NUM_WEAPONS; i++) {
-        if (cl->accuracy_shots == 0 || cl->accuracy_hits == 0) {
-            Com_sprintf(buf, sizeof(buf), " ");
+    for (i = 0; i < 15; i++) {
+        if (cl->expandedStats.shotsFired[i] > 0 && cl->expandedStats.shotsHit[i] > 0) {
+            Q_strcat(result, sizeof(result),
+                     va(" %i", cl->expandedStats.shotsHit[i] * 100 /
+                               cl->expandedStats.shotsFired[i]));
         } else {
-            Com_sprintf(buf, sizeof(buf), "%d",
-                       (cl->accuracy_hits * 100) / cl->accuracy_shots);
-        }
-        if (strlen(result) + strlen(buf) < sizeof(result)) {
-            Q_strcat(result, sizeof(result), buf);
+            Q_strcat(result, sizeof(result), " 0");
         }
     }
-    trap_SendServerCommand(ent - g_entities, va("acc %s", result));
+    trap_SendServerCommand(ent - g_entities, va("acc%s", result));
 }
 
 /*
@@ -1985,29 +1983,28 @@ Binary: qagamex86.dll 0x1003f840 (identical structure to Cmd_Acc_f)
 static void Cmd_PStats_f(gentity_t* ent) {
     gclient_t* cl;
     char result[1024];
-    char buf[MAX_TOKEN_CHARS];
     int i;
 
     cl = ent->client;
-    if (cl->sess.sessionTeam == TEAM_SPECTATOR &&
+    if (cl->ps.pm_type == PM_SPECTATOR &&
         cl->sess.spectatorState == SPECTATOR_FOLLOW) {
         cl = &g_clients[cl->sess.spectatorClient];
     }
     if (!cl) return;
 
+    // per-weapon accuracy like the acc reply; the 1069 client consumes the verb
+    // without rendering it, so the exact field set is unrecovered
     result[0] = '\0';
-    for (i = 0; i < WP_NUM_WEAPONS; i++) {
-        if (cl->accuracy_shots == 0 || cl->accuracy_hits == 0) {
-            Com_sprintf(buf, sizeof(buf), " ");
+    for (i = 0; i < 15; i++) {
+        if (cl->expandedStats.shotsFired[i] > 0 && cl->expandedStats.shotsHit[i] > 0) {
+            Q_strcat(result, sizeof(result),
+                     va(" %i", cl->expandedStats.shotsHit[i] * 100 /
+                               cl->expandedStats.shotsFired[i]));
         } else {
-            Com_sprintf(buf, sizeof(buf), "%d",
-                       (cl->accuracy_hits * 100) / cl->accuracy_shots);
-        }
-        if (strlen(result) + strlen(buf) < sizeof(result)) {
-            Q_strcat(result, sizeof(result), buf);
+            Q_strcat(result, sizeof(result), " 0");
         }
     }
-    trap_SendServerCommand(ent - g_entities, va("pstats %s", result));
+    trap_SendServerCommand(ent - g_entities, va("pstats%s", result));
 }
 
 /*

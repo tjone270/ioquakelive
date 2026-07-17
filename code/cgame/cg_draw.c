@@ -2361,6 +2361,11 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 		if (!cg_paused.integer) {
 			CG_SetWidescreen(WIDESCREEN_RIGHT);
 			CG_DrawUpperRight(stereoFrame);
+			// [QL] cg_drawTeamOverlay 2 puts the classic team overlay lower-right
+			// (binary CG_Draw2D 0x10011141); the upper-right variant is value 1
+			if (cgs.gametype >= GT_TEAM && cg_drawTeamOverlay.integer == 2) {
+				CG_DrawTeamOverlay(408.0f, qtrue, qfalse);
+			}
 			CG_SetWidescreen(WIDESCREEN_STRETCH);
 		}
 

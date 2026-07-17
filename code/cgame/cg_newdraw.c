@@ -1937,39 +1937,66 @@ static void CG_DrawStartingWeapons(rectDef_t *rect, float scale, vec4_t color, i
 }
 
 // [QL] Server settings display
-// [QL] Vote display helpers
+// [QL] Vote display helpers. All the text drawers position by the item's align
+// themselves (centre subtracts half the text width, right the full width).
+static void CG_DrawVoteText(rectDef_t *rect, float yOfs, int fontIndex, float scale,
+                            vec4_t color, int textStyle, int align, const char *s) {
+    float x = rect->x;
+
+    if (align == ITEM_ALIGN_CENTER) {
+        x -= CG_DrawTextWidth(s, scale, 0, fontIndex) * 0.5f;
+    } else if (align == ITEM_ALIGN_RIGHT) {
+        x -= CG_DrawTextWidth(s, scale, 0, fontIndex);
+    }
+    CG_DrawText(x, rect->y + yOfs, fontIndex, scale, color, s, 0, 0, textStyle);
+}
+
+// binary 0x10035790: always draws; an empty slot falls back to the "default" shot
 static void CG_DrawVoteMapShot(rectDef_t *rect, int index, qhandle_t shader) {
     const char *info = CG_ConfigString(CS_ROTATIONMAPS);
     const char *mapname;
-    qhandle_t pic;
+    char key[8];
+
+    Com_sprintf(key, sizeof(key), "map_%d", index);
+    mapname = Info_ValueForKey(info, key);
+    if (!mapname || !mapname[0]) {
+        mapname = "default";
+    }
+    CG_DrawPic(rect->x, rect->y, rect->w, rect->h,
+               trap_R_RegisterShaderNoMip(va("levelshots/preview/%s", mapname)));
+}
+
+// binary 0x100355d0 (was mislabelled as duel player info): the raw map name
+static void CG_DrawVoteMap(rectDef_t *rect, int fontIndex, float scale, vec4_t color,
+                           int textStyle, int align, int index) {
+    const char *info = CG_ConfigString(CS_ROTATIONMAPS);
+    const char *mapname;
     char key[8];
 
     Com_sprintf(key, sizeof(key), "map_%d", index);
     mapname = Info_ValueForKey(info, key);
     if (mapname && mapname[0]) {
-        pic = trap_R_RegisterShaderNoMip(va("levelshots/%s", mapname));
-        if (!pic) pic = trap_R_RegisterShaderNoMip("levelshots/preview/default");
-        if (pic) CG_DrawPic(rect->x, rect->y, rect->w, rect->h, pic);
+        CG_DrawVoteText(rect, 0, fontIndex, scale, color, textStyle, align, mapname);
     }
 }
 
-static void CG_DrawVoteMapName(rectDef_t *rect, float scale, vec4_t color, int textStyle, int index) {
+// binary 0x10035660: the display title only, no map-name fallback
+static void CG_DrawVoteMapName(rectDef_t *rect, int fontIndex, float scale, vec4_t color,
+                               int textStyle, int align, int index) {
     const char *info = CG_ConfigString(CS_ROTATIONMAPS);
     const char *title;
     char key[16];
 
     Com_sprintf(key, sizeof(key), "title_%d", index);
     title = Info_ValueForKey(info, key);
-    if (!title || !title[0]) {
-        Com_sprintf(key, sizeof(key), "map_%d", index);
-        title = Info_ValueForKey(info, key);
-    }
     if (title && title[0]) {
-        CG_OwnerDrawText(rect->x, rect->y, scale, color, title, 0, 0, textStyle);
+        CG_DrawVoteText(rect, 0, fontIndex, scale, color, textStyle, align, title);
     }
 }
 
-static void CG_DrawVoteGameType(rectDef_t *rect, float scale, vec4_t color, int textStyle, int index) {
+// binary 0x100356f0: gametype label, drawn 8 units above the item rect
+static void CG_DrawVoteGameType(rectDef_t *rect, int fontIndex, float scale, vec4_t color,
+                                int textStyle, int align, int index) {
     const char *info = CG_ConfigString(CS_ROTATIONMAPS);
     const char *gt;
     char key[8];
@@ -1977,30 +2004,37 @@ static void CG_DrawVoteGameType(rectDef_t *rect, float scale, vec4_t color, int 
     Com_sprintf(key, sizeof(key), "gt_%d", index);
     gt = Info_ValueForKey(info, key);
     if (gt && gt[0]) {
-        CG_OwnerDrawText(rect->x, rect->y, scale, color, gt, 0, 0, textStyle);
+        CG_DrawVoteText(rect, -8, fontIndex, scale, color, textStyle, align, gt);
     }
 }
 
+// binary 0x10035920: 20s window from cgs.voteTime, singular form at one second
+static void CG_DrawVoteTimer(rectDef_t *rect, int fontIndex, float scale, vec4_t color,
+                             int textStyle, int align) {
+    const char *s;
+    int sec;
 
-static void CG_DrawVoteTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-    if (cgs.voteTime) {
-        int sec = (cgs.voteTime + 20000 - cg.time) / 1000;
-        if (sec > 0) {
-            CG_OwnerDrawText(rect->x, rect->y, scale, color,
-                va("Voting ends in %d seconds.", sec), 0, 0, textStyle);
-        } else {
-            CG_OwnerDrawText(rect->x, rect->y, scale, color,
-                "Voting has ended.", 0, 0, textStyle);
-        }
+    if (!cgs.voteTime) {
+        return;
     }
+    sec = (cgs.voteTime + 20000 - cg.time) / 1000;
+    if (sec < 1) {
+        s = "Voting has ended.";
+    } else if (sec == 1) {
+        s = "Voting ends in 1 second.";
+    } else {
+        s = va("Voting ends in %d seconds.", sec);
+    }
+    CG_DrawVoteText(rect, 0, fontIndex, scale, color, textStyle, align, s);
 }
 
-// [QL] Timeout count display
-static void CG_DrawTimeoutCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, int csIndex) {
-    const char *s = CG_ConfigString(csIndex);
-    if (s && s[0]) {
-        CG_OwnerDrawText(rect->x, rect->y, scale, color, s, 0, 0, textStyle);
-    }
+// [QL] Timeout count display (binary CG_DrawTimeoutCount 0x10033530): the team's
+// remaining timeouts, prefixed "TO:". An empty configstring falls back to the
+// server's g_timeoutCount default.
+static void CG_DrawTimeoutCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, int team) {
+    int count = (team == TEAM_RED) ? cgs.timeoutsRed : cgs.timeoutsBlue;
+
+    CG_OwnerDrawText(rect->x, rect->y, scale, color, va("TO: %d", count), 0, 0, textStyle);
 }
 
 // [QL] Duel overlay owner-draws.
@@ -2625,7 +2659,8 @@ static void CG_DrawWeaponVertical(rectDef_t *rect, vec4_t color) {
 }
 
 // [QL] CG_ACC_VERTICAL (ownerdraw 98): draw per-weapon accuracy percentages vertically
-// Binary: FUN_10035b10 - same loop as CG_WP_VERTICAL, draws "%i%%" text at each slot
+// Binary: FUN_10035b10 - weapons 2..14 skipping the grapple, always drawn (the
+// server's "acc" reply seeds every slot), unregistered icons excepted
 static void CG_DrawAccuracyVertical(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
     int i;
     int count = 0;
@@ -2633,7 +2668,7 @@ static void CG_DrawAccuracyVertical(rectDef_t *rect, float scale, vec4_t color, 
     trap_R_SetColor(color);
 
     for (i = WP_MACHINEGUN; i < WP_NUM_WEAPONS; i++) {
-        if (i == WP_BFG) {
+        if (i == WP_GRAPPLING_HOOK) {
             continue;
         }
 
@@ -2641,10 +2676,8 @@ static void CG_DrawAccuracyVertical(rectDef_t *rect, float scale, vec4_t color, 
             continue;
         }
 
-        if (cg.accuracyStats.valid && cg.accuracyStats.accuracy[i] > 0) {
-            const char *s = va("%i%%", cg.accuracyStats.accuracy[i]);
-            CG_OwnerDrawText(rect->x, rect->h * count + rect->y, scale, color, s, 0, 0, textStyle);
-        }
+        CG_OwnerDrawText(rect->x, rect->h * count + rect->y, scale, color,
+                         va("%i%%", cg.accuracyStats.accuracy[i]), 0, 0, textStyle);
         count++;
     }
 
@@ -2979,25 +3012,51 @@ static void CG_DrawPlayerStatusRight(rectDef_t *rect) {
     CG_DrawDuelStatusPlate(rect, 1, qtrue);
 }
 
-// [QL] CG_DrawModifiers (id 1). Binary lists active server modifiers, one per
-// line. Most lines come from a server modifier bitmask that is not parsed into
-// cgs yet, so only the gravity/quad-factor lines (read straight from the
-// serverinfo, as the binary does) are recovered here.
+// [QL] CG_DrawModifiers (id 1, binary 0x1003a1c0). Lists the active server
+// modifiers one per line. The bits come from cgs.customSettings (CS 704), the
+// same 28-bit map the server accumulates; the quad factor and gravity lines read
+// their live values from the serverinfo, and the tiered-armor line comes from
+// CS_ARMORINFO. The trailing "MODIFIED WEAPONS" block (weapon-modification bits
+// 0x1fff) is intentionally left as the summary line without the per-weapon icon
+// grid.
 static void CG_DrawModifiers(rectDef_t *rect, float scale, vec4_t color) {
     const char *info = CG_ConfigString(CS_SERVERINFO);
+    int bits = cgs.customSettings;
     float y = rect->y;
     int v;
 
-    v = atoi(Info_ValueForKey(info, "g_quadfactor"));
-    if (v && v != 3) {
-        CG_OwnerDrawText(rect->x, y, scale, color, va("%ix QUAD", v), 0, 0, 0);
-        y += 12.0f;
+#define MOD_LINE(text) do { \
+        CG_OwnerDrawText(rect->x, y, scale, color, (text), 0, 0, 0); \
+        y += 12.0f; \
+    } while (0)
+
+    if (bits & 0x2000)  MOD_LINE("AIR CONTROL");
+    if (bits & 0x4000)  MOD_LINE("RAMP JUMPING");
+    if (cgs.armorTiered) MOD_LINE("TIERED ARMOR");
+    if (bits & 0x10000) MOD_LINE("MODIFIED WEAPON SWITCH");
+
+    v = atoi(Info_ValueForKey(info, "g_quadDamageFactor"));
+    if (v != 3) {
+        MOD_LINE(va("%ix QUAD", v));
     }
+    if (bits & 0x8000)  MOD_LINE("MODIFIED PHYSICS");
+
     v = atoi(Info_ValueForKey(info, "g_gravity"));
-    if (v && v != 800) {
-        CG_OwnerDrawText(rect->x, y, scale, color, va("GRAVITY %i", v), 0, 0, 0);
-        y += 12.0f;
+    if (v != 800) {
+        MOD_LINE(va("GRAVITY %i", v));
     }
+
+    if (bits & 0x20000)  MOD_LINE("INSTAGIB");
+    if (bits & 0x40000)  MOD_LINE("QUAD HOG");
+    if (bits & 0x80000)  MOD_LINE("REGEN HEALTH");
+    if ((bits & 0x100000) && !(bits & 0x20000)) MOD_LINE("DROP DAMAGED HEALTH");
+    if (bits & 0x200000) MOD_LINE("VAMPIRIC DAMAGE");
+    if (bits & 0x400000) MOD_LINE("MODIFIED ITEM SPAWNING");
+    if (bits & 0x800000) MOD_LINE("HEADSHOTS ENABLED");
+    if (bits & 0x1000000) MOD_LINE("RAIL JUMPING");
+    if (bits & 0x1fff)   MOD_LINE("MODIFIED WEAPONS");
+
+#undef MOD_LINE
 }
 
 // [QL] CG_DrawWeaponHorizontal (id 2). Row of owned weapon icons, then the
@@ -3294,17 +3353,22 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
             CG_DrawMapName(&rect, scale, color, textStyle);
             break;
         case CG_VOTEGAMETYPE1:              // 0x13-0x15  CG_DrawVoteGameType
-            CG_DrawVoteGameType(&rect, scale, color, textStyle, 0);
+            CG_DrawVoteGameType(&rect, fontIndex, scale, color, textStyle, align, 0);
             break;
         case CG_VOTEGAMETYPE2:
-            CG_DrawVoteGameType(&rect, scale, color, textStyle, 1);
+            CG_DrawVoteGameType(&rect, fontIndex, scale, color, textStyle, align, 1);
             break;
         case CG_VOTEGAMETYPE3:
-            CG_DrawVoteGameType(&rect, scale, color, textStyle, 2);
+            CG_DrawVoteGameType(&rect, fontIndex, scale, color, textStyle, align, 2);
             break;
-        case CG_VOTEMAP1:                   // 0x16-0x18  CG_Draw1stPlyrInfoValue
-        case CG_VOTEMAP2:                   //   (duel selected-player info; no data source)
+        case CG_VOTEMAP1:                   // 0x16-0x18  raw map names (binary 0x100355d0)
+            CG_DrawVoteMap(&rect, fontIndex, scale, color, textStyle, align, 0);
+            break;
+        case CG_VOTEMAP2:
+            CG_DrawVoteMap(&rect, fontIndex, scale, color, textStyle, align, 1);
+            break;
         case CG_VOTEMAP3:
+            CG_DrawVoteMap(&rect, fontIndex, scale, color, textStyle, align, 2);
             break;
         case CG_VOTESHOT1:                  // 0x19-0x1b  CG_DrawVoteMapShot
             CG_DrawVoteMapShot(&rect, 0, shader);
@@ -3315,14 +3379,14 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
         case CG_VOTESHOT3:
             CG_DrawVoteMapShot(&rect, 2, shader);
             break;
-        case CG_VOTENAME1:                  // 0x1c-0x1e  CG_Draw2ndPlyrInfoValue
-            CG_DrawVoteMapName(&rect, scale, color, textStyle, 0);
+        case CG_VOTENAME1:                  // 0x1c-0x1e  map titles (binary 0x10035660)
+            CG_DrawVoteMapName(&rect, fontIndex, scale, color, textStyle, align, 0);
             break;
         case CG_VOTENAME2:
-            CG_DrawVoteMapName(&rect, scale, color, textStyle, 1);
+            CG_DrawVoteMapName(&rect, fontIndex, scale, color, textStyle, align, 1);
             break;
         case CG_VOTENAME3:
-            CG_DrawVoteMapName(&rect, scale, color, textStyle, 2);
+            CG_DrawVoteMapName(&rect, fontIndex, scale, color, textStyle, align, 2);
             break;
         case CG_VOTECOUNT1:                 // 0x1f-0x21
         case CG_VOTECOUNT2:
@@ -3331,7 +3395,7 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
             break;
         case CG_VOTETIMER:                  // 0x22
             // binary falls through to the respawn message here; kept separate.
-            CG_DrawVoteTimer(&rect, scale, color, textStyle);
+            CG_DrawVoteTimer(&rect, fontIndex, scale, color, textStyle, align);
             break;
         case CG_SPEC_MESSAGES:              // 0x23  CG_DrawSpectator (binary 0x10034d70)
             CG_DrawSpectator(&rect);
@@ -3662,10 +3726,10 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
             }
             break;
         case CG_RED_TIMEOUT_COUNT:          // 0x123  CG_DrawTimeoutCount
-            CG_DrawTimeoutCount(&rect, scale, color, textStyle, CS_TIMEOUTS_RED);
+            CG_DrawTimeoutCount(&rect, scale, color, textStyle, TEAM_RED);
             break;
         case CG_BLUE_TIMEOUT_COUNT:         // 0x13e
-            CG_DrawTimeoutCount(&rect, scale, color, textStyle, CS_TIMEOUTS_BLUE);
+            CG_DrawTimeoutCount(&rect, scale, color, textStyle, TEAM_BLUE);
             break;
 
         // ---- team pickup stat columns (0x124-0x135 red, 0x13f-0x150 blue) ----

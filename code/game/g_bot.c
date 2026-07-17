@@ -583,6 +583,7 @@ qboolean G_BotConnect(int clientNum, qboolean restart) {
 
     Q_strncpyz(settings.characterfile, Info_ValueForKey(userinfo, "characterfile"), sizeof(settings.characterfile));
     settings.skill = atof(Info_ValueForKey(userinfo, "skill"));
+    Q_strncpyz(settings.team, Info_ValueForKey(userinfo, "team"), sizeof(settings.team));
 
     if (!BotAISetupClient(clientNum, &settings, restart)) {
         trap_DropClient(clientNum, "BotAISetupClient failed");
@@ -746,16 +747,12 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
     // register the userinfo
     trap_SetUserinfo(clientNum, userinfo);
 
-    // have it connect to the game as a normal client
+    // have it connect to the game as a normal client. The bot puts itself on the
+    // requested team later: BotDeathmatchAI issues its own "team <team>" client
+    // command once its setup counter drains (binary chain G_AddBot ->
+    // G_BotConnect stores the key -> BotDeathmatchAI EA_Command).
     if (ClientConnect(clientNum, qtrue, qtrue)) {
         return;
-    }
-
-    // put the bot on its requested team. QL resolves the team into the userinfo
-    // key above; the binary-side consumer of that key is still unrecovered, so
-    // the join goes through SetTeam like a player "team" command.
-    if (team && *team && Q_stricmp(team, "s") && Q_stricmp(team, "spectator")) {
-        SetTeam(&g_entities[clientNum], team);
     }
 
     if (delay == 0) {

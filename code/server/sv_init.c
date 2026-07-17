@@ -377,6 +377,152 @@ clients along with it.
 This is NOT called for map_restart
 ================
 */
+/*
+================
+SV_SetNextMaps
+
+[QL] Builds the end-of-match vote candidates from sv_mapPoolFile into the
+nextmaps cvar (engine G_LoadMapPoolFiles at 0x0045f050 in quakelive_steam.exe;
+qzeroded exports the same as SetNextMaps). Pool lines are "mapname|factoryid".
+Slot 0 keeps the current map when sv_includeCurrentMapInVote is set and the map
+is pooled; otherwise up to three distinct entries are taken, randomly when the
+pool holds more than three. The game module forwards map_N/title_N/gt_N to the
+vote configstring and keeps cfg_N for the map change. QL resolves prettier map
+titles from its map metadata; without that source the map name stands in.
+================
+*/
+#define MAX_POOL_MAPS 256
+
+static const char* SV_FactoryLabel(const char* factory) {
+    static const struct {
+        const char* id;
+        const char* label;
+    } factories[] = {
+        {"ffa", "FFA"}, {"duel", "Duel"}, {"race", "Race"}, {"tdm", "TDM"},
+        {"ca", "Clan Arena"}, {"ctf", "CTF"}, {"oneflag", "1-Flag CTF"},
+        {"har", "Harvester"}, {"ft", "Freeze Tag"}, {"dom", "Domination"},
+        {"ad", "Attack & Defend"}, {"rr", "Red Rover"},
+    };
+    int i;
+
+    for (i = 0; i < (int)ARRAY_LEN(factories); i++) {
+        if (!Q_stricmp(factory, factories[i].id)) {
+            return factories[i].label;
+        }
+    }
+    return factory;
+}
+
+static void SV_SetNextMaps(const char* mapname) {
+    static char poolNames[MAX_POOL_MAPS][64];
+    static char poolFactories[MAX_POOL_MAPS][64];
+    char nextmaps[MAX_INFO_STRING];
+    char key[16];
+    cvar_t* poolFile;
+    cvar_t* includeCurrent;
+    union {
+        char* c;
+        void* v;
+    } f;
+    char* p;
+    char* line;
+    int poolCount, slotCount, i, n, tries;
+    int slots[3];
+
+    poolFile = Cvar_Get("sv_mapPoolFile", "mappool.txt", CVAR_ARCHIVE);
+    includeCurrent = Cvar_Get("sv_includeCurrentMapInVote", "0", CVAR_ARCHIVE);
+
+    Cvar_Set("nextmaps", "");
+    if (!poolFile->string[0]) {
+        return;
+    }
+    if (FS_ReadFile(poolFile->string, &f.v) <= 0) {
+        return;
+    }
+
+    poolCount = 0;
+    p = f.c;
+    while (p && *p && poolCount < MAX_POOL_MAPS) {
+        char* sep;
+
+        line = p;
+        p = strchr(p, '\n');
+        if (p) {
+            *p++ = '\0';
+        }
+        sep = strchr(line, '\r');
+        if (sep) {
+            *sep = '\0';
+        }
+        while (*line == ' ' || *line == '\t') {
+            line++;
+        }
+        if (!*line || *line == '#' || (line[0] == '/' && line[1] == '/')) {
+            continue;
+        }
+        sep = strchr(line, '|');
+        if (sep) {
+            *sep++ = '\0';
+        }
+        Q_strncpyz(poolNames[poolCount], line, sizeof(poolNames[0]));
+        Q_strncpyz(poolFactories[poolCount], sep ? sep : "", sizeof(poolFactories[0]));
+        poolCount++;
+    }
+    FS_FreeFile(f.v);
+
+    if (!poolCount) {
+        return;
+    }
+
+    slotCount = 0;
+    if (includeCurrent->integer) {
+        for (i = 0; i < poolCount; i++) {
+            if (!Q_stricmp(poolNames[i], mapname)) {
+                slots[slotCount++] = i;
+                break;
+            }
+        }
+    }
+
+    if (poolCount <= 3) {
+        for (i = 0; i < poolCount && slotCount < 3; i++) {
+            for (n = 0; n < slotCount; n++) {
+                if (slots[n] == i) {
+                    break;
+                }
+            }
+            if (n == slotCount) {
+                slots[slotCount++] = i;
+            }
+        }
+    } else {
+        for (tries = 0; tries < 1024 && slotCount < 3; tries++) {
+            i = rand() % poolCount;
+            for (n = 0; n < slotCount; n++) {
+                if (slots[n] == i) {
+                    break;
+                }
+            }
+            if (n == slotCount) {
+                slots[slotCount++] = i;
+            }
+        }
+    }
+
+    nextmaps[0] = '\0';
+    for (i = 0; i < slotCount; i++) {
+        Com_sprintf(key, sizeof(key), "map_%d", i);
+        Info_SetValueForKey(nextmaps, key, poolNames[slots[i]]);
+        Com_sprintf(key, sizeof(key), "title_%d", i);
+        Info_SetValueForKey(nextmaps, key, poolNames[slots[i]]);
+        Com_sprintf(key, sizeof(key), "gt_%d", i);
+        Info_SetValueForKey(nextmaps, key, SV_FactoryLabel(poolFactories[slots[i]]));
+        Com_sprintf(key, sizeof(key), "cfg_%d", i);
+        Info_SetValueForKey(nextmaps, key, poolFactories[slots[i]]);
+    }
+    Cvar_Set("nextmaps", nextmaps);
+}
+
 void SV_SpawnServer(char* server, qboolean killBots) {
     int i;
     int checksum;
@@ -453,6 +599,9 @@ void SV_SpawnServer(char* server, qboolean killBots) {
 
     // set serverinfo visible name
     Cvar_Set("mapname", server);
+
+    // [QL] refresh the end-of-match vote candidates for this map
+    SV_SetNextMaps(server);
 
     Cvar_Set("sv_mapChecksum", va("%i", checksum));
 

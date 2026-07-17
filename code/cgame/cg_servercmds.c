@@ -953,6 +953,12 @@ void CG_SetConfigValues(void) {
     // pauseEnd is the resume/countdown target (CG_DrawTimeout)
     cgs.freezeEnd = atoi(CG_ConfigString(CS_PAUSE_START_TIME));
     cgs.pauseEnd = atoi(CG_ConfigString(CS_PAUSE_END_TIME));
+    {
+        const char *tr = CG_ConfigString(CS_TIMEOUTS_RED);
+        const char *tb = CG_ConfigString(CS_TIMEOUTS_BLUE);
+        cgs.timeoutsRed = tr[0] ? atoi(tr) : cgs.timeoutCount;
+        cgs.timeoutsBlue = tb[0] ? atoi(tb) : cgs.timeoutCount;
+    }
     // [QL] CG_SetConfigValues (binary 0x10049420) seeds only practice (DAT_10a3ff30)
     // and freecam (DAT_10a5fd0c) at init; allReadyTime/roundStartTime are NOT read
     // here by the binary (they arrive later via CG_ConfigStringModified).
@@ -1117,9 +1123,11 @@ static void CG_ConfigStringModified(void) {
         CG_ParseArmorTiered();
     } else if (num == CS_PLAYERINFO) {
         CG_ParseConfigParams();
-    } else if (num == CS_ROTATIONMAPS) {
-        // [QL] map vote info - parse map names for vote display
-        cg.mapVoteActive = (str[0] != '\0');
+    } else if (num == CS_DISABLE_VOTE_UI) {
+        // [QL] the server latches this to "1" when the end-map vote window closes
+        if (atoi(str)) {
+            trap_Cvar_Set("ui_voteactive", "0");
+        }
     } else if (num == CS_SHADERSTATE) {
         CG_ShaderStateChanged();
     } else if (num == CS_PMOVEINFO) {
@@ -1134,6 +1142,11 @@ static void CG_ConfigStringModified(void) {
         cgs.freezeEnd = atoi(str);
     } else if (num == CS_PAUSE_END_TIME) {
         cgs.pauseEnd = atoi(str);
+    } else if (num == CS_TIMEOUTS_RED) {
+        // [QL] remaining team timeouts; an empty CS shows the g_timeoutCount default
+        cgs.timeoutsRed = str[0] ? atoi(str) : cgs.timeoutCount;
+    } else if (num == CS_TIMEOUTS_BLUE) {
+        cgs.timeoutsBlue = str[0] ? atoi(str) : cgs.timeoutCount;
     } else if (num == CS_PRACTICE) {
         // [QL] practice-mode flag (binary 0x10049980 case 0x29b -> DAT_10a3ff30)
         cgs.practice = atoi(str);

@@ -2615,6 +2615,43 @@ static qhandle_t CG_CountryFlagShader(const char* code) {
     return h;
 }
 
+// [QL] the team lists and stats pages shorten long names to the column width,
+// measured at the binary's fixed 0.16 scale, and mark the cut with "..."
+static const char* CG_TruncateListName(const char* name, int maxWidth, int shrinkWidth) {
+    static char buf[64];
+    int len;
+
+    if (CG_DrawTextWidth(name, 0.16f, 0, 0) <= maxWidth) {
+        return name;
+    }
+    Q_strncpyz(buf, name, sizeof(buf));
+    len = (int)strlen(buf);
+    while (len > 0 && CG_DrawTextWidth(buf, 0.16f, 0, 0) >= shrinkWidth) {
+        buf[--len] = '\0';
+    }
+    Q_strcat(buf, sizeof(buf), "...");
+    return buf;
+}
+
+// [QL] per-gametype name column widths on the team lists (binary feeders each
+// carry their own pair)
+static const char* CG_ListNameForGametype(const char* name) {
+    switch (cgs.gametype) {
+        case GT_TEAM:
+        case GT_FREEZE:
+            return CG_TruncateListName(name, 100, 92);
+        case GT_CA:
+            return CG_TruncateListName(name, 69, 62);
+        case GT_CTF:
+        case GT_1FCTF:
+        case GT_HARVESTER:
+        case GT_DOMINATION:
+        case GT_AD:
+            return CG_TruncateListName(name, 73, 66);
+    }
+    return name;
+}
+
 // [QL] icon/status columns 0-5 shared by the FFA and team list feeders (each binary
 // feeder inlines this block). Returns NULL when the column is gametype-specific.
 static const char* CG_FeederColumnsCommon(score_t* sp, clientInfo_t* info, int column,
@@ -2667,6 +2704,9 @@ static const char* CG_FeederColumnsCommon(score_t* sp, clientInfo_t* info, int c
             *handle = CG_CountryFlagShader(info->country);
             return "";
         case 5:
+            if (teamFeeder) {
+                return CG_ListNameForGametype(info->name);
+            }
             return info->name;
     }
     return NULL;
@@ -2869,7 +2909,7 @@ static const char* CG_FeederItemTextStats(float feederID, int index, int column,
             // 17 columns: player, score, frags, deaths, DmgD, DmgR, Acc,
             // 8 weapon pairs (gauntlet..RG..PG, HMG), time
             switch (column) {
-                case 0: return info->name;
+                case 0: return CG_TruncateListName(info->name, 100, 92);
                 case 1: return CG_StatsScoreString(sp->score);
                 case 2: return va("%d", sp->frags);
                 case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);
@@ -2893,7 +2933,7 @@ static const char* CG_FeederItemTextStats(float feederID, int index, int column,
             // 18 columns: player, score, frags, deaths, suicides, TK, TKd, net,
             // DmgD, DmgR, Acc, six pickups, time
             switch (column) {
-                case 0: return info->name;
+                case 0: return CG_TruncateListName(info->name, 100, 92);
                 case 1: return CG_StatsScoreString(sp->score);
                 case 2: return va("%d", sp->frags);
                 case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);
@@ -2921,7 +2961,7 @@ static const char* CG_FeederItemTextStats(float feederID, int index, int column,
             // 19 columns: player, score, frags, deaths, suicides, net, DmgD, DmgR,
             // Acc, nine pickups, time
             switch (column) {
-                case 0: return info->name;
+                case 0: return CG_TruncateListName(info->name, 100, 92);
                 case 1: return CG_StatsScoreString(sp->score);
                 case 2: return va("%d", sp->frags);
                 case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);

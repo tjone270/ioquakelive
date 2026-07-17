@@ -876,13 +876,6 @@ typedef struct {
     // [QL] per-player accuracy (from "acc" command)
     accuracyStats_t accuracyStats;
 
-    // [QL] map vote data (from CS_ROTATIONMAPS/CS_ROTATIONVOTES)
-    char voteMapNames[3][MAX_QPATH];
-    char voteMapTitles[3][64];
-    char voteGameTypes[3][32];
-    int voteCounts[3];
-    qboolean mapVoteActive;
-
     // [QL] obituary / kill feed ring buffer (binary: 16 entries at 10ab8fec)
     #define MAX_OBITUARIES 16
     struct {
@@ -1445,6 +1438,8 @@ typedef struct {
     int freezeRoundDelay;   // [QL] g_freezeRoundDelay
     int maxclients;
     int timeoutCount;       // [QL] g_timeoutCount
+    int timeoutsRed;        // [QL] CS_TIMEOUTS_RED (671); empty CS falls back to timeoutCount
+    int timeoutsBlue;       // [QL] CS_TIMEOUTS_BLUE (672)
     int timelimit_overtime;  // [QL] g_overtime
     int itemHeight;         // [QL] g_itemHeight
     int gravity;            // [QL] g_gravity

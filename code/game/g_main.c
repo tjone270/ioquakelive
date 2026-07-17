@@ -2215,10 +2215,10 @@ void CalculateRanks(void) {
             if (level.numPlayingClients == 0) {
                 trap_SetConfigstring(CS_SCORE1STPLAYER, va("%i", SCORE_NOT_PRESENT));
                 trap_SetConfigstring(CS_CLIENTNUM1STPLAYER, "-1");
-                trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, "");
+                trap_SetConfigstring(CS_NAME1STPLAYER, "");
                 trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", SCORE_NOT_PRESENT));
                 trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, "-1");
-                trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, "");
+                trap_SetConfigstring(CS_NAME2NDPLAYER, "");
             } else {
                 // determine p1 (lower clientNum) and p2 (higher clientNum)
                 if (level.numPlayingClients >= 2) {
@@ -2237,17 +2237,17 @@ void CalculateRanks(void) {
                 // 1st player slot
                 trap_SetConfigstring(CS_SCORE1STPLAYER, va("%i", level.clients[p1].ps.persistant[PERS_SCORE]));
                 trap_SetConfigstring(CS_CLIENTNUM1STPLAYER, va("%i", p1));
-                trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, level.clients[p1].pers.netname);
+                trap_SetConfigstring(CS_NAME1STPLAYER, level.clients[p1].pers.netname);
 
                 // 2nd player slot
                 if (p2 >= 0) {
                     trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", level.clients[p2].ps.persistant[PERS_SCORE]));
                     trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, va("%i", p2));
-                    trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, level.clients[p2].pers.netname);
+                    trap_SetConfigstring(CS_NAME2NDPLAYER, level.clients[p2].pers.netname);
                 } else {
                     trap_SetConfigstring(CS_SCORE2NDPLAYER, va("%i", SCORE_NOT_PRESENT));
                     trap_SetConfigstring(CS_CLIENTNUM2NDPLAYER, "-1");
-                    trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, "");
+                    trap_SetConfigstring(CS_NAME2NDPLAYER, "");
                 }
             }
         }
@@ -2280,6 +2280,118 @@ Do this at BeginIntermission time and whenever ranks are recalculated
 due to enters/exits/forced team changes
 ========================
 */
+/*
+=================
+CalculateAwards
+
+[QL] binary 0x10055a50 (the DLL project had this mislabelled as the scoreboard
+broadcaster). Publishes the end-of-match award clientNums as "%i" configstrings,
+or empty strings when an award has no winner. Only connected non-spectators are
+eligible; when nobody qualifies the configstrings are left untouched. Item
+control is skipped in race, CA, DOM, A&D and RR; the three MVP awards only run
+in the objective team modes.
+=================
+*/
+void CalculateAwards(void) {
+    gclient_t* cl;
+    expandedStatObj_t* st;
+    int i, value, score;
+    int accClient = -1, accBest = 0, accShots = 0;
+    int dmgClient = -1, dmgBest = 0, dmgShots = 0;
+    int itemClient = -1, itemBest = 0;
+    int offClient = -1, offBest = 0, offScore = 0;
+    int defClient = -1, defBest = 0, defScore = 0;
+    int mvpClient = -1, mvpBest = 0, mvpScore = 0;
+    qboolean itemAward, mvpAwards, anyEligible = qfalse;
+
+    itemAward = (g_gametype.integer != GT_RACE && g_gametype.integer != GT_CA &&
+                 g_gametype.integer != GT_DOMINATION && g_gametype.integer != GT_AD &&
+                 g_gametype.integer != GT_RR);
+    mvpAwards = (g_gametype.integer >= GT_CTF && g_gametype.integer <= GT_HARVESTER) ||
+                g_gametype.integer == GT_DOMINATION || g_gametype.integer == GT_AD;
+
+    for (i = 0; i < level.maxclients; i++) {
+        cl = &level.clients[i];
+        if (cl->pers.connected != CON_CONNECTED ||
+            cl->sess.sessionTeam == TEAM_SPECTATOR) {
+            continue;
+        }
+        anyEligible = qtrue;
+        st = &cl->expandedStats;
+        score = cl->ps.persistant[PERS_SCORE];
+
+        if (cl->accuracy_shots > 0 && cl->accuracy_hits > 0) {
+            value = cl->accuracy_hits * 100 / cl->accuracy_shots;
+            // ties go to the player with more shots
+            if (accClient < 0 || value > accBest ||
+                (value == accBest && cl->accuracy_shots > accShots)) {
+                accClient = i;
+                accBest = value;
+                accShots = cl->accuracy_shots;
+            }
+        }
+
+        value = st->totalDamageDealt;
+        if (value > 0) {
+            // ties go to the player with fewer shots
+            if (dmgClient < 0 || value > dmgBest ||
+                (value == dmgBest && cl->accuracy_shots < dmgShots)) {
+                dmgClient = i;
+                dmgBest = value;
+                dmgShots = cl->accuracy_shots;
+            }
+        }
+
+        if (itemAward) {
+            value = 25 * st->numGreenArmorPickups + 50 * st->numYellowArmorPickups +
+                    100 * st->numRedArmorPickups + 100 * st->numMegaHealthPickups +
+                    480 * st->numBattleSuitPickups + 480 * st->numQuadDamagePickups;
+            if (value > 0 && (itemClient < 0 || value > itemBest)) {
+                itemClient = i;
+                itemBest = value;
+            }
+        }
+
+        if (mvpAwards) {
+            value = 10 * (st->numAssists + 10 * st->numCaptures);
+            if (value > 0 && (offClient < 0 || value > offBest ||
+                              (value == offBest && score > offScore))) {
+                offClient = i;
+                offBest = value;
+                offScore = score;
+            }
+
+            value = 10 * (st->numDefends + st->numAssists);
+            if (value > 0 && (defClient < 0 || value > defBest ||
+                              (value == defBest && score > defScore))) {
+                defClient = i;
+                defBest = value;
+                defScore = score;
+            }
+
+            value = 25 * st->numCaptures + (st->maxKillStreak - st->numDeaths) +
+                    st->numKills + 10 * (st->numDefends + st->numAssists);
+            if (mvpClient < 0 || value > mvpBest ||
+                (value == mvpBest && score > mvpScore)) {
+                mvpClient = i;
+                mvpBest = value;
+                mvpScore = score;
+            }
+        }
+    }
+
+    if (!anyEligible) {
+        return;
+    }
+
+    trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, accClient < 0 ? "" : va("%i", accClient));
+    trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, dmgClient < 0 ? "" : va("%i", dmgClient));
+    trap_SetConfigstring(CS_BEST_ITEMCONTROL_PLYR, itemClient < 0 ? "" : va("%i", itemClient));
+    trap_SetConfigstring(CS_MOST_VALUABLE_OFFENSIVE_PLYR, offClient < 0 ? "" : va("%i", offClient));
+    trap_SetConfigstring(CS_MOST_VALUABLE_DEFENSIVE_PLYR, defClient < 0 ? "" : va("%i", defClient));
+    trap_SetConfigstring(CS_MOST_VALUABLE_PLYR, mvpClient < 0 ? "" : va("%i", mvpClient));
+}
+
 void SendScoreboardMessageToAllClients(void) {
     int i;
 
@@ -2288,6 +2400,9 @@ void SendScoreboardMessageToAllClients(void) {
             FreeForAllScoreboardMessage(g_entities + i);
         }
     }
+
+    // awards ride along with every intermission scoreboard broadcast
+    CalculateAwards();
 }
 
 /*
@@ -2353,6 +2468,41 @@ void FindIntermissionPoint(void) {
 
 /*
 ==================
+G_PublishRotationVotes
+
+[QL] binary 0x10043f60: zero the slot counts, re-tally every connected client's
+last vote choice (so disconnected voters drop out), and publish the counts as an
+infostring keyed by slot index.
+==================
+*/
+void G_PublishRotationVotes(void) {
+    char votes[MAX_INFO_STRING];
+    char key[8];
+    int i, choice;
+
+    for (i = 0; i < 3; i++) {
+        level.intermissionMapVotes[i] = 0;
+    }
+    for (i = 0; i < level.maxclients; i++) {
+        if (level.clients[i].pers.connected != CON_CONNECTED) {
+            continue;
+        }
+        choice = level.clients[i].pers.lastMapVoteIndex;
+        if (choice >= 1 && choice <= 3) {
+            level.intermissionMapVotes[choice - 1]++;
+        }
+    }
+
+    votes[0] = '\0';
+    for (i = 0; i < 3; i++) {
+        Com_sprintf(key, sizeof(key), "%d", i);
+        Info_SetValueForKey(votes, key, va("%d", level.intermissionMapVotes[i]));
+    }
+    trap_SetConfigstring(CS_ROTATIONVOTES, votes);
+}
+
+/*
+==================
 BeginIntermission
 ==================
 */
@@ -2412,34 +2562,37 @@ void BeginIntermission(void) {
             level.intermissionMapVotes[i] = 0;
         }
 
-        // Build map info configstring for clients
+        // Build map info configstring for clients. The binary forwards map_N,
+        // title_N and gt_N per slot (cfg_N stays server side) and publishes the
+        // vote counts as an infostring keyed by slot index.
         mapInfo[0] = '\0';
         for (i = 0; i < 3; i++) {
             if (level.intermissionMapNames[i][0]) {
                 char k[16];
+                const char *val;
                 Com_sprintf(k, sizeof(k), "map_%d", i);
                 Info_SetValueForKey(mapInfo, k, level.intermissionMapNames[i]);
                 Com_sprintf(k, sizeof(k), "title_%d", i);
                 Info_SetValueForKey(mapInfo, k,
                     level.intermissionMapTitles[i][0] ? level.intermissionMapTitles[i] : level.intermissionMapNames[i]);
+                Com_sprintf(k, sizeof(k), "gt_%d", i);
+                val = Info_ValueForKey(nextmaps, k);
+                Info_SetValueForKey(mapInfo, k, val);
             }
         }
 
         trap_SetConfigstring(CS_ROTATIONMAPS, mapInfo);
-        trap_SetConfigstring(CS_ROTATIONVOTES, "0 0 0");
+        G_PublishRotationVotes();
         level.voteTime = level.time;
         trap_SetConfigstring(CS_VOTE_TIME, va("%i", level.voteTime));
     }
 
-    // move all clients to the intermission point
+    // move all clients to the intermission point. The binary carries pers.ready
+    // into intermission untouched - readying up during the match keeps the tick.
     for (i = 0; i < level.maxclients; i++) {
         ent = g_entities + i;
         if (!ent->inuse || !ent->client) {
             continue;
-        }
-        // [QL] reset per-client ready state
-        if (ent->client->pers.connected == CON_CONNECTED) {
-            ClearClientReadyToExit();
         }
         MoveClientToIntermission(ent);
     }
@@ -2482,16 +2635,11 @@ void ExitLevel(void) {
     // [QL] clear CS_INTERMISSION
     trap_SetConfigstring(CS_INTERMISSION, "");
 
-    // if we are running a tournement map, kick the loser to spectator status,
-    // which will automatically grab the next spectator and restart
+    // duel kicks the loser back to spectator, then falls through to the map
+    // vote resolution like every other gametype (binary ExitLevel 0x10057090
+    // has no Q3-style early return here)
     if (g_gametype.integer == GT_DUEL) {
-        if (!level.restarted) {
-            RemoveTournamentLoser();
-            trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
-            level.restarted = qtrue;
-            level.intermissionTime = 0;
-        }
-        return;
+        RemoveTournamentLoser();
     }
 
     // [QL] resolve map voting if active
@@ -2726,7 +2874,8 @@ void CheckIntermissionExit(void) {
         timeout = 10000;
     }
 
-    // Build ready mask from per-client ready state
+    // Build the ready mask from pers.ready (the readyup command, the
+    // intermission attack toggle and the rp configstring all share it)
     readyMask = 0;
     for (i = 0; i < g_maxclients.integer; i++) {
         cl = level.clients + i;
@@ -2736,10 +2885,8 @@ void CheckIntermissionExit(void) {
         if (g_entities[i].r.svFlags & SVF_BOT) {
             continue;
         }
-        if (ClientIsReadyToExit(i)) {
-            if (i < 16) {
-                readyMask |= 1 << i;
-            }
+        if (cl->pers.ready && i < 16) {
+            readyMask |= 1 << i;
         }
     }
 
@@ -2752,10 +2899,13 @@ void CheckIntermissionExit(void) {
         cl->ps.stats[STAT_CLIENTS_READY] = readyMask;
     }
 
-    // [QL] Mark voting ended after timeout expires
+    // [QL] Latch voting closed when the window expires (or immediately when
+    // end-map voting is disabled); CS_DISABLE_VOTE_UI turns the client UI off
     if (!level.votingEnded &&
-        level.time >= level.intermissionTime + timeout) {
+        ((g_voteFlags.integer & VF_ENDMAP_VOTING) ||
+         level.time >= level.intermissionTime + timeout)) {
         level.votingEnded = qtrue;
+        trap_SetConfigstring(CS_DISABLE_VOTE_UI, "1");
     }
 
     // [QL] Hard exit after timeout + 3s minimum

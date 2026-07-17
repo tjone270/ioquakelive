@@ -697,27 +697,14 @@ static void CG_FilterAngles(void) {
 }
 
 // Address: 0x1004e2e0
-// [QL] CG_DrawDuelWeaponStats -- duel spectator weapon-accuracy overlay for the
-// 2nd duel player. Reads per-weapon accuracy keys out of that player's
-// configstring and draws a two-column table starting at y=300.
-// The 14 weapon key strings and the "Enemy"/"You" column labels live in a
-// pointer table at 0x10076568 spanning several .rdata regions. The guard and
-// configstring fetch are done; the per-weapon draw loop is still a stub.
-static void CG_DrawDuelWeaponStats(void) {
-    const char* info;
-
-    if (cg.snap->ps.stats[STAT_HEALTH] <= 0) {
-        return;
-    }
-
-    info = CG_ConfigString(CS_PLAYERS + cgs.clientNum2ndPlayer);
-    if (!info[0]) {
-        return;
-    }
-
-    // TODO: iterate the 14 weapon accuracy keys (table @0x10076568),
-    // Info_ValueForKey into a 15x30 buffer, then CG_DrawText two columns per row
-    // ("Enemy | You"), y = 300 + row*16. Key/label strings still to be extracted.
+// [QL] developer bot-info overlay drawn after CG_DrawActive. The function name
+// carried over from an earlier guess was wrong: this is not a duel weapon-stats
+// table. The binary reads CS_BOTINFO (16) - the followed bot's AI state, filled
+// by the server only for a bot - and draws a two-column debug table (enemy,
+// distances, AI node, health/armor/skill). With no bot AI info published it is
+// inert, so ioquakelive leaves it as a documented no-op. Real duel weapon stats
+// are the CG_DrawDuel* ownerdraw family, which are handled in cg_newdraw.c.
+static void CG_DrawBotInfoOverlay(void) {
 }
 
 // Address: 0x1004e480
@@ -1284,8 +1271,8 @@ void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoP
     // actually issue the rendering calls
     CG_DrawActive(stereoView);
 
-    // [QL] duel spectator weapon-stats overlay
-    CG_DrawDuelWeaponStats();
+    // [QL] developer bot-info overlay (inert without bot AI info published)
+    CG_DrawBotInfoOverlay();
 
     if (cg_stats.integer) {
         CG_Printf("cg.clientFrame:%i\n", cg.clientFrame);

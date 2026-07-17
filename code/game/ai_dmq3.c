@@ -5266,6 +5266,12 @@ void BotDeathmatchAI(bot_state_t* bs, float thinktime) {
         //
         bs->setupcount = 0;
         //
+        // [QL] put the bot on its requested team by issuing the team command
+        // itself (binary BotDeathmatchAI). Duel bots are placed by the queue.
+        if (!bs->map_restart && g_gametype.integer != GT_DUEL && bs->settings.team[0]) {
+            trap_EA_Command(bs->client, va("team %s", bs->settings.team));
+        }
+        //
         BotSetupAlternativeRouteGoals();
     }
     // no ideal view set

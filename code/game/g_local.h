@@ -763,6 +763,7 @@ gentity_t* SelectSpawnPoint(vec3_t avoidPoint, vec3_t origin, vec3_t angles, qbo
 void CopyToBodyQue(gentity_t* ent);
 void ClientRespawn(gentity_t* ent);
 void BeginIntermission(void);
+void G_PublishRotationVotes(void);
 void InitBodyQue(void);
 void ClientSpawn(gentity_t* ent);
 void player_die(gentity_t* self, gentity_t* inflictor, gentity_t* attacker, int damage, int mod);
@@ -979,8 +980,6 @@ qboolean G_IsTeamLocked(team_t team);
 void ClientThink(int clientNum);
 void ClientEndFrame(gentity_t* ent);
 void G_RunClient(gentity_t* ent);
-qboolean ClientIsReadyToExit(int clientNum);  // [QL] readyToExit tracking
-void ClearClientReadyToExit(void);            // [QL] reset at intermission start
 
 //
 // g_team.c
@@ -1032,6 +1031,7 @@ void BotInterbreedEndMatch(void);
 typedef struct bot_settings_s {
     char characterfile[MAX_FILEPATH];
     float skill;
+    char team[MAX_FILEPATH];   // [QL] requested team; the bot issues "team <team>" itself
 } bot_settings_t;
 
 int BotAISetup(int restart);

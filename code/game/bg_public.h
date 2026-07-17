@@ -137,17 +137,17 @@ typedef enum {
 #define CS_SCORE2NDPLAYER 686      // Score of the duel player on the right
 #define CS_CLIENTNUM1STPLAYER 687  // ClientNum of the duel player on the left
 #define CS_CLIENTNUM2NDPLAYER 688  // ClientNum of the duel player on the right
-#define CS_ATMOSEFFECT 689         // unused, was per-map rain/snow effects
-#define CS_MOST_DAMAGEDEALT_PLYR 690
-#define CS_MOST_ACCURATE_PLYR 691
-#define CS_REDTEAMBASE 692
-#define CS_BLUETEAMBASE 693
-#define CS_BEST_ITEMCONTROL_PLYR 694
-#define CS_MOST_VALUABLE_OFFENSIVE_PLYR 695
-#define CS_MOST_VALUABLE_DEFENSIVE_PLYR 696
-#define CS_MOST_VALUABLE_PLYR 697
-#define CS_GENERIC_COUNT_RED 698
-#define CS_GENERIC_COUNT_BLUE 699
+// [QL] 689-699 verified against both 1069 binaries (qagame writers + cgame
+// readers). 694/695 have no writer and no client handler.
+#define CS_NAME1STPLAYER 689           // duel: lower clientNum's name
+#define CS_NAME2NDPLAYER 690           // duel: higher clientNum's name
+#define CS_ATMOSEFFECT 691             // worldspawn "atmosphere" key
+#define CS_MOST_DAMAGEDEALT_PLYR 692   // end-of-match awards: clientNum as "%i"
+#define CS_MOST_ACCURATE_PLYR 693
+#define CS_BEST_ITEMCONTROL_PLYR 696
+#define CS_MOST_VALUABLE_OFFENSIVE_PLYR 697
+#define CS_MOST_VALUABLE_DEFENSIVE_PLYR 698
+#define CS_MOST_VALUABLE_PLYR 699
 #define CS_AD_SCORES 700
 #define CS_ROUND_WINNER 701
 // [QL] g_customSettings publishes to CS 704 (binary G_UpdateCvars sets 0x2c0; wolfcam's
