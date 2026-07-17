@@ -411,68 +411,72 @@ qboolean CG_DrawOldScoreboard(void) {
 // scores_ca / scores_ctf) and from the team-wide pickup-count
 // CG_ParseTeamStats. The server emits ONE command per connected client; the
 // first argument is that client's scoreboard slot index, used verbatim as the
-// row index into cg.teamStats[] (a per-client store with a 0x268-byte /
-// 154-int stride). All values are signed decimal integers read with atoi().
-// The feeder reader (CG_FeederItemTextStats) lives in cg_main.c.
+// row index into cg.scores[] - the binary writes these straight into the same
+// score rows the list feeders read (&cg.scores[slot], score_t stride 0x268).
+// All values are signed decimal integers read with atoi(). The stats-page
+// feeder (CG_FeederItemTextStats) lives in cg_main.c.
 //================================================================================
 
 /*
 =================
 CG_ParseTeamStats_TDM
 
-TDM / FT extended stats. Wire: "tdmstats <client> <selfKills> <teamKills>
+TDM / FT extended stats. Wire: "tdmstats <slot> <selfKills> <teamKills>
 <tkDeaths> <damageDone> <damageReceived> <ra> <ya> <ga> <mh> <quad> <bs>".
 =================
 */
 // Address: 0x10046610
 void CG_ParseTeamStats_TDM(void) {
+    score_t* sp;
     int slot;
-    int* row;
 
     slot = atoi(CG_Argv(1));
-    row = cg.teamStats[slot].fields;
+    if (slot < 0 || slot >= MAX_CLIENTS) {
+        return;
+    }
+    sp = &cg.scores[slot];
 
-    row[0] = atoi(CG_Argv(2));    // 0x00 selfKills
-    row[1] = atoi(CG_Argv(3));    // 0x04 teamKills
-    row[2] = atoi(CG_Argv(4));    // 0x08 teamKillDeaths
-    row[7] = atoi(CG_Argv(5));    // 0x1c damageDone
-    row[8] = atoi(CG_Argv(6));    // 0x20 damageReceived
-    row[9] = atoi(CG_Argv(7));    // 0x24 pickups: red armour
-    row[11] = atoi(CG_Argv(8));   // 0x2c pickups: yellow armour
-    row[13] = atoi(CG_Argv(9));   // 0x34 pickups: green armour
-    row[15] = atoi(CG_Argv(10));  // 0x3c pickups: mega health
-    row[17] = atoi(CG_Argv(11));  // 0x44 pickups: quad
-    row[18] = atoi(CG_Argv(12));  // 0x48 pickups: battlesuit
+    sp->selfKills = atoi(CG_Argv(2));        // 0xd0
+    sp->tks = atoi(CG_Argv(3));              // 0xd4
+    sp->tkd = atoi(CG_Argv(4));              // 0xd8
+    sp->damageDone = atoi(CG_Argv(5));       // 0xec
+    sp->damageReceived = atoi(CG_Argv(6));   // 0xf0
+    sp->pickups_ra = atoi(CG_Argv(7));       // 0xf4
+    sp->pickups_ya = atoi(CG_Argv(8));       // 0xfc
+    sp->pickups_ga = atoi(CG_Argv(9));       // 0x104
+    sp->pickups_mh = atoi(CG_Argv(10));      // 0x10c
+    sp->pickups_quad = atoi(CG_Argv(11));    // 0x114
+    sp->pickups_bs = atoi(CG_Argv(12));      // 0x118
 }
 
 /*
 =================
 CG_ParseTeamStats_CA
 
-Clan Arena extended stats. Wire: "castats <client> <damageDone>
+Clan Arena extended stats. Wire: "castats <slot> <damageDone>
 <damageReceived>" followed by 15 weapon pairs, each "<accuracy> <kills>" for
 weapon index k = 0..14 (0 = gauntlet .. 14 = HMG). 33 args after the verb.
-Binary quirk carried into the store: for each weapon the accuracy is
-the first arg of the pair and lands at the higher offset (0x9c + k*4), while
-the kill count is the second arg and lands at the lower offset (0x5c + k*4).
 =================
 */
 // Address: 0x10046b00
 void CG_ParseTeamStats_CA(void) {
+    score_t* sp;
     int slot;
-    int* row;
     int k;
 
     slot = atoi(CG_Argv(1));
-    row = cg.teamStats[slot].fields;
+    if (slot < 0 || slot >= MAX_CLIENTS) {
+        return;
+    }
+    sp = &cg.scores[slot];
 
-    row[7] = atoi(CG_Argv(2));  // 0x1c damageDone
-    row[8] = atoi(CG_Argv(3));  // 0x20 damageReceived
+    sp->damageDone = atoi(CG_Argv(2));       // 0xec
+    sp->damageReceived = atoi(CG_Argv(3));   // 0xf0
 
     // 15 weapon pairs, args 4..33
     for (k = 0; k < 15; k++) {
-        row[39 + k] = atoi(CG_Argv(4 + k * 2));  // 0x9c + k*4  accuracy
-        row[23 + k] = atoi(CG_Argv(5 + k * 2));  // 0x5c + k*4  kills
+        sp->weaponAccuracy[k] = atoi(CG_Argv(4 + k * 2));  // 0x16c + k*4
+        sp->weaponKills[k] = atoi(CG_Argv(5 + k * 2));     // 0x12c + k*4
     }
 }
 
@@ -481,28 +485,31 @@ void CG_ParseTeamStats_CA(void) {
 CG_ParseTeamStats_CTF
 
 CTF / 1FCTF / Harvester / Domination / A&D extended stats. Wire: "ctfstats
-<client> <selfKills> <damageDone> <damageReceived> <ra> <ya> <ga> <mh> <quad>
+<slot> <selfKills> <damageDone> <damageReceived> <ra> <ya> <ga> <mh> <quad>
 <bs> <regen> <haste> <invis>".
 =================
 */
 // Address: 0x10047400
 void CG_ParseTeamStats_CTF(void) {
+    score_t* sp;
     int slot;
-    int* row;
 
     slot = atoi(CG_Argv(1));
-    row = cg.teamStats[slot].fields;
+    if (slot < 0 || slot >= MAX_CLIENTS) {
+        return;
+    }
+    sp = &cg.scores[slot];
 
-    row[0] = atoi(CG_Argv(2));    // 0x00 selfKills
-    row[7] = atoi(CG_Argv(3));    // 0x1c damageDone
-    row[8] = atoi(CG_Argv(4));    // 0x20 damageReceived
-    row[9] = atoi(CG_Argv(5));    // 0x24 pickups: red armour
-    row[11] = atoi(CG_Argv(6));   // 0x2c pickups: yellow armour
-    row[13] = atoi(CG_Argv(7));   // 0x34 pickups: green armour
-    row[15] = atoi(CG_Argv(8));   // 0x3c pickups: mega health
-    row[17] = atoi(CG_Argv(9));   // 0x44 pickups: quad
-    row[18] = atoi(CG_Argv(10));  // 0x48 pickups: battlesuit
-    row[19] = atoi(CG_Argv(11));  // 0x4c pickups: regen
-    row[20] = atoi(CG_Argv(12));  // 0x50 pickups: haste
-    row[21] = atoi(CG_Argv(13));  // 0x54 pickups: invisibility
+    sp->selfKills = atoi(CG_Argv(2));        // 0xd0
+    sp->damageDone = atoi(CG_Argv(3));       // 0xec
+    sp->damageReceived = atoi(CG_Argv(4));   // 0xf0
+    sp->pickups_ra = atoi(CG_Argv(5));       // 0xf4
+    sp->pickups_ya = atoi(CG_Argv(6));       // 0xfc
+    sp->pickups_ga = atoi(CG_Argv(7));       // 0x104
+    sp->pickups_mh = atoi(CG_Argv(8));       // 0x10c
+    sp->pickups_quad = atoi(CG_Argv(9));     // 0x114
+    sp->pickups_bs = atoi(CG_Argv(10));      // 0x118
+    sp->pickups_regen = atoi(CG_Argv(11));   // 0x11c
+    sp->pickups_haste = atoi(CG_Argv(12));   // 0x120
+    sp->pickups_invis = atoi(CG_Argv(13));   // 0x124
 }

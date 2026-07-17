@@ -454,6 +454,7 @@ void Display_HandleKey(int key, qboolean down, int x, int y);
 void LerpColor(vec4_t a, vec4_t b, vec4_t c, float t);
 void Menus_CloseAll(void);
 void Menu_Paint(menuDef_t* menu, qboolean forcePaint);
+itemDef_t* Menu_FindItemByName(menuDef_t* menu, const char* p);
 void Menu_SetFeederSelection(menuDef_t* menu, int feeder, int index, const char* name);
 void Display_CacheAll(void);
 

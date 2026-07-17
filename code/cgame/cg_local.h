@@ -358,7 +358,7 @@ typedef struct {
     int pickups_haste;           // 0x120 haste  (CTF verb only)
     int pickups_invis;           // 0x124 invis  (CTF verb only)
     int weaponKills[MAX_WEAPONS];    // 0x12c 15 ints (index 0=gauntlet..14). CA verb. MAX_WEAPONS must be >= 15.
-    int weaponAccuracy[MAX_WEAPONS]; // 0x16c 15 ints. CA verb. NOTE quirk: CaStats reads HMG kills from [13] but HMG accuracy from [14].
+    int weaponAccuracy[MAX_WEAPONS]; // 0x16c 15 ints. CA verb. HMG uses index 13 for both kills and accuracy.
 } score_t;
 
 // [QL] per-weapon stats for duel scoreboard
@@ -516,6 +516,10 @@ typedef struct {
     // specOnly marks spectators who opted out of the queue; queuePosition is 1-based, 0 = none.
     int specOnly;
     int queuePosition;
+
+    // [QL] GeoIP country code from the "c" key (binary clientInfo +0xc8),
+    // shown as ui/assets/flags/<code>.tga on the scoreboards
+    char country[24];
 } clientInfo_t;
 
 // each WP_* weapon enum has an associated weaponInfo_t
@@ -603,16 +607,6 @@ typedef struct bufferedVoiceChat_s {
     char        cmd[150];
     char        message[150];
 } bufferedVoiceChat_t;
-
-// [QL] per-client extended team-stats row. Binary cgame stride 0x268 bytes (154 ints);
-// base globals DAT_10a9cea0. Indexed by scoreboard slot (arg1 of tdmstats/castats/ctfstats).
-// Field byte offsets written by the parsers:
-//   TDM 0x00,0x04,0x08,0x1c,0x20,0x24,0x2c,0x34,0x3c,0x44,0x48
-//   CTF adds 0x4c,0x50,0x54
-//   CA  uses 0x1c,0x20 then pairs at 0x5c+i*4 and 0x9c+i*4 for i=0..14
-typedef struct teamStatsRow_s {
-    int fields[154];
-} teamStatsRow_t;
 
 //======================================================================
 
@@ -972,9 +966,6 @@ typedef struct {
     // [QL] cgame key-catcher flag (global 0x10a9c9b4).
     // CG_SetKeyCatcher sets it to 1 if 0; CG_ClearKeyCatcher sets it to 0 if nonzero.
     int keyCatcherActive;
-
-    // [QL] per-client extended team-stats array (tdmstats/castats/ctfstats), indexed by scoreboard slot.
-    teamStatsRow_t teamStats[MAX_CLIENTS];
 
 } cg_t;
 
@@ -2160,7 +2151,7 @@ void CG_LoadVoiceChats(void);
 void CG_VoiceChatLocal(int clientNum, const char* cmd);
 void CG_PlayBufferedVoiceChats(void);
 
-// [QL] extended team-stats parsers (per-client verbs; arg1 = scoreboard slot into cg.teamStats[])
+// [QL] extended team-stats parsers (per-client verbs; arg1 = scoreboard slot into cg.scores[])
 void CG_ParseTeamStats_TDM(void);
 void CG_ParseTeamStats_CA(void);
 void CG_ParseTeamStats_CTF(void);

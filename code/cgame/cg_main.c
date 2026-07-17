@@ -2496,7 +2496,9 @@ static int CG_FeederCount(float feederID) {
                 count++;
             }
         }
-    } else if (feederID == FEEDER_SCOREBOARD || feederID == FEEDER_ENDSCOREBOARD) {
+    } else if (feederID == FEEDER_SCOREBOARD) {
+        // binary 0x10025e70 counts only feeders 5/6/11/17/18; FEEDER_ENDSCOREBOARD
+        // is dead in 1069 (no menu uses it) and yields 0 like everything else
         return cg.numScores;
     } else if (feederID == FEEDER_REDTEAM_STATS) {
         for (i = 0; i < cg.numScores; i++) {
@@ -2510,19 +2512,28 @@ static int CG_FeederCount(float feederID) {
     return count;
 }
 
+/*
+=================
+CG_SetScoreSelection
+
+[QL] binary 0x10025f60. Spectators deselect everything; players select their own
+score row. Team gametypes push the GLOBAL selected index through the primary team
+list's cursor and the feeder selection callback (which converts it to a team row),
+then deselect the other team's list.
+=================
+*/
 void CG_SetScoreSelection(void* p) {
     menuDef_t* menu = (menuDef_t*)p;
     playerState_t* ps = &cg.snap->ps;
-    int i, red, blue;
-    red = blue = 0;
-    for (i = 0; i < cg.numScores; i++) {
-        if (cg.scores[i].team == TEAM_RED) {
-            red++;
-        } else if (cg.scores[i].team == TEAM_BLUE) {
-            blue++;
-        }
-        if (ps->clientNum == cg.scores[i].client) {
-            cg.selectedScore = i;
+    int i;
+
+    if (ps->persistant[PERS_TEAM] == TEAM_SPECTATOR) {
+        cg.selectedScore = -1;
+    } else {
+        for (i = 0; i < cg.numScores; i++) {
+            if (ps->clientNum == cg.scores[i].client) {
+                cg.selectedScore = i;
+            }
         }
     }
 
@@ -2532,13 +2543,33 @@ void CG_SetScoreSelection(void* p) {
     }
 
     if (cgs.gametype >= GT_TEAM) {
-        int feeder = FEEDER_REDTEAM_LIST;
-        i = red;
-        if (cg.scores[cg.selectedScore].team == TEAM_BLUE) {
-            feeder = FEEDER_BLUETEAM_LIST;
-            i = blue;
+        int primary = FEEDER_REDTEAM_LIST;
+        int secondary = FEEDER_BLUETEAM_LIST;
+        itemDef_t* item = NULL;
+
+        if (cg.selectedScore >= 0 && cg.scores[cg.selectedScore].team == TEAM_BLUE) {
+            primary = FEEDER_BLUETEAM_LIST;
+            secondary = FEEDER_REDTEAM_LIST;
         }
-        Menu_SetFeederSelection(menu, feeder, i, NULL);
+
+        for (i = 0; i < menu->itemCount; i++) {
+            if (menu->items[i]->special == primary) {
+                item = menu->items[i];
+                break;
+            }
+        }
+        if (item) {
+            if (cg.selectedScore == 0) {
+                listBoxDef_t* listPtr = (listBoxDef_t*)item->typeData;
+                if (listPtr) {
+                    listPtr->startPos = 0;
+                    listPtr->cursorPos = 0;
+                }
+            }
+            item->cursorPos = cg.selectedScore;
+            cgDC.feederSelection(item->special, item->cursorPos);
+        }
+        Menu_SetFeederSelection(menu, secondary, -1, NULL);
     } else {
         Menu_SetFeederSelection(menu, FEEDER_SCOREBOARD, cg.selectedScore, NULL);
     }
@@ -2570,13 +2601,87 @@ static const char* CG_FormatDamage(int dmg) {
     return va("%d", dmg);
 }
 
-// [QL] FFA/Duel/RR scoreboard columns 6-13 (14 total, binary FUN_10026160)
+// [QL] country flag shader for a GeoIP code; falls back to the blank flag
+// (shaders are pre-cached by CG_CacheCountryFlags)
+static qhandle_t CG_CountryFlagShader(const char* code) {
+    qhandle_t h = 0;
+
+    if (code && code[0]) {
+        h = trap_R_RegisterShaderNoMip(va("ui/assets/flags/%s.tga", code));
+    }
+    if (!h) {
+        h = trap_R_RegisterShaderNoMip("ui/assets/flags/none.tga");
+    }
+    return h;
+}
+
+// [QL] icon/status columns 0-5 shared by the FFA and team list feeders (each binary
+// feeder inlines this block). Returns NULL when the column is gametype-specific.
+static const char* CG_FeederColumnsCommon(score_t* sp, clientInfo_t* info, int column,
+                                          qhandle_t* handle, qboolean teamFeeder) {
+    int pw;
+    gitem_t* item;
+
+    switch (column) {
+        case 0:
+            // the binary prefers the Steam profile image (cg_drawProfileImages)
+            // when one is cached; without Steam avatars the model icon is the
+            // permanent fallback
+            *handle = info->modelIcon;
+            return "";
+        case 1:
+            // voice state column: muted / speaking icons; no voice backend feeds it
+            return "";
+        case 2:
+            if (info->handicap < 100 && !info->botSkill) {
+                return va("%d", info->handicap);
+            }
+            return " ";
+        case 3:
+            if (cg.warmup || cg.snap->ps.pm_type == PM_INTERMISSION) {
+                *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
+                    ? trap_R_RegisterShaderNoMip("ui/assets/score/arrowg.tga")
+                    : trap_R_RegisterShaderNoMip("ui/assets/score/arrowr.tga");
+                return "";
+            }
+            // first held powerup, skipping flight and the freeze marker
+            for (pw = 1; pw < PW_NUM_POWERUPS; pw++) {
+                if (pw == PW_FLIGHT || pw == PW_FREEZE) {
+                    continue;
+                }
+                if (cg_entities[sp->client].currentState.powerups & (1 << pw)) {
+                    item = BG_FindItemForPowerup(pw);
+                    if (item) {
+                        *handle = trap_R_RegisterShader(item->icon);
+                    }
+                    return "";
+                }
+            }
+            if (teamFeeder && BG_IsRoundBasedGameType(cgs.gametype) && sp->alive) {
+                *handle = (info->team == TEAM_RED)
+                    ? trap_R_RegisterShaderNoMip("ui/assets/score/ca_arrow_red.tga")
+                    : trap_R_RegisterShaderNoMip("ui/assets/score/ca_arrow_blue.tga");
+            }
+            return "";
+        case 4:
+            *handle = CG_CountryFlagShader(info->country);
+            return "";
+        case 5:
+            return info->name;
+    }
+    return NULL;
+}
+
+// [QL] FFA/Duel/RR scoreboard columns 6-13 (14 total, binary 0x10026160)
 static const char* CG_FeederColumnsFfa(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
     switch (column) {
         case 6:
-            return "";
+            if (cgs.gametype == GT_DUEL) {
+                return va("%d/%d", info->wins, info->losses);
+            }
+            return " ";
         case 7:
-            if (sp->score == -9999 || sp->score == -999) return "";
+            if (sp->score == -9999 || sp->score == -999) return "-";
             return va("%d", sp->score);
         case 8:
             return va("%d/%d", sp->frags, sp->deaths);
@@ -2591,10 +2696,9 @@ static const char* CG_FeederColumnsFfa(score_t* sp, clientInfo_t* info, int colu
                 return va("%d%%", sp->bestWeaponAccuracy);
             return "";
         case 12:
-            return va("%d", sp->time);
+            return va("%4d", sp->time);
         case 13:
-            if (sp->ping == -1) return "connecting";
-            return va("%d", sp->ping);
+            return va("%4d", sp->ping);
     }
     return "";
 }
@@ -2608,13 +2712,16 @@ static const char* CG_FeederColumnsTdm(score_t* sp, clientInfo_t* info, int colu
         case 7:
             if (cgs.gametype == GT_FREEZE)
                 return va("%d/%d", sp->frags, sp->deaths);
-            return va("%d", sp->net);
+            // TDM net includes the team-kill adjustment (binary 0x10027e30)
+            return va("%d", sp->frags + sp->tkd - sp->deaths - sp->tks);
         case 8:
             if (cgs.gametype == GT_FREEZE)
                 return va("%d", sp->thaws);
+            // instagib shows overall accuracy instead of damage
+            if (cgs.customSettings & 0x20000)
+                return va("%d%%", sp->accuracy);
             return CG_FormatDamage(sp->damageDone);
         case 9:
-            if (sp->ping == -1) return "connecting";
             return va("%d", sp->ping);
     }
     return "";
@@ -2639,7 +2746,6 @@ static const char* CG_FeederColumnsCa(score_t* sp, clientInfo_t* info, int colum
                 return va("%d%%", sp->bestWeaponAccuracy);
             return "";
         case 11:
-            if (sp->ping == -1) return "connecting";
             return va("%d", sp->ping);
     }
     return "";
@@ -2660,7 +2766,6 @@ static const char* CG_FeederColumnsCtf(score_t* sp, clientInfo_t* info, int colu
         case 10:
             return va("%d", sp->defendCount);
         case 11:
-            if (sp->ping == -1) return "connecting";
             return va("%d", sp->ping);
     }
     return "";
@@ -2675,83 +2780,170 @@ static const char* CG_FeederItemTextRace(clientInfo_t* info, score_t* sp, int co
         case 1:
             return "";
         case 2:
-            if (cg.warmup) {
+            if (cg.warmup || cg.snap->ps.pm_type == PM_INTERMISSION) {
                 *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
-                    ? trap_R_RegisterShader("ui/assets/score/arrowg")
-                    : trap_R_RegisterShader("ui/assets/score/arrowr");
+                    ? trap_R_RegisterShaderNoMip("ui/assets/score/arrowg.tga")
+                    : trap_R_RegisterShaderNoMip("ui/assets/score/arrowr.tga");
             }
-            return "";
+            return " ";
         case 3:
             return info->name;
         case 4:
             if (sp->score > 0 && sp->score != 0x7FFFFFFF)
                 return va("%d:%02d.%03d", sp->score / 60000, (sp->score / 1000) % 60, sp->score % 1000);
-            return "";
+            return "-";
         case 5:
-            return va("%d", sp->time);
+            return va("%4d", sp->time);
         case 6:
-            if (sp->ping == -1) return "connecting";
+            return va("%4d", sp->ping);
+    }
+    return "";
+}
+
+// [QL] fallback team feeder for gametypes without a dedicated layout (GT 7 and RR
+// team lists; 9 columns) - binary 0x100265a0
+static const char* CG_FeederColumnsDefault(score_t* sp, clientInfo_t* info, int column, qhandle_t* handle) {
+    switch (column) {
+        case 0:
+            *handle = info->modelIcon;
+            return "";
+        case 1:
+            if (info->handicap < 100 && !info->botSkill) {
+                return va("%d", info->handicap);
+            }
+            return " ";
+        case 2:
+            if (cg.warmup || cg.snap->ps.pm_type == PM_INTERMISSION) {
+                *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
+                    ? trap_R_RegisterShaderNoMip("ui/assets/score/arrowg.tga")
+                    : trap_R_RegisterShaderNoMip("ui/assets/score/arrowr.tga");
+            } else if (BG_IsRoundBasedGameType(cgs.gametype) && sp->alive) {
+                *handle = (info->team == TEAM_RED)
+                    ? trap_R_RegisterShaderNoMip("ui/assets/score/ca_arrow_red.tga")
+                    : trap_R_RegisterShaderNoMip("ui/assets/score/ca_arrow_blue.tga");
+            }
+            return "";
+        case 3:
+            return info->name;
+        case 4:
+            if (sp->score == -9999 || sp->score == -999) return "-";
+            return va("%d", sp->score);
+        case 5:
+            return va("%d", sp->frags);
+        case 6:
+            return va("%d", sp->deaths);
+        case 7:
             return va("%d", sp->ping);
     }
     return "";
 }
 
-// [QL] Stats feeder - returns available data, stubs for unavailable per-weapon/item stats
-// Binary has separate functions per gametype: FUN_10028300 (TDM/FT), CG_FeederItemText (CA), FUN_10026cf0 (CTF)
+// [QL] stats score column: yellow number with a dash for the not-playing sentinels
+static const char* CG_StatsScoreString(int score) {
+    if (score == -9999 || score == -999) {
+        return "^3-";
+    }
+    return va("^3%d", score);
+}
+
+// [QL] weapon column on the CA stats page: kills in yellow, accuracy in white
+static const char* CG_StatsWeaponString(score_t* sp, int weapon) {
+    return va("^3%d ^7%d%%", sp->weaponKills[weapon], sp->weaponAccuracy[weapon]);
+}
+
+// [QL] end-scoreboard stats pages. The binary has one function per gametype group:
+// 0x10028300 (TDM/FT, 18 columns), 0x10027720 (CA, 17), 0x10026cf0 (CTF group, 19).
+// Base fields come from the scores_* verbs, the extended fields from the
+// tdmstats/castats/ctfstats verbs, all in the same cg.scores rows. Deaths are
+// displayed net of team-kill deaths and suicides.
 static const char* CG_FeederItemTextStats(float feederID, int index, int column, qhandle_t* handle) {
     int scoreIndex = 0;
     int team = (feederID == FEEDER_REDTEAM_STATS) ? TEAM_RED : TEAM_BLUE;
     clientInfo_t* info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
     score_t* sp = &cg.scores[scoreIndex];
 
-    if (!info || !info->infoValid) return "";
+    if (!info || !info->infoValid || info->team == TEAM_SPECTATOR) return "";
 
     switch (cgs.gametype) {
         case GT_CA:
-            // CA stats: 17 columns
+            // 17 columns: player, score, frags, deaths, DmgD, DmgR, Acc,
+            // 8 weapon pairs (gauntlet..RG..PG, HMG), time
             switch (column) {
                 case 0: return info->name;
-                case 1: return va("%d", sp->score);
+                case 1: return CG_StatsScoreString(sp->score);
                 case 2: return va("%d", sp->frags);
-                case 3: return va("%d", sp->deaths);
-                case 4: return CG_FormatDamage(sp->damageDone);
-                case 5: return "";
+                case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);
+                case 4: return va("%d", sp->damageDone);
+                case 5: return va("%d", sp->damageReceived);
                 case 6: return va("%d%%", sp->accuracy);
-                case 16: return va("%d", sp->time);
+                case 7: return va("%d", sp->weaponKills[WP_GAUNTLET - 1]);
+                case 8: return CG_StatsWeaponString(sp, WP_MACHINEGUN - 1);
+                case 9: return CG_StatsWeaponString(sp, WP_SHOTGUN - 1);
+                case 10: return CG_StatsWeaponString(sp, WP_GRENADE_LAUNCHER - 1);
+                case 11: return CG_StatsWeaponString(sp, WP_ROCKET_LAUNCHER - 1);
+                case 12: return CG_StatsWeaponString(sp, WP_LIGHTNING - 1);
+                case 13: return CG_StatsWeaponString(sp, WP_RAILGUN - 1);
+                case 14: return CG_StatsWeaponString(sp, WP_PLASMAGUN - 1);
+                case 15: return CG_StatsWeaponString(sp, WP_HMG - 1);
+                case 16: return va("%4d", sp->time);
             }
             return "";
         case GT_TEAM:
         case GT_FREEZE:
-            // TDM/FT stats: 18 columns
+            // 18 columns: player, score, frags, deaths, suicides, TK, TKd, net,
+            // DmgD, DmgR, Acc, six pickups, time
             switch (column) {
                 case 0: return info->name;
-                case 1: return va("%d", sp->score);
+                case 1: return CG_StatsScoreString(sp->score);
                 case 2: return va("%d", sp->frags);
-                case 3: return va("%d", sp->deaths);
-                case 4: return "";
+                case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);
+                case 4: return va("%d", sp->selfKills);
                 case 5: return va("%d", sp->tks);
                 case 6: return va("%d", sp->tkd);
-                case 7: return va("%d", sp->net);
-                case 8: return CG_FormatDamage(sp->damageDone);
-                case 9: return "";
+                case 7: return va("%d", sp->frags + sp->tkd - sp->deaths - sp->tks);
+                case 8: return va("%d", sp->damageDone);
+                case 9: return va("%d", sp->damageReceived);
                 case 10: return va("%d%%", sp->accuracy);
-                case 17: return va("%d", sp->time);
+                case 11: return va("%d", sp->pickups_ra);
+                case 12: return va("%d", sp->pickups_ya);
+                case 13: return va("%d", sp->pickups_ga);
+                case 14: return va("%d", sp->pickups_mh);
+                case 15: return va("%d", sp->pickups_quad);
+                case 16: return va("%d", sp->pickups_bs);
+                case 17: return va("%4d", sp->time);
+            }
+            return "";
+        case GT_CTF:
+        case GT_1FCTF:
+        case GT_HARVESTER:
+        case GT_DOMINATION:
+        case GT_AD:
+            // 19 columns: player, score, frags, deaths, suicides, net, DmgD, DmgR,
+            // Acc, nine pickups, time
+            switch (column) {
+                case 0: return info->name;
+                case 1: return CG_StatsScoreString(sp->score);
+                case 2: return va("%d", sp->frags);
+                case 3: return va("%d", sp->deaths - sp->tkd - sp->selfKills);
+                case 4: return va("%d", sp->selfKills);
+                case 5: return va("%d", sp->frags - sp->deaths);
+                case 6: return va("%d", sp->damageDone);
+                case 7: return va("%d", sp->damageReceived);
+                case 8: return va("%d%%", sp->accuracy);
+                case 9: return va("%d", sp->pickups_ra);
+                case 10: return va("%d", sp->pickups_ya);
+                case 11: return va("%d", sp->pickups_ga);
+                case 12: return va("%d", sp->pickups_mh);
+                case 13: return va("%d", sp->pickups_quad);
+                case 14: return va("%d", sp->pickups_bs);
+                case 15: return va("%d", sp->pickups_regen);
+                case 16: return va("%d", sp->pickups_haste);
+                case 17: return va("%d", sp->pickups_invis);
+                case 18: return va("%4d", sp->time);
             }
             return "";
         default:
-            // CTF/etc stats: 19 columns
-            switch (column) {
-                case 0: return info->name;
-                case 1: return va("%d", sp->score);
-                case 2: return va("%d", sp->frags);
-                case 3: return va("%d", sp->deaths);
-                case 4: return "";
-                case 5: return va("%d", sp->net);
-                case 6: return CG_FormatDamage(sp->damageDone);
-                case 7: return "";
-                case 8: return va("%d%%", sp->accuracy);
-                case 18: return va("%d", sp->time);
-            }
+            // the binary dispatcher serves no stats pages outside these gametypes
             return "";
     }
 }
@@ -2763,6 +2955,7 @@ static const char* CG_FeederItemText(float feederID, int index, int column, qhan
     clientInfo_t* info = NULL;
     int team = -1;
     score_t* sp = NULL;
+    const char* common;
 
     *handle = -1;
 
@@ -2780,89 +2973,117 @@ static const char* CG_FeederItemText(float feederID, int index, int column, qhan
     info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
     sp = &cg.scores[scoreIndex];
 
-    if (!info || !info->infoValid) return "";
+    if (!info || !info->infoValid || info->team == TEAM_SPECTATOR) return "";
 
     // Race scoreboard has unique column layout (7 columns, name at col 3)
     if (cgs.gametype == GT_RACE && team == -1) {
         return CG_FeederItemTextRace(info, sp, column, handle);
     }
 
-    // Common icon columns 0-5 (all non-race gametypes)
-    switch (column) {
-        case 0:
-            *handle = info->modelIcon;
-            return "";
-        case 1:
-            return "";
-        case 2:
-            return "";
-        case 3:
-            if (cg.warmup) {
-                *handle = (cg.snap->ps.stats[STAT_CLIENTS_READY] & (1 << sp->client))
-                    ? trap_R_RegisterShader("ui/assets/score/arrowg")
-                    : trap_R_RegisterShader("ui/assets/score/arrowr");
-            } else if (info->team == TEAM_RED) {
-                *handle = trap_R_RegisterShader("ui/assets/score/ca_arrow_red");
-            } else if (info->team == TEAM_BLUE) {
-                *handle = trap_R_RegisterShader("ui/assets/score/ca_arrow_blue");
-            }
-            return "";
-        case 4:
-            return "";
-        case 5:
-            return info->name;
-    }
-
-    // Gametype-specific columns 6+ for team feeders
+    // Gametype-specific columns for the team feeders. GT 7 and RR fall back to the
+    // 9-column default layout, which replaces the common block entirely.
     if (team != -1) {
         switch (cgs.gametype) {
             case GT_TEAM:
             case GT_FREEZE:
+                common = CG_FeederColumnsCommon(sp, info, column, handle, qtrue);
+                if (common) return common;
                 return CG_FeederColumnsTdm(sp, info, column, handle);
             case GT_CA:
+                common = CG_FeederColumnsCommon(sp, info, column, handle, qtrue);
+                if (common) return common;
                 return CG_FeederColumnsCa(sp, info, column, handle);
             case GT_CTF:
             case GT_1FCTF:
             case GT_HARVESTER:
             case GT_DOMINATION:
             case GT_AD:
+                common = CG_FeederColumnsCommon(sp, info, column, handle, qtrue);
+                if (common) return common;
                 return CG_FeederColumnsCtf(sp, info, column, handle);
             default:
-                return CG_FeederColumnsFfa(sp, info, column, handle);
+                return CG_FeederColumnsDefault(sp, info, column, handle);
         }
     }
 
-    // Non-team feeders (FEEDER_SCOREBOARD, FEEDER_ENDSCOREBOARD) use FFA layout
+    // Non-team feeders use the FFA layout
+    common = CG_FeederColumnsCommon(sp, info, column, handle, qfalse);
+    if (common) return common;
     return CG_FeederColumnsFfa(sp, info, column, handle);
 }
 
 static qhandle_t CG_FeederItemImage(float feederID, int index) {
-    // [QL] Return country flag or other per-player image for premium scoreboard.
-    // Standard scoreboard uses column 0 icon handle from CG_FeederItemText instead.
-    // FEEDER_ENDSCOREBOARD could show country flags here if we had the data.
+    // [QL] the binary's feederItemImage slot is a ret-0 stub; every icon flows
+    // through the per-column handle out-param of CG_FeederItemText
     return 0;
 }
 
+/*
+=================
+CG_FeederSelection
+
+[QL] binary 0x10028b10. In team gametypes the index is a team-relative row at
+intermission (user clicks on the end scoreboard) but a global score index during
+play (pushed by CG_SetScoreSelection). The playerlistRED/playerlistBLUE items on
+the in-game menu get their cursor synced, and the other team's list on the end
+menu is deselected.
+=================
+*/
 static void CG_FeederSelection(float feederID, int index) {
-    if (cgs.gametype >= GT_TEAM) {
-        int i, count;
-        int team;
-        if (feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_REDTEAM_STATS) {
-            team = TEAM_RED;
-        } else {
-            team = TEAM_BLUE;
-        }
-        count = 0;
-        for (i = 0; i < cg.numScores; i++) {
-            if (cg.scores[i].team == team) {
-                if (index == count) {
-                    cg.selectedScore = i;
-                }
-                count++;
-            }
-        }
-    } else {
+    int i, count, row;
+    int team;
+    itemDef_t* item;
+
+    if (index == -1) {
+        return;
+    }
+    if (cgs.gametype < GT_TEAM) {
         cg.selectedScore = index;
+        return;
+    }
+
+    team = (feederID == FEEDER_REDTEAM_LIST) ? TEAM_RED : TEAM_BLUE;
+    count = 0;
+    row = -1;
+
+    if (cg.snap->ps.pm_type == PM_INTERMISSION) {
+        for (i = 0; i < cg.numScores; i++) {
+            if (cg.scores[i].team != team) {
+                continue;
+            }
+            if (count == index) {
+                cg.selectedScore = i;
+                break;
+            }
+            count++;
+        }
+        return;
+    }
+
+    for (i = 0; i < cg.numScores; i++) {
+        if (cg.scores[i].team != team) {
+            continue;
+        }
+        if (index >= 0 && index < cg.numScores &&
+            cg.scores[i].client == cg.scores[index].client) {
+            row = count;
+        }
+        count++;
+    }
+
+    if (menuScoreboard) {
+        item = Menu_FindItemByName(menuScoreboard,
+                                   (team == TEAM_RED) ? "playerlistRED" : "playerlistBLUE");
+        if (item) {
+            item->cursorPos = row;
+        }
+    }
+    if (menuEndScoreboard) {
+        item = Menu_FindItemByName(menuEndScoreboard,
+                                   (team == TEAM_RED) ? "playerlistBLUE" : "playerlistRED");
+        if (item) {
+            item->cursorPos = -1;
+        }
     }
 }
 

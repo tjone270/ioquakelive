@@ -152,19 +152,32 @@ static void CG_LoadHud_f(void) {
     CG_CacheHudMenuHandles();
 }
 
+// [QL] "scoresDown"/"scoresUp" bindables scroll whichever scoreboard menu is up
+// (the end scoreboard takes over at intermission)
+static menuDef_t* CG_ActiveScoreboardMenu(void) {
+    if (cg.predictedPlayerState.pm_type == PM_INTERMISSION && menuEndScoreboard) {
+        return menuEndScoreboard;
+    }
+    return menuScoreboard;
+}
+
 static void CG_scrollScoresDown_f(void) {
-    if (menuScoreboard && cg.scoreBoardShowing) {
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qtrue);
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qtrue);
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qtrue);
+    menuDef_t* menu = CG_ActiveScoreboardMenu();
+
+    if (menu && cg.scoreBoardShowing) {
+        Menu_ScrollFeeder(menu, FEEDER_SCOREBOARD, qtrue);
+        Menu_ScrollFeeder(menu, FEEDER_REDTEAM_LIST, qtrue);
+        Menu_ScrollFeeder(menu, FEEDER_BLUETEAM_LIST, qtrue);
     }
 }
 
 static void CG_scrollScoresUp_f(void) {
-    if (menuScoreboard && cg.scoreBoardShowing) {
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_SCOREBOARD, qfalse);
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_REDTEAM_LIST, qfalse);
-        Menu_ScrollFeeder(menuScoreboard, FEEDER_BLUETEAM_LIST, qfalse);
+    menuDef_t* menu = CG_ActiveScoreboardMenu();
+
+    if (menu && cg.scoreBoardShowing) {
+        Menu_ScrollFeeder(menu, FEEDER_SCOREBOARD, qfalse);
+        Menu_ScrollFeeder(menu, FEEDER_REDTEAM_LIST, qfalse);
+        Menu_ScrollFeeder(menu, FEEDER_BLUETEAM_LIST, qfalse);
     }
 }
 
@@ -787,6 +800,8 @@ static consoleCommand_t commands[] = {
     {"-scores", CG_ScoresUp_f},
     {"+acc", CG_AccDown_f},
     {"-acc", CG_AccUp_f},
+    {"scoresDown", CG_scrollScoresDown_f},
+    {"scoresUp", CG_scrollScoresUp_f},
     {"+pstats", CG_PStatsDown_f},
     {"-pstats", CG_PStatsUp_f},
     {"nextframe", CG_TestModelNextFrame_f},

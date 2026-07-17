@@ -809,6 +809,11 @@ void ClientUserinfoChanged(int clientNum) {
     // team Leader (1 = leader, 0 is normal player)
     teamLeader = client->sess.teamLeader;
 
+    // [QL] GeoIP country code, forwarded to the player configstring "c" key
+    // for the scoreboard flag icons (binary 0x1003a9d6)
+    Q_strncpyz(client->pers.country, Info_ValueForKey(userinfo, "country"),
+               sizeof(client->pers.country));
+
     // colors
     Q_strncpyz(c1, Info_ValueForKey(userinfo, "color1"), sizeof(c1));
     Q_strncpyz(c2, Info_ValueForKey(userinfo, "color2"), sizeof(c2));

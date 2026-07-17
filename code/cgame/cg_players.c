@@ -1089,6 +1089,10 @@ void CG_NewClientInfo(int clientNum) {
     v = Info_ValueForKey(configstring, "pq");
     newInfo.queuePosition = atoi(v);
 
+    // [QL] country code for the scoreboard flag column (binary clientInfo +0xc8)
+    v = Info_ValueForKey(configstring, "c");
+    Q_strncpyz(newInfo.country, v, sizeof(newInfo.country));
+
     // model
     v = Info_ValueForKey(configstring, "model");
     Q_strncpyz(newInfo.modelName, v, sizeof(newInfo.modelName));

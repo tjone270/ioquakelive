@@ -751,6 +751,13 @@ static void G_AddBot(const char* name, float skill, const char* team, int delay,
         return;
     }
 
+    // put the bot on its requested team. QL resolves the team into the userinfo
+    // key above; the binary-side consumer of that key is still unrecovered, so
+    // the join goes through SetTeam like a player "team" command.
+    if (team && *team && Q_stricmp(team, "s") && Q_stricmp(team, "spectator")) {
+        SetTeam(&g_entities[clientNum], team);
+    }
+
     if (delay == 0) {
         ClientBegin(clientNum);
         return;

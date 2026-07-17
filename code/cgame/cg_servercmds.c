@@ -126,7 +126,9 @@ static void CG_ParseScores_Ffa(void) {
         sp->frags = atoi(CG_Argv(idx++));
         sp->deaths = atoi(CG_Argv(idx++));
         sp->bestWeapon = atoi(CG_Argv(idx++));
-        sp->powerUps = atoi(CG_Argv(idx++));
+        // binary 0x10045090: the field after bestWeapon is the best weapon accuracy
+        // (score_t+0xe0), not a powerup mask; powerup icons come from entity state
+        sp->bestWeaponAccuracy = atoi(CG_Argv(idx++));
         sp->damageDone = atoi(CG_Argv(idx++));
         sp->net = sp->frags - sp->deaths;
 
@@ -134,7 +136,6 @@ static void CG_ParseScores_Ffa(void) {
             sp->client = 0;
         }
         cgs.clientinfo[sp->client].score = sp->score;
-        cgs.clientinfo[sp->client].powerups = sp->powerUps;
         sp->team = cgs.clientinfo[sp->client].team;
     }
     CG_SetScoreSelection(NULL);
@@ -379,9 +380,11 @@ static void CG_ParseScores_Ft(void) {
         sp->impressiveCount = atoi(CG_Argv(i++));
         sp->excellentCount = atoi(CG_Argv(i++));
         sp->guantletCount = atoi(CG_Argv(i++));
+        // binary 0x100476a0: after gauntlet come thaws, tks, tkd (score_t
+        // +0xc0/+0xd4/+0xd8), then damage and the alive flag
         sp->thaws = atoi(CG_Argv(i++));
+        sp->tks = atoi(CG_Argv(i++));
         sp->tkd = atoi(CG_Argv(i++));
-        i++;  // unknown field
         sp->damageDone = atoi(CG_Argv(i++));
         sp->alive = atoi(CG_Argv(i++));
         sp->net = sp->frags - sp->deaths;
