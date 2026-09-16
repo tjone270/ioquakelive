@@ -1480,26 +1480,37 @@ static void CG_DrawLevelTimer(rectDef_t *rect, float scale, vec4_t color, int te
     CG_OwnerDrawText(rect->x, rect->y, scale, color, s, 0, 0, textStyle);
 }
 
-static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align) {
     const char *s;
     int count = 0, maxPlayers;
     int i;
-    const char *info = CG_ConfigString(CS_SERVERINFO);
+    float x = rect->x;
 
     // [QL] count all valid clients (including spectators, matching binary behavior)
-    for (i = 0; i < MAX_CLIENTS; i++) {
+    for (i = 0; i < cgs.maxclients; i++) {
         if (cgs.clientinfo[i].infoValid) {
             count++;
         }
     }
 
-    maxPlayers = atoi(Info_ValueForKey(info, "sv_maxclients"));
-    if (maxPlayers <= 0) {
-        maxPlayers = MAX_CLIENTS;
+    maxPlayers = cgs.maxclients;
+    if (cgs.gametype != GT_DUEL && cgs.teamsize > 0) {
+        maxPlayers = cgs.teamsize;
+        if (cgs.gametype >= GT_TEAM) {
+            maxPlayers = cgs.teamsize * 2;
+            if (cgs.maxclients < cgs.teamsize * 2) {
+                maxPlayers = cgs.maxclients;
+            }
+        }
     }
 
-    s = va("%d/%d players", count, maxPlayers);
-    CG_OwnerDrawText(rect->x - (CG_OwnerDrawTextWidth(s, scale, 0) / 2), rect->y, scale, color, s, 0, 0, textStyle);
+    s = va("%d/%d Players", count, maxPlayers);
+    if (align == ITEM_ALIGN_CENTER) {
+        x -= CG_OwnerDrawTextWidth(s, scale, 0) / 2;
+    } else if (align == ITEM_ALIGN_RIGHT) {
+        x -= CG_OwnerDrawTextWidth(s, scale, 0);
+    }
+    CG_OwnerDrawText(x, rect->y, scale, color, s, 0, 0, textStyle);
 }
 
 static void CG_DrawSelectedPlayerTeamColor(rectDef_t *rect) {
@@ -1571,7 +1582,7 @@ static void CG_DrawMatchDetails(rectDef_t *rect, float scale, vec4_t color, int 
         state = "In Progress";
     }
     CG_OwnerDrawText(rect->x, rect->y, scale, color,
-        va("%s - %s - %s", state, CG_GameTypeString(), cgs.mapname), 0, 0, textStyle);
+        va("%s - %s - %s", state, CG_GameTypeString(), CG_ConfigString(CS_MESSAGE)), 0, 0, textStyle);
 }
 
 // [QL] Match status: "MATCH WARMUP/IN PROGRESS/SUMMARY" + score details (binary-verified)
@@ -1668,15 +1679,44 @@ static void CG_DrawMatchWinner(rectDef_t *rect, float scale, vec4_t color, int t
     CG_OwnerDrawText(rect->x, rect->y, scale, color, s, 0, 0, textStyle);
 }
 
-// [QL] Follow player name
 static void CG_DrawFollowPlayerName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-    if (cg.snap && cg.snap->ps.pm_flags & PMF_FOLLOW) {
-        int clientNum = cg.snap->ps.clientNum;
-        if (clientNum >= 0 && clientNum < MAX_CLIENTS && cgs.clientinfo[clientNum].infoValid) {
+    if (cg.selectedScore >= 0 && cg.selectedScore < cg.numScores) {
+        int client = cg.scores[cg.selectedScore].client;
+        if (client >= 0 && client < MAX_CLIENTS && cgs.clientinfo[client].infoValid) {
             CG_OwnerDrawText(rect->x, rect->y, scale, color,
-                va("Following - %s", cgs.clientinfo[clientNum].name), 0, 0, textStyle);
+                cgs.clientinfo[client].name, 0, 0, textStyle);
         }
     }
+}
+
+static void CG_DrawFollow(rectDef_t *rect, float scale, vec4_t color, int textStyle,
+                          int align, int ownerDraw) {
+    const char *s;
+    float x = rect->x;
+    float *drawColor = color;
+    int clientNum;
+
+    if (!cg.snap) {
+        return;
+    }
+    clientNum = cg.snap->ps.clientNum;
+    if (clientNum < 0 || clientNum >= MAX_CLIENTS || !cgs.clientinfo[clientNum].infoValid) {
+        return;
+    }
+
+    if (cgs.gametype > GT_RACE) {
+        drawColor = CG_TeamColor(cgs.clientinfo[clientNum].team);
+    }
+
+    s = va("%s%s", (ownerDraw == CG_FOLLOW_PLAYER_NAME) ? "Following - " : "",
+           cgs.clientinfo[clientNum].name);
+
+    if (align == ITEM_ALIGN_CENTER) {
+        x -= CG_DrawTextWidth(s, scale, 0, 0) * 0.5f;
+    } else if (align == ITEM_ALIGN_RIGHT) {
+        x -= CG_DrawTextWidth(s, scale, 0, 0);
+    }
+    CG_OwnerDrawText(x, rect->y, scale, drawColor, s, 0, 0, textStyle);
 }
 
 // [QL] Team name display
@@ -2710,7 +2750,7 @@ static const char *CG_GameTypeFullName(void) {
 // [QL] CG_DrawGameTypeMap - "Gametype Fullname - Map"
 // Address: 0x100344b0
 static void CG_DrawGameTypeMap(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align) {
-    const char *s = va("%s - %s", CG_GameTypeFullName(), cgs.mapname);
+    const char *s = va("%s - %s", CG_GameTypeFullName(), CG_ConfigString(CS_MESSAGE));
     float x = rect->x;
     if (align == ITEM_ALIGN_CENTER) {
         x -= CG_DrawTextWidth(s, scale, 0, 0) * 0.5f;
@@ -3035,15 +3075,21 @@ static void CG_DrawModifiers(rectDef_t *rect, float scale, vec4_t color) {
     if (cgs.armorTiered) MOD_LINE("TIERED ARMOR");
     if (bits & 0x10000) MOD_LINE("MODIFIED WEAPON SWITCH");
 
-    v = atoi(Info_ValueForKey(info, "g_quadDamageFactor"));
-    if (v != 3) {
-        MOD_LINE(va("%ix QUAD", v));
+    {
+        const char *s = Info_ValueForKey(info, "g_quadDamageFactor");
+        v = atoi(s);
+        if (s[0] && v != 3) {
+            MOD_LINE(va("%ix QUAD", v));
+        }
     }
     if (bits & 0x8000)  MOD_LINE("MODIFIED PHYSICS");
 
-    v = atoi(Info_ValueForKey(info, "g_gravity"));
-    if (v != 800) {
-        MOD_LINE(va("GRAVITY %i", v));
+    {
+        const char *s = Info_ValueForKey(info, "g_gravity");
+        v = atoi(s);
+        if (s[0] && v != 800) {
+            MOD_LINE(va("GRAVITY %i", v));
+        }
     }
 
     if (bits & 0x20000)  MOD_LINE("INSTAGIB");
@@ -3347,7 +3393,7 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
             CG_DrawLocalTime(&rect, scale, color, textStyle);
             break;
         case CG_PLAYER_COUNTS:              // 0x11  CG_DrawPlayerCount
-            CG_DrawPlayerCounts(&rect, scale, color, textStyle);
+            CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);
             break;
         case CG_MAP_NAME:                   // 0x12
             CG_DrawMapName(&rect, scale, color, textStyle);
@@ -3526,10 +3572,12 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
         case CG_SELECTED_PLYR_TEAM_COLOR:   // 0x5c
             CG_DrawSelectedPlayerTeamColor(&rect);
             break;
-        case CG_SELECTED_PLYR_ACCURACY:     // 0x5d  CG_DrawFollowPlayerName (binary offset)
-        case CG_FOLLOW_PLAYER_NAME:         // 0x5e/0x5f  CG_DrawFollow
-        case CG_FOLLOW_PLAYER_NAME_EX:
+        case CG_SELECTED_PLYR_ACCURACY:     // 0x5d  CG_DrawFollowPlayerName (duel selected name)
             CG_DrawFollowPlayerName(&rect, scale, color, textStyle);
+            break;
+        case CG_FOLLOW_PLAYER_NAME:         // 0x5e  CG_DrawFollow ("Following - <name>")
+        case CG_FOLLOW_PLAYER_NAME_EX:      // 0x5f  CG_DrawFollow (name only)
+            CG_DrawFollow(&rect, scale, color, textStyle, align, ownerDraw);
             break;
         case CG_SPEEDOMETER:                // 0x60
             CG_DrawSpeedometer(&rect, scale, color, textStyle);
@@ -3788,18 +3836,23 @@ void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y
     }
 }
 
-// [QL] the binary (0x1003c4f0) only tracks the cursor and feeds the menu system;
-// it never drops the key catcher here (that would kill the join-game menu mouse).
+// [QL] binary 0x1003c4f0. The engine feeds absolute cursor coordinates (already scaled
+// to the 640x480 virtual screen) while a menu holds KEYCATCH_CGAME, because the shipped
+// client shows the OS cursor rather than a rendered bitmap. Store them directly; the
+// player sees the system cursor, and cgs.cursorX/Y only drive menu hit-testing. It never
+// touches the key catcher here (that would kill the join-game menu mouse).
 void CG_MouseEvent(int x, int y) {
     int n;
+    int dx = x - cgs.cursorX;  // delta only for captured-item (window drag) moves
+    int dy = y - cgs.cursorY;
 
-    cgs.cursorX += x;
+    cgs.cursorX = x;
     if (cgs.cursorX < 0)
         cgs.cursorX = 0;
     else if (cgs.cursorX > SCREEN_WIDTH)
         cgs.cursorX = SCREEN_WIDTH;
 
-    cgs.cursorY += y;
+    cgs.cursorY = y;
     if (cgs.cursorY < 0)
         cgs.cursorY = 0;
     else if (cgs.cursorY > SCREEN_HEIGHT)
@@ -3814,7 +3867,7 @@ void CG_MouseEvent(int x, int y) {
     }
 
     if (cgs.capturedItem) {
-        Display_MouseMove(cgs.capturedItem, x, y);
+        Display_MouseMove(cgs.capturedItem, dx, dy);
     } else {
         Display_MouseMove(NULL, cgs.cursorX, cgs.cursorY);
     }
@@ -3921,6 +3974,11 @@ void CG_ShowResponseHead(void) {
 }
 
 void CG_RunMenuScript(char** args) {
+}
+
+void CG_ExecuteText(int exec_when, const char* text) {
+    (void)exec_when;  // cgame's console-command trap always appends
+    trap_SendConsoleCommand(text);
 }
 
 void CG_GetTeamColor(vec4_t* color) {

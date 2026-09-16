@@ -98,190 +98,420 @@ qboolean SpotWouldTelefrag(gentity_t* spot) {
     return qfalse;
 }
 
-/*
-================
-SelectNearestDeathmatchSpawnPoint
-
-Find the spot that we DON'T want to use
-================
-*/
-#define MAX_SPAWN_POINTS 128
-gentity_t* SelectNearestDeathmatchSpawnPoint(vec3_t from) {
-    gentity_t* spot;
-    vec3_t delta;
-    float dist, nearestDist;
-    gentity_t* nearestSpot;
-
-    nearestDist = 999999;
-    nearestSpot = NULL;
-    spot = NULL;
-
-    while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
-        VectorSubtract(spot->s.origin, from, delta);
-        dist = VectorLength(delta);
-        if (dist < nearestDist) {
-            nearestDist = dist;
-            nearestSpot = spot;
-        }
-    }
-
-    return nearestSpot;
-}
+static gentity_t* SelectNearestDeathmatchSpawnPoint(gentity_t* clientEnt, vec3_t origin, vec3_t angles);
 
 /*
 ================
 SelectRandomDeathmatchSpawnPoint
 
-go to a random point that doesn't telefrag
+// Address: 0x10039270
+
+  team     picks the classname family: TEAM_RED / TEAM_BLUE take the CTF spot
+           pairs, 0 takes info_player_deathmatch.
+  initial  swaps the CTF *player* spots for the *spawn* spots.
+  mode     2 returns NULL on an empty shortlist, 0 skips the min-distance cull,
+           anything else G_Errors when the gametype has no spots at all.
+
 ================
 */
-#define MAX_SPAWN_POINTS 128
-gentity_t* SelectRandomDeathmatchSpawnPoint(qboolean isbot) {
+#define MAX_RANKED_SPAWNS 26
+gentity_t* SelectRandomDeathmatchSpawnPoint(qboolean isBot, int enemyTeam, vec3_t origin, vec3_t angles, int initial, int team, int mode) {
+    gentity_t* rankedSpot[MAX_RANKED_SPAWNS];
+    float rankedDist[MAX_RANKED_SPAWNS];
     gentity_t* spot;
-    int count;
-    int selection;
-    gentity_t* spots[MAX_SPAWN_POINTS];
+    char* classname;
+    float fraction;
+    int numRanked;
+    int numCandidates;
+    int wanted;
+    int i;
+    int sel;
 
-    count = 0;
-    spot = NULL;
+    (void)isBot;
 
-    while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL && count < MAX_SPAWN_POINTS) {
-        if (SpotWouldTelefrag(spot))
-            continue;
+    numRanked = 0;
+    wanted = 3;
 
-        if (((spot->flags & FL_NO_BOTS) && isbot) ||
-            ((spot->flags & FL_NO_HUMANS) && !isbot)) {
-            // spot is not for this human/bot player
-            continue;
+    for (;;) {
+        // spawn fraction, clamped to [0.1, 1.0]
+        fraction = g_spawnRandomRatio.value;
+        if (fraction < 0.1f) {
+            fraction = 0.1f;
+        } else if (fraction > 1.0f) {
+            fraction = 1.0f;
         }
 
-        spots[count] = spot;
-        count++;
-    }
-
-    if (!count) {  // no spots that won't telefrag
-        return G_Find(NULL, FOFS(classname), "info_player_deathmatch");
-    }
-
-    selection = rand() % count;
-    return spots[selection];
-}
-
-/*
-===========
-SelectRandomFurthestSpawnPoint
-
-Chooses a player start, deathmatch start, etc
-============
-*/
-gentity_t* SelectRandomFurthestSpawnPoint(vec3_t avoidPoint, vec3_t origin, vec3_t angles, qboolean isbot) {
-    gentity_t* spot;
-    vec3_t delta;
-    float dist;
-    float list_dist[MAX_SPAWN_POINTS];
-    gentity_t* list_spot[MAX_SPAWN_POINTS];
-    int numSpots, rnd, i, j;
-
-    numSpots = 0;
-    spot = NULL;
-
-    while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
-        if (SpotWouldTelefrag(spot))
-            continue;
-
-        if (((spot->flags & FL_NO_BOTS) && isbot) ||
-            ((spot->flags & FL_NO_HUMANS) && !isbot)) {
-            // spot is not for this human/bot player
-            continue;
+        if (team == TEAM_RED) {
+            classname = initial ? "team_CTF_redplayer" : "team_CTF_redspawn";
+        } else if (team == TEAM_BLUE) {
+            classname = initial ? "team_CTF_blueplayer" : "team_CTF_bluespawn";
+        } else {
+            classname = "info_player_deathmatch";
         }
 
-        VectorSubtract(spot->s.origin, avoidPoint, delta);
-        dist = VectorLength(delta);
+        numRanked = 0;
+        numCandidates = 0;
+        wanted = 3;
 
-        for (i = 0; i < numSpots; i++) {
-            if (dist > list_dist[i]) {
-                if (numSpots >= MAX_SPAWN_POINTS)
-                    numSpots = MAX_SPAWN_POINTS - 1;
+        spot = NULL;
+        while ((spot = G_Find(spot, FOFS(classname), classname)) != NULL) {
+            float threshold;
+            float nearest;
+            float fw;
+            int k;
 
-                for (j = numSpots; j > i; j--) {
-                    list_dist[j] = list_dist[j - 1];
-                    list_spot[j] = list_spot[j - 1];
+            if (numRanked > MAX_RANKED_SPAWNS - 1) {
+                break;  // shortlist full
+            }
+
+            // skip suspended spots (spawnflags & 2) unless this is a spawn-spot
+            // pass or the spot is explicitly flagged initial (spawnflags & 1)
+            if ((spot->spawnflags & 2) != 0) {
+                continue;
+            }
+            if (!(team != 0 || initial == 0 || (spot->spawnflags & 1))) {
+                continue;
+            }
+
+            numCandidates++;
+
+            // wanted = clamp(ceil(numCandidates * fraction), 3, 26)
+            fw = (float)numCandidates * fraction;
+            wanted = (int)fw;
+            if ((float)wanted < fw) {
+                wanted++;
+            }
+            if (wanted < 3) {
+                wanted = 3;
+            } else if (wanted > MAX_RANKED_SPAWNS) {
+                wanted = MAX_RANKED_SPAWNS;
+            }
+
+            // early-out threshold: the shortlist's current worst, once it is
+            // both full enough and past a small floor
+            if (numRanked < wanted || numRanked < 5) {
+                threshold = 0.0f;
+            } else {
+                threshold = rankedDist[numRanked - 1];
+            }
+
+            // distance to the nearest live enemy (-1 = no enemy in play)
+            nearest = -1.0f;
+            for (i = 0; i < level.maxclients; i++) {
+                gclient_t* other = g_entities[i].client;
+                float weight, dx, dy, dz, d;
+
+                if (other == NULL || other->pers.connected == CON_DISCONNECTED ||
+                    other->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
+                    other->ps.stats[STAT_HEALTH] <= 0) {
+                    continue;
                 }
 
-                list_dist[i] = dist;
-                list_spot[i] = spot;
+                weight = 1.0f;
+                if (enemyTeam != 0 && other->ps.persistant[PERS_TEAM] == enemyTeam) {
+                    if (g_enemyTeamRespawnRatio.value == 0.0f) {
+                        continue;  // ratio 0 disables the weighting for this team
+                    }
+                    weight = g_enemyTeamRespawnRatio.value;
+                }
 
-                numSpots++;
-                break;
+                dx = spot->s.origin[0] - other->ps.origin[0];
+                dy = spot->s.origin[1] - other->ps.origin[1];
+                dz = spot->s.origin[2] - other->ps.origin[2];
+                if (dx < 0.0f) dx = -dx;
+                if (dy < 0.0f) dy = -dy;
+                if (dz < 0.0f) dz = -dz;
+                d = dx;
+                if (d < dy) d = dy;
+                if (d < dz) d = dz;
+                d *= weight;
+
+                if (nearest == -1.0f || d < nearest) {
+                    nearest = d;
+                    if (threshold != 0.0f && d <= threshold) {
+                        break;  // cannot beat the shortlist; stop early
+                    }
+                }
+            }
+
+            // only shortlist spots safer than the current worst
+            if (threshold < nearest) {
+                if (numRanked == 0) {
+                    rankedSpot[0] = spot;
+                    rankedDist[0] = nearest;
+                    numRanked = 1;
+                } else {
+                    k = numRanked;
+                    if (k > MAX_RANKED_SPAWNS - 1) {
+                        k = MAX_RANKED_SPAWNS - 1;
+                    }
+                    // insertion sort, furthest distance first
+                    while (k >= 0) {
+                        if (k == 0) {
+                            rankedDist[0] = nearest;
+                            rankedSpot[0] = spot;
+                            break;
+                        }
+                        rankedSpot[k] = rankedSpot[k - 1];
+                        rankedDist[k] = rankedDist[k - 1];
+                        if (nearest <= rankedDist[k]) {
+                            rankedDist[k] = nearest;
+                            rankedSpot[k] = spot;
+                            break;
+                        }
+                        k--;
+                    }
+                    numRanked++;
+                }
             }
         }
 
-        if (i >= numSpots && numSpots < MAX_SPAWN_POINTS) {
-            list_dist[numSpots] = dist;
-            list_spot[numSpots] = spot;
-            numSpots++;
+        if (numCandidates != 0) {
+            if (numRanked != 0) {
+                break;  // have a shortlist: filter and pick below
+            }
+
+            // spots exist but no live enemies to rank against: random one of them
+            // (QL's training-only bad-spawn guard is omitted, no training mode)
+            sel = ((rand() & 0x7fff) * numCandidates) / 0x8000;
+            i = 0;
+            spot = NULL;
+            while ((spot = G_Find(spot, FOFS(classname), classname)) != NULL) {
+                if (team != 0 || initial == 0 || (spot->spawnflags & 1)) {
+                    if (i == sel) {
+                        VectorCopy(spot->s.origin, origin);
+                        origin[2] += 9;
+                        VectorCopy(spot->s.angles, angles);
+                        return spot;
+                    }
+                    i++;
+                }
+            }
+            break;  // ran out (unreachable in practice) -> numRanked==0 guard below
+        }
+
+        // no spots for this classname
+        if (initial != 0) {
+            initial = 0;  // retry with the spawn-spot classname family
+            continue;
+        }
+        if (mode != 2) {
+            G_Error("No spawns for this gametype: classname %s, gametype %d\n",
+                    classname, g_gametype.integer);
+        }
+        return NULL;
+    }
+
+    if (numRanked == 0) {
+        return NULL;  // defensive: the no-enemy walk always returns above
+    }
+
+    // cull the shortlist by the minimum spawn distance, then random-pick
+    if (numRanked < wanted) {
+        wanted = numRanked;
+    }
+    if (mode != 0) {
+        float minDist = (float)g_spawnMinDistance.integer;
+        while (wanted > 0 && rankedDist[wanted - 1] < minDist) {
+            wanted--;
+        }
+        if (wanted == 0) {
+            if (mode == 2) {
+                return NULL;
+            }
+            wanted = 1;
         }
     }
 
-    if (!numSpots) {
-        spot = G_Find(NULL, FOFS(classname), "info_player_deathmatch");
+    sel = ((rand() & 0x7fff) * wanted) / 0x8000;
+    spot = rankedSpot[sel];
+    VectorCopy(spot->s.origin, origin);
+    origin[2] += 9;
+    VectorCopy(spot->s.angles, angles);
+    return spot;
+}
 
-        if (!spot)
-            G_Error("Couldn't find a spawn point");
+/*
+================
+SelectNearestDeathmatchSpawnPoint
 
-        VectorCopy(spot->s.origin, origin);
-        origin[2] += 9;
-        VectorCopy(spot->s.angles, angles);
-        return spot;
+// Address: 0x10038d50
+[QL] Domination initial spawns. Gathers the info_player_deathmatch spots that
+are linked (via a team_dom_point's target -> spot targetname) to a domination
+point the client's team currently controls, keeps those beyond g_spawnMinDistance
+from every live enemy, and random-picks. Returns NULL when fewer than two such
+spots qualify, so the caller can fall back to the deathmatch selector.
+================
+*/
+#define MAX_DOM_SPAWNS 25
+static gentity_t* SelectNearestDeathmatchSpawnPoint(gentity_t* clientEnt, vec3_t origin, vec3_t angles) {
+    gclient_t* client;
+    int clientTeam;
+    gentity_t* dom;
+    gentity_t* spot;
+    gentity_t* spots[MAX_DOM_SPAWNS];
+    gentity_t* safeSpots[MAX_DOM_SPAWNS];
+    int count;
+    int numSafe;
+    int i;
+    int sel;
+    float minDist;
+
+    client = clientEnt->client;
+    clientTeam = client->sess.sessionTeam;
+    count = 0;
+
+    dom = NULL;
+    while ((dom = G_Find(dom, FOFS(classname), "team_dom_point")) != NULL) {
+        if (dom->s.modelindex2 == clientTeam && dom->target) {
+            spot = NULL;
+            while ((spot = G_Find(spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
+                if (spot->targetname && !Q_stricmp(dom->target, spot->targetname) && count < MAX_DOM_SPAWNS) {
+                    spots[count++] = spot;
+                }
+            }
+        }
     }
 
-    // select a random spot from the spawn points furthest away
-    rnd = random() * (numSpots / 2);
+    if (count <= 0) {
+        return NULL;
+    }
 
-    VectorCopy(list_spot[rnd]->s.origin, origin);
+    minDist = (float)g_spawnMinDistance.integer;
+    numSafe = 0;
+    for (i = 0; i < count; i++) {
+        float nearest = 1e8f;
+        int j;
+        for (j = 0; j < level.maxclients; j++) {
+            gclient_t* other = g_entities[j].client;
+            float dx, dy, dz, d2;
+
+            if (other == NULL || other->pers.connected == CON_DISCONNECTED ||
+                other->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
+                other->ps.stats[STAT_HEALTH] <= 0) {
+                continue;
+            }
+
+            dx = spots[i]->r.currentOrigin[0] - g_entities[j].r.currentOrigin[0];
+            dy = spots[i]->r.currentOrigin[1] - g_entities[j].r.currentOrigin[1];
+            dz = spots[i]->r.currentOrigin[2] - g_entities[j].r.currentOrigin[2];
+            d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < nearest) {
+                nearest = d2;
+            }
+        }
+        if (nearest > minDist * minDist) {
+            safeSpots[numSafe++] = spots[i];
+        }
+    }
+
+    if (numSafe <= 1) {
+        return NULL;
+    }
+
+    sel = ((rand() & 0x7fff) * numSafe) / 0x8000;
+    if (sel < 0 || sel >= numSafe) {
+        return NULL;
+    }
+    spot = safeSpots[sel];
+    VectorCopy(spot->s.origin, origin);
     origin[2] += 9;
-    VectorCopy(list_spot[rnd]->s.angles, angles);
-
-    return list_spot[rnd];
+    VectorCopy(spot->s.angles, angles);
+    return spot;
 }
 
 /*
 ===========
 SelectSpawnPoint
 
-Chooses a player start, deathmatch start, etc
+// Address: 0x10039920
+[QL] The unified spawn selector for every non-spectator gametype. Works out
+whether this is an "initial" spawn (duel first spawn, first team spawn, or an AD
+match spawn), the client's own team, and the team that carries the
+enemy-distance weight, then dispatches to the domination or the weighted
+deathmatch selector with a staged set of fallbacks. Returns the chosen spawn
+entity, or NULL when even the deferred-spawn resort fails (the caller then drops
+the player to spectator for this frame).
 ============
 */
-gentity_t* SelectSpawnPoint(vec3_t avoidPoint, vec3_t origin, vec3_t angles, qboolean isbot) {
-    return SelectRandomFurthestSpawnPoint(avoidPoint, origin, angles, isbot);
+gentity_t* SelectSpawnPoint(gentity_t* clientEnt, vec3_t origin, vec3_t angles) {
+    gclient_t* client;
+    gentity_t* spot;
+    int gametype;
+    int initial;
+    int team;       // own team: TEAM_RED, TEAM_BLUE, or 0 for non-team play
+    int teamB;      // parity fallback team used by the non-team retries
+    int enemyTeam;  // team the g_enemyTeamRespawnRatio weight applies to
+    int parity;
+    qboolean isBot;
 
-    /*
-    gentity_t	*spot;
-    gentity_t	*nearestSpot;
+    client = clientEnt->client;
+    gametype = g_gametype.integer;
+    isBot = (clientEnt->r.svFlags & SVF_BOT) ? qtrue : qfalse;
+    initial = 0;
+    parity = rand() & 1;  // rand() never sets the sign bit, so this is the low bit
 
-    nearestSpot = SelectNearestDeathmatchSpawnPoint( avoidPoint );
+    team = 0;
+    teamB = parity ? TEAM_BLUE : TEAM_RED;
+    enemyTeam = 0;
 
-    spot = SelectRandomDeathmatchSpawnPoint ( );
-    if ( spot == nearestSpot ) {
-        // roll again if it would be real close to point of death
-        spot = SelectRandomDeathmatchSpawnPoint ( );
-        if ( spot == nearestSpot ) {
-            // last try
-            spot = SelectRandomDeathmatchSpawnPoint ( );
+    // duel: the very first spawn is an "initial" spawn
+    if (gametype == GT_DUEL && !client->pers.initialSpawn) {
+        client->pers.initialSpawn = qtrue;
+        initial = 1;
+    }
+
+    // [QL] the binary also has a training-mode (level.isTraining) branch here;
+    // ioquakelive has no training mode, so it is intentionally omitted.
+
+    // team gametypes GT_CA (4) .. GT_AD (11)
+    if ((unsigned)(gametype - GT_CA) < 8) {
+        if (client->pers.teamState.state == TEAM_BEGIN ||
+            (gametype == GT_AD && level.warmupTime == 0)) {
+            initial = 1;
+        }
+        team = (client->sess.sessionTeam == TEAM_RED) ? TEAM_RED : TEAM_BLUE;
+        teamB = 0;
+        // the enemy-distance weight leans on the opposing team for most team
+        // gametypes, but on the client's own team for GT_FREEZE and GT_DOMINATION
+        if (gametype == GT_FREEZE || gametype == GT_DOMINATION) {
+            enemyTeam = team;
+        } else {
+            enemyTeam = (team == TEAM_RED) ? TEAM_BLUE : TEAM_RED;
         }
     }
 
-    // find a single player start spot
-    if (!spot) {
-        G_Error( "Couldn't find a spawn point" );
+    // dispatch
+    if (gametype == GT_DOMINATION && initial == 0) {
+        spot = SelectNearestDeathmatchSpawnPoint(clientEnt, origin, angles);
+    } else {
+        spot = SelectRandomDeathmatchSpawnPoint(isBot, enemyTeam, origin, angles, initial, team, 2);
     }
 
-    VectorCopy (spot->s.origin, origin);
-    origin[2] += 9;
-    VectorCopy (spot->s.angles, angles);
+    if (spot == NULL) {
+        // CTF / 1FCTF / Obelisk / Harvester / AD skip the team/initial retries
+        // and go straight to the deferred-spawn resort
+        qboolean skipRetries = (gametype > GT_CA && gametype <= GT_HARVESTER) || (gametype == GT_AD);
+
+        if (!skipRetries) {
+            if (initial != 0) {
+                spot = SelectRandomDeathmatchSpawnPoint(isBot, 0, origin, angles, 0, team, 2);
+            }
+            if (spot == NULL) {
+                spot = SelectRandomDeathmatchSpawnPoint(isBot, 0, origin, angles, 1, teamB, 2);
+            }
+            if (spot == NULL) {
+                spot = SelectRandomDeathmatchSpawnPoint(isBot, 0, origin, angles, 0, teamB, 2);
+            }
+        }
+
+        // last resort once too many spawns have been deferred: take any spot
+        if (spot == NULL && client->deferredSpawnCount >= g_maxDeferredSpawns.integer) {
+            spot = SelectRandomDeathmatchSpawnPoint(isBot, enemyTeam, origin, angles, 0, 0, 1);
+        }
+    }
 
     return spot;
-    */
 }
 
 /*
@@ -308,7 +538,7 @@ gentity_t* SelectInitialSpawnPoint(vec3_t origin, vec3_t angles, qboolean isbot)
     }
 
     if (!spot || SpotWouldTelefrag(spot))
-        return SelectSpawnPoint(vec3_origin, origin, angles, isbot);
+        return SelectRandomDeathmatchSpawnPoint(isbot, 0, origin, angles, 0, 0, 0);
 
     VectorCopy(spot->s.origin, origin);
     origin[2] += 9;
@@ -1092,24 +1322,28 @@ void ClientSpawn(gentity_t* ent) {
     VectorClear(spawn_origin);
 
     // [QL] find a spawn point - unified SelectSpawnPoint for all gametypes
+    // (mirrors binary ClientSpawn 0x1003be20)
     if (client->sess.sessionTeam == TEAM_SPECTATOR) {
         spawnPoint = SelectSpectatorSpawnPoint(
             spawn_origin, spawn_angles);
     } else if (g_gametype.integer == GT_RACE) {
-        // [QL] Race: use initial spawn point (near race start) rather than furthest
+        // [QL] Race keeps the ioquakelive initial-spawn selector (near race start)
         spawnPoint = SelectInitialSpawnPoint(
             spawn_origin, spawn_angles, !!(ent->r.svFlags & SVF_BOT));
     } else {
-        spawnPoint = SelectSpawnPoint(
-            client->ps.origin,
-            spawn_origin, spawn_angles, !!(ent->r.svFlags & SVF_BOT));
-        // [QL] if no spawn point found, put player in spectator mode
+        spawnPoint = SelectSpawnPoint(ent, spawn_origin, spawn_angles);
+        // [QL] no free spawn point: defer the spawn and drop to spectator this
+        // frame. ClientThink_real retries once deferredSpawnTime expires; the
+        // deferredSpawnCount gates SelectSpawnPoint's last-resort attempt.
         if (!spawnPoint) {
-            client->respawnTime = level.time + 600;
+            client->deferredSpawnTime = level.time + 600;
             client->ps.pm_type = PM_SPECTATOR;
-            client->pers.teamState.state = TEAM_ACTIVE;
+            client->deferredSpawnCount++;
             return;
         }
+        // successful spawn clears the deferred counter (the client memset below
+        // also zeroes it, this keeps the intent explicit and matches the binary)
+        client->deferredSpawnCount = 0;
     }
     client->pers.teamState.state = TEAM_ACTIVE;
 

@@ -1672,12 +1672,12 @@ static void CG_RegisterGraphics(void) {
     memset(&cg.refdef, 0, sizeof(cg.refdef));
     trap_R_ClearScene();
 
-    CG_LoadingString(cgs.mapname);
+    CG_LoadingString(CG_ConfigString(CS_MESSAGE));
 
     trap_R_LoadWorldMap(cgs.mapname);
 
     // precache status bar pics
-    CG_LoadingString("game media");
+    CG_LoadingString("Game Media");
 
     for (i = 0; i < 11; i++) {
         cgs.media.numberShaders[i] = trap_R_RegisterShader(sb_nums[i]);
@@ -2079,7 +2079,7 @@ append:
                 in += 2;
                 continue;
             }
-            if (*in >= 0x20) {
+            if ((unsigned char)*in >= 0x20) {
                 *out++ = *in;
             }
             in++;
@@ -2621,7 +2621,7 @@ static const char* CG_TruncateListName(const char* name, int maxWidth, int shrin
     static char buf[64];
     int len;
 
-    if (CG_DrawTextWidth(name, 0.16f, 0, 0) <= maxWidth) {
+    if (CG_DrawTextWidth(name, 0.16f, 0, 0) < maxWidth) {
         return name;
     }
     Q_strncpyz(buf, name, sizeof(buf));
@@ -3216,7 +3216,7 @@ void CG_LoadHudMenu(void) {
     // cgDC.setBinding = &trap_Key_SetBinding;
     // cgDC.getBindingBuf = &trap_Key_GetBindingBuf;
     cgDC.keynumToStringBuf = &trap_Key_KeynumToStringBuf;
-    // cgDC.executeText = &trap_Cmd_ExecuteText;
+    cgDC.executeText = &CG_ExecuteText;
     cgDC.Error = &Com_Error;
     cgDC.Print = &Com_Printf;
     cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;
@@ -3423,7 +3423,7 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     cgs.customSettings = atoi(CG_ConfigString(CS_CUSTOM_SETTINGS));
 
     // load the new map
-    CG_LoadingString("collision map");
+    CG_LoadingString("Collision Map");
 
     trap_CM_LoadMap(cgs.mapname);
 
@@ -3432,17 +3432,17 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum) {
     cg.loading = qtrue;  // force players to load instead of defer
     cg.loadingStage++;
 
-    CG_LoadingString("sounds");
+    CG_LoadingString("Sounds");
 
     CG_RegisterSounds();
     cg.loadingStage++;
 
-    CG_LoadingString("graphics");
+    CG_LoadingString("Graphics");
 
     CG_RegisterGraphics();
     cg.loadingStage++;
 
-    CG_LoadingString("clients");
+    CG_LoadingString("Clients");
 
     CG_RegisterClients();  // if low on memory, some clients will be deferred
     cg.loadingStage++;

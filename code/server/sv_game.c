@@ -1233,9 +1233,12 @@ void SV_RestartGameProgs(void) {
     sv_gameLibHandle = NULL;
     memset(sv_vmMainTable, 0, sizeof(sv_vmMainTable));
 
-    // Reload
-    SV_InitGameProgs();
-    SV_InitGameVM(qtrue);
+    // Reload the DLL and run a SINGLE GAME_INIT with restart=qtrue. Previously this
+    // called SV_InitGameProgs() -- which already ends in SV_InitGameVM(qfalse) -- and then
+    // SV_InitGameVM(qtrue), so G_InitGame / SP_worldspawn ran twice per map_restart: the
+    // first consumed g_restarted into IN_PROGRESS and cleared it, the second saw it cleared
+    // and dropped the match straight back to warmup.
+    SV_InitGameProgs(qtrue);
 }
 
 /*
@@ -1245,7 +1248,7 @@ SV_InitGameProgs
 Called on a normal map change, not on a map_restart
 ===============
 */
-void SV_InitGameProgs(void) {
+void SV_InitGameProgs(qboolean restart) {
     cvar_t *var;
     extern int bot_enable;
     typedef void (*dllEntryProc)(void **vmMainTable, gameImport_t *imports, int *apiVersion);
@@ -1293,7 +1296,7 @@ void SV_InitGameProgs(void) {
 
     Com_Printf("Game DLL loaded, API version %d\n", sv_apiVersion);
 
-    SV_InitGameVM(qfalse);
+    SV_InitGameVM(restart);
 }
 
 /*

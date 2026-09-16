@@ -437,6 +437,11 @@ static void SV_SetNextMaps(const char* mapname) {
         return;
     }
     if (FS_ReadFile(poolFile->string, &f.v) <= 0) {
+        // an existing but empty pool file returns 0 yet still allocates a buffer
+        // (a missing file returns -1 with a NULL buffer)
+        if (f.v) {
+            FS_FreeFile(f.v);
+        }
         return;
     }
 
@@ -463,6 +468,24 @@ static void SV_SetNextMaps(const char* mapname) {
         sep = strchr(line, '|');
         if (sep) {
             *sep++ = '\0';
+        }
+        // trim trailing whitespace on the map name and surrounding whitespace on
+        // the factory id, so "campgrounds | ca" yields "campgrounds" / "ca"
+        {
+            char* end = line + strlen(line);
+            while (end > line && (end[-1] == ' ' || end[-1] == '\t')) {
+                *--end = '\0';
+            }
+        }
+        if (sep) {
+            char* end;
+            while (*sep == ' ' || *sep == '\t') {
+                sep++;
+            }
+            end = sep + strlen(sep);
+            while (end > sep && (end[-1] == ' ' || end[-1] == '\t')) {
+                *--end = '\0';
+            }
         }
         Q_strncpyz(poolNames[poolCount], line, sizeof(poolNames[0]));
         Q_strncpyz(poolFactories[poolCount], sep ? sep : "", sizeof(poolFactories[0]));
@@ -619,8 +642,8 @@ void SV_SpawnServer(char* server, qboolean killBots) {
     // to load during actual gameplay
     sv.state = SS_LOADING;
 
-    // load and spawn all other entities
-    SV_InitGameProgs();
+    // load and spawn all other entities (fresh map load, not a restart)
+    SV_InitGameProgs(qfalse);
 
     // don't allow a map_restart if game is modified
     sv_gametype->modified = qfalse;

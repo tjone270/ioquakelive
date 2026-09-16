@@ -1971,7 +1971,7 @@ static void Cmd_Acc_f(gentity_t* ent) {
             Q_strcat(result, sizeof(result), " 0");
         }
     }
-    trap_SendServerCommand(ent - g_entities, va("acc%s", result));
+    trap_SendServerCommand(ent - g_entities, va("acc %s", result));
 }
 
 /*
@@ -2004,7 +2004,7 @@ static void Cmd_PStats_f(gentity_t* ent) {
             Q_strcat(result, sizeof(result), " 0");
         }
     }
-    trap_SendServerCommand(ent - g_entities, va("pstats%s", result));
+    trap_SendServerCommand(ent - g_entities, va("pstats %s", result));
 }
 
 /*

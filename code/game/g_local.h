@@ -759,7 +759,8 @@ int TeamCount(int ignoreClientNum, team_t team);
 int TeamLeader(int team);
 team_t PickTeam(int ignoreClientNum);
 void SetClientViewAngle(gentity_t* ent, vec3_t angle);
-gentity_t* SelectSpawnPoint(vec3_t avoidPoint, vec3_t origin, vec3_t angles, qboolean isbot);
+gentity_t* SelectSpawnPoint(gentity_t* clientEnt, vec3_t origin, vec3_t angles);
+gentity_t* SelectRandomDeathmatchSpawnPoint(qboolean isBot, int enemyTeam, vec3_t origin, vec3_t angles, int initial, int team, int mode);
 void CopyToBodyQue(gentity_t* ent);
 void ClientRespawn(gentity_t* ent);
 void BeginIntermission(void);
@@ -1078,6 +1079,11 @@ extern vmCvar_t g_debugMove;
 extern vmCvar_t g_debugAlloc;
 extern vmCvar_t g_debugDamage;
 extern vmCvar_t g_weaponRespawn;
+// [QL] spawn-point selection cvars (SelectSpawnPoint / SelectRandomDeathmatchSpawnPoint)
+extern vmCvar_t g_spawnRandomRatio;      // fraction of the safest spots to random-pick among
+extern vmCvar_t g_enemyTeamRespawnRatio; // distance weight for the enemy/own team players
+extern vmCvar_t g_spawnMinDistance;      // minimum distance from an enemy for a spawn to count
+extern vmCvar_t g_maxDeferredSpawns;     // deferred spawns before the last-resort attempt fires
 extern vmCvar_t g_motd;
 extern vmCvar_t g_warmup;
 extern vmCvar_t g_doWarmup;

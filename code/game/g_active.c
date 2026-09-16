@@ -747,7 +747,7 @@ void ClientEvents(gentity_t* ent, int oldEventSequence) {
                     }
                 }
 
-                SelectSpawnPoint(ent->client->ps.origin, origin, angles, qfalse);
+                SelectSpawnPoint(ent, origin, angles);
                 TeleportPlayer(ent, origin, angles);
                 break;
 
@@ -921,6 +921,29 @@ void ClientThink_real(gentity_t* ent) {
     if (level.timePauseBegin != 0) {
         client->ps.pm_flags |= PMF_PAUSED;
         client->ps.commandTime = ucmd->serverTime;
+        return;
+    }
+
+    // [QL] deferred spawn: ClientSpawn drops the player to a temporary spectator
+    // (deferredSpawnTime + PM_SPECTATOR) when no spawn point is free. Hold them
+    // there until the timer expires, then re-enter through the gametype's begin.
+    if (client->deferredSpawnTime != 0) {
+        if (client->deferredSpawnTime < level.time) {
+            client->deferredSpawnTime = 0;
+            client->ps.pm_type = PM_NORMAL;
+            switch (g_gametype.integer) {
+            case GT_CA:
+            case GT_AD:
+                ClientBegin_RoundBased(ent);
+                break;
+            case GT_FREEZE:
+                Freeze_ClientBegin(ent);
+                break;
+            default:
+                ClientSpawn(ent);
+                break;
+            }
+        }
         return;
     }
 

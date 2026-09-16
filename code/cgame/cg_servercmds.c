@@ -592,28 +592,25 @@ CG_ParseTeamInfo
 static void CG_ParseTeamInfo(void) {
     int i;
     int client;
+    int count;
+    int n;
 
-    // [QL] binary CG_ParseTeamInfo (0x100487b0, Ghidra-mislabelled
-    // CG_ParseAccuracyFromCS): QL's "tinfo" is NOT Q3's 6-fields-per-player
-    // overlay. The server (qagame SendTeamInfo, "tinfo %i %s" with a " %i" per
-    // player) sends only the sorted client-number list; teammate
-    // health/armour/location come through the snapshot, not here. So this is a
-    // flat list: argv(1) = count, argv(2..count+1) = client numbers.
-    numSortedTeamPlayers = atoi(CG_Argv(1));
-    if (numSortedTeamPlayers < 0 || numSortedTeamPlayers > TEAM_MAXOVERLAY) {
-        CG_Error("CG_ParseTeamInfo: numSortedTeamPlayers out of range (%d)",
-                 numSortedTeamPlayers);
-        return;
+    count = atoi(CG_Argv(1));
+    if (count < 0) {
+        count = 0;
+    } else if (count > TEAM_MAXOVERLAY) {
+        count = TEAM_MAXOVERLAY;
     }
 
-    for (i = 0; i < numSortedTeamPlayers; i++) {
+    n = 0;
+    for (i = 0; i < count; i++) {
         client = atoi(CG_Argv(i + 2));
         if (client < 0 || client >= MAX_CLIENTS) {
-            CG_Error("CG_ParseTeamInfo: bad client number: %d", client);
-            return;
+            continue;
         }
-        sortedTeamPlayers[i] = client;
+        sortedTeamPlayers[n++] = client;
     }
+    numSortedTeamPlayers = n;
 }
 
 /*

@@ -45,6 +45,11 @@ vmCvar_t g_fraglimit;
 vmCvar_t g_timelimit;
 vmCvar_t g_capturelimit;
 vmCvar_t g_friendlyFire;
+// [QL] spawn-point selection cvars
+vmCvar_t g_spawnRandomRatio;
+vmCvar_t g_enemyTeamRespawnRatio;
+vmCvar_t g_spawnMinDistance;
+vmCvar_t g_maxDeferredSpawns;
 vmCvar_t g_password;
 vmCvar_t g_needpass;
 vmCvar_t g_maxclients;
@@ -638,6 +643,12 @@ static cvarTable_t gameCvarTable[] = {
 
 
     {&g_friendlyFire, "g_friendlyFire", "0", CVAR_GAMERULE, 0, NULL},  // [QL] binary: 0x100000
+
+    // [QL] spawn-point selection (binary cvar table + SelectSpawnPoint 0x10039920)
+    {&g_spawnRandomRatio, "g_spawnRandomRatio", "0.5", CVAR_GAMERULE, 0, NULL},            // binary: 0x100000
+    {&g_enemyTeamRespawnRatio, "g_enemyTeamRespawnRatio", "1.5", CVAR_GAMERULE, 0, NULL},  // binary: 0x100000
+    {&g_spawnMinDistance, "g_spawnMinDistance", "64", CVAR_GAMERULE, 0, NULL},             // binary: 0x100000
+    {&g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", 0, 0, NULL},                        // binary: 0x000000
 
     // [QL] g_teamAutoJoin / g_teamForceBalance registered once below (near g_tackleFlag)
 
@@ -2299,8 +2310,8 @@ void CalculateAwards(void) {
     int accClient = -1, accBest = 0, accShots = 0;
     int dmgClient = -1, dmgBest = 0, dmgShots = 0;
     int itemClient = -1, itemBest = 0;
-    int offClient = -1, offBest = 0, offScore = 0;
-    int defClient = -1, defBest = 0, defScore = 0;
+    int offClient = -1, offBest = 0, offScore = -999;
+    int defClient = -1, defBest = 0, defScore = -999;
     int mvpClient = -1, mvpBest = 0, mvpScore = 0;
     qboolean itemAward, mvpAwards, anyEligible = qfalse;
 
@@ -2320,15 +2331,16 @@ void CalculateAwards(void) {
         st = &cl->expandedStats;
         score = cl->ps.persistant[PERS_SCORE];
 
-        if (cl->accuracy_shots > 0 && cl->accuracy_hits > 0) {
-            value = cl->accuracy_hits * 100 / cl->accuracy_shots;
-            // ties go to the player with more shots
-            if (accClient < 0 || value > accBest ||
-                (value == accBest && cl->accuracy_shots > accShots)) {
-                accClient = i;
-                accBest = value;
-                accShots = cl->accuracy_shots;
-            }
+        // a player who fired but never hit scores 0 and still competes on shot
+        // count, so the comparison runs for every eligible client (ungated)
+        value = (cl->accuracy_shots > 0 && cl->accuracy_hits > 0)
+                    ? cl->accuracy_hits * 100 / cl->accuracy_shots
+                    : 0;
+        // ties go to the player with more shots
+        if (value > accBest || (value == accBest && cl->accuracy_shots > accShots)) {
+            accClient = i;
+            accBest = value;
+            accShots = cl->accuracy_shots;
         }
 
         value = st->totalDamageDealt;
@@ -2353,17 +2365,18 @@ void CalculateAwards(void) {
         }
 
         if (mvpAwards) {
+            // no >0 gate: with the -999 score sentinel the first eligible player
+            // bootstraps the award, so a zero-contribution match still names the
+            // highest scorer (matches binary CalculateAwards @0x10055a50)
             value = 10 * (st->numAssists + 10 * st->numCaptures);
-            if (value > 0 && (offClient < 0 || value > offBest ||
-                              (value == offBest && score > offScore))) {
+            if (value > offBest || (value == offBest && score > offScore)) {
                 offClient = i;
                 offBest = value;
                 offScore = score;
             }
 
             value = 10 * (st->numDefends + st->numAssists);
-            if (value > 0 && (defClient < 0 || value > defBest ||
-                              (value == defBest && score > defScore))) {
+            if (value > defBest || (value == defBest && score > defScore)) {
                 defClient = i;
                 defBest = value;
                 defScore = score;
@@ -2384,12 +2397,18 @@ void CalculateAwards(void) {
         return;
     }
 
+    // accuracy and damage are written in every gametype; the item and MVP heads
+    // only in the gametypes that compute them (matches the binary's gated writes)
     trap_SetConfigstring(CS_MOST_ACCURATE_PLYR, accClient < 0 ? "" : va("%i", accClient));
     trap_SetConfigstring(CS_MOST_DAMAGEDEALT_PLYR, dmgClient < 0 ? "" : va("%i", dmgClient));
-    trap_SetConfigstring(CS_BEST_ITEMCONTROL_PLYR, itemClient < 0 ? "" : va("%i", itemClient));
-    trap_SetConfigstring(CS_MOST_VALUABLE_OFFENSIVE_PLYR, offClient < 0 ? "" : va("%i", offClient));
-    trap_SetConfigstring(CS_MOST_VALUABLE_DEFENSIVE_PLYR, defClient < 0 ? "" : va("%i", defClient));
-    trap_SetConfigstring(CS_MOST_VALUABLE_PLYR, mvpClient < 0 ? "" : va("%i", mvpClient));
+    if (itemAward) {
+        trap_SetConfigstring(CS_BEST_ITEMCONTROL_PLYR, itemClient < 0 ? "" : va("%i", itemClient));
+    }
+    if (mvpAwards) {
+        trap_SetConfigstring(CS_MOST_VALUABLE_OFFENSIVE_PLYR, offClient < 0 ? "" : va("%i", offClient));
+        trap_SetConfigstring(CS_MOST_VALUABLE_DEFENSIVE_PLYR, defClient < 0 ? "" : va("%i", defClient));
+        trap_SetConfigstring(CS_MOST_VALUABLE_PLYR, mvpClient < 0 ? "" : va("%i", mvpClient));
+    }
 }
 
 void SendScoreboardMessageToAllClients(void) {
@@ -2451,7 +2470,9 @@ void FindIntermissionPoint(void) {
     // find the intermission spot
     ent = G_Find(NULL, FOFS(classname), "info_player_intermission");
     if (!ent) {  // the map creator forgot to put in an intermission point...
-        SelectSpawnPoint(vec3_origin, level.intermission_origin, level.intermission_angle, qfalse);
+        // [QL] binary FindIntermissionPoint (0x10054f70) falls back to a plain
+        // random deathmatch spawn (initial 0, team 0, mode 0)
+        SelectRandomDeathmatchSpawnPoint(qfalse, 0, level.intermission_origin, level.intermission_angle, 0, 0, 0);
     } else {
         VectorCopy(ent->s.origin, level.intermission_origin);
         VectorCopy(ent->s.angles, level.intermission_angle);

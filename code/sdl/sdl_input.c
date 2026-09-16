@@ -1048,7 +1048,13 @@ static void IN_ProcessEvents(void) {
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
             case SDL_KEYDOWN:
-                if (e.key.repeat && Key_GetCatcher() == 0)
+                // Drop SDL keyboard auto-repeat DOWN events except for text-editing
+                // catchers (console, chat, UI edit fields), where held keys should repeat.
+                // Delivering repeats while a non-text catcher is up (e.g. KEYCATCH_SCORES
+                // raised by the held-TAB scoreboard, or an in-game menu) re-fires the key's
+                // bind every repeat tick, which flickers the scoreboard on and off.
+                if (e.key.repeat &&
+                    !(Key_GetCatcher() & (KEYCATCH_CONSOLE | KEYCATCH_MESSAGE | KEYCATCH_UI)))
                     break;
 
                 if ((key = IN_TranslateSDLToQ3Key(&e.key.keysym, qtrue)))
@@ -1115,6 +1121,14 @@ static void IN_ProcessEvents(void) {
                     if (!e.motion.xrel && !e.motion.yrel)
                         break;
                     Com_QueueEvent(in_eventTime, SE_MOUSE, e.motion.xrel, e.motion.yrel, 0, NULL);
+                } else if ((Key_GetCatcher() & KEYCATCH_CGAME) && cls.glconfig.vidWidth > 0) {
+                    // [QL] cgame menu with the OS cursor visible: the mouse is ungrabbed,
+                    // so send the absolute window position scaled into the 640x480 virtual
+                    // screen. cgame stores this directly, keeping its hit-testing aligned
+                    // with the system cursor the player sees.
+                    int ax = e.motion.x * SCREEN_WIDTH / cls.glconfig.vidWidth;
+                    int ay = e.motion.y * SCREEN_HEIGHT / cls.glconfig.vidHeight;
+                    Com_QueueEvent(in_eventTime, SE_MOUSE, ax, ay, 0, NULL);
                 }
                 break;
 
@@ -1258,6 +1272,14 @@ void IN_Frame(void) {
     } else if (!(SDL_GetWindowFlags(SDL_window) & SDL_WINDOW_INPUT_FOCUS)) {
         // Window not got focus
         IN_DeactivateMouse(cls.glconfig.isFullscreen);
+    } else if (Key_GetCatcher() & KEYCATCH_CGAME) {
+        // [QL] an interactive in-game menu is up (the join-game overlay holds
+        // KEYCATCH_CGAME). The shipped client releases the mouse and relies on the OS
+        // cursor here, so ungrab and force the system cursor visible in both windowed
+        // and fullscreen. The scoreboard uses KEYCATCH_SCORES, which intentionally does
+        // NOT release the mouse, so the camera keeps control there.
+        IN_DeactivateMouse(cls.glconfig.isFullscreen);
+        SDL_ShowCursor(SDL_TRUE);
     } else
         IN_ActivateMouse(cls.glconfig.isFullscreen);
 

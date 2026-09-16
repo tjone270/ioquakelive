@@ -1252,7 +1252,9 @@ void Script_SetCvar(itemDef_t* item, char** args) {
 void Script_Exec(itemDef_t* item, char** args) {
     const char* val;
     if (String_Parse(args, &val)) {
-        DC->executeText(EXEC_APPEND, va("%s ; ", val));
+        if (DC->executeText) {  // guard: a display context without this callback must not crash
+            DC->executeText(EXEC_APPEND, va("%s ; ", val));
+        }
     }
 }
 
@@ -5454,12 +5456,19 @@ qboolean ItemParse_cvarFloatList(itemDef_t* item, int handle) {
         }
 
         multiPtr->cvarList[multiPtr->count] = String_Alloc(token.string);
-        // [QL] ItemParse_cvarFloatList 0x1001f1d0 parses the value as a string token
-        // into cvarStr[], then atof()'s it into cvarValue[]; on failure it stores 0
-        // and stops (rather than PC_Float_Parse-ing straight into cvarValue).
-        if (!PC_String_Parse(handle, &multiPtr->cvarStr[multiPtr->count])) {
+        if (!trap_PC_ReadToken(handle, &token)) {
             multiPtr->cvarValue[multiPtr->count] = 0;
             break;
+        }
+        if (token.string[0] == '-' && token.string[1] == '\0') {
+            pc_token_t numTok;
+            if (!trap_PC_ReadToken(handle, &numTok)) {
+                multiPtr->cvarValue[multiPtr->count] = 0;
+                break;
+            }
+            multiPtr->cvarStr[multiPtr->count] = String_Alloc(va("-%s", numTok.string));
+        } else {
+            multiPtr->cvarStr[multiPtr->count] = String_Alloc(token.string);
         }
         multiPtr->cvarValue[multiPtr->count] = atof(multiPtr->cvarStr[multiPtr->count]);
 

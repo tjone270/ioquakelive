@@ -2110,7 +2110,7 @@ static void CG_DrawWarmup(void) {
 		}
 	}
 
-	if (cg.showScores) {
+	if (cg.joinMenuPending == 1 || cg.scoreBoardShowing) {
 		return;
 	}
 
@@ -2388,7 +2388,9 @@ static void CG_Draw2D(stereoFrame_t stereoFrame) {
 			CG_DrawCenterString();
 			CG_SetWidescreen(WIDESCREEN_STRETCH);
 		}
+		CG_SetWidescreen(WIDESCREEN_RIGHT);
 		CG_DrawAccStats();
+		CG_SetWidescreen(WIDESCREEN_STRETCH);
 	}
 }
 

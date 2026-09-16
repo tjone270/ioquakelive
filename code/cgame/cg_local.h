@@ -1906,6 +1906,7 @@ void CG_SelectNextPlayer(void);
 float CG_GetValue(int ownerDraw);
 qboolean CG_OwnerDrawVisible(int flags, int flags2);
 void CG_RunMenuScript(char** args);
+void CG_ExecuteText(int exec_when, const char* text);
 void CG_ShowResponseHead(void);
 void CG_SetPrintString(int type, const char* p);
 void CG_InitTeamChat(void);

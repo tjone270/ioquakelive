@@ -1018,78 +1018,9 @@ qboolean Team_GetLocationMsg(gentity_t* ent, char* loc, int loclen) {
 
 /*---------------------------------------------------------------------------*/
 
-/*
-================
-SelectRandomTeamSpawnPoint
-
-go to a random point that doesn't telefrag
-================
-*/
-#define MAX_TEAM_SPAWN_POINTS 32
-gentity_t* SelectRandomTeamSpawnPoint(int teamstate, team_t team) {
-    gentity_t* spot;
-    int count;
-    int selection;
-    gentity_t* spots[MAX_TEAM_SPAWN_POINTS];
-    char* classname;
-
-    if (teamstate == TEAM_BEGIN) {
-        if (team == TEAM_RED)
-            classname = "team_CTF_redplayer";
-        else if (team == TEAM_BLUE)
-            classname = "team_CTF_blueplayer";
-        else
-            return NULL;
-    } else {
-        if (team == TEAM_RED)
-            classname = "team_CTF_redspawn";
-        else if (team == TEAM_BLUE)
-            classname = "team_CTF_bluespawn";
-        else
-            return NULL;
-    }
-    count = 0;
-
-    spot = NULL;
-
-    while ((spot = G_Find(spot, FOFS(classname), classname)) != NULL) {
-        if (SpotWouldTelefrag(spot)) {
-            continue;
-        }
-        spots[count] = spot;
-        if (++count == MAX_TEAM_SPAWN_POINTS)
-            break;
-    }
-
-    if (!count) {  // no spots that won't telefrag
-        return G_Find(NULL, FOFS(classname), classname);
-    }
-
-    selection = rand() % count;
-    return spots[selection];
-}
-
-/*
-===========
-SelectCTFSpawnPoint
-
-============
-*/
-gentity_t* SelectCTFSpawnPoint(team_t team, int teamstate, vec3_t origin, vec3_t angles, qboolean isbot) {
-    gentity_t* spot;
-
-    spot = SelectRandomTeamSpawnPoint(teamstate, team);
-
-    if (!spot) {
-        return SelectSpawnPoint(vec3_origin, origin, angles, isbot);
-    }
-
-    VectorCopy(spot->s.origin, origin);
-    origin[2] += 9;
-    VectorCopy(spot->s.angles, angles);
-
-    return spot;
-}
+// [QL] SelectRandomTeamSpawnPoint / SelectCTFSpawnPoint removed: the unified
+// SelectSpawnPoint (g_client.c, binary 0x10039920) now handles team spawns for
+// every gametype, so the old team-blind CTF path is dead.
 
 /*---------------------------------------------------------------------------*/
 
@@ -1113,7 +1044,6 @@ void TeamOverlayMessage(gentity_t* ent) {
     int i, j;
     gentity_t* player;
     int cnt;
-    int h, a;
     int clients[TEAM_MAXOVERLAY];
     int team;
 
@@ -1154,18 +1084,12 @@ void TeamOverlayMessage(gentity_t* ent) {
     for (i = 0, cnt = 0; i < g_maxclients.integer && cnt < TEAM_MAXOVERLAY; i++) {
         player = g_entities + i;
         if (player->inuse && player->client->sess.sessionTeam == team) {
-            h = player->client->ps.stats[STAT_HEALTH];
-            a = player->client->ps.stats[STAT_ARMOR];
-            if (h < 0)
-                h = 0;
-            if (a < 0)
-                a = 0;
-
-            Com_sprintf(entry, sizeof(entry),
-                        " %i %i %i %i %i %i",
-                        //				level.sortedClients[i], player->client->pers.teamState.location, h, a,
-                        i, player->client->pers.teamState.location, h, a,
-                        player->client->ps.weapon, player->s.powerups);
+            // [QL] binary SendTeamInfo sends one client number per player, not Q3's
+            // six-field entry. Teammate health/armour/location/weapon/powerups reach
+            // the client through the snapshot, so tinfo is just a flat client list.
+            // (Sending the Q3 format here made the client read a health value as a
+            // client number and CG_Error with "bad client number".)
+            Com_sprintf(entry, sizeof(entry), " %i", i);
             j = strlen(entry);
             if (stringlength + j >= sizeof(string))
                 break;
